@@ -89,6 +89,43 @@ open http://localhost
 
 ---
 
+## 🤖 GitHub Actions + Docker Images für Raspberry Pi
+
+Die Repository-Pipeline baut jetzt automatisch beide Images (`backend` und `frontend`) und veröffentlicht sie in der GitHub Container Registry (`ghcr.io`).
+
+### Was passiert automatisch?
+- **Push auf `main`** → Images werden gebaut und gepusht
+- **Pull Request** → Images werden nur gebaut, nicht gepusht
+- **Plattformen** → `linux/amd64` und `linux/arm64`
+- **Raspberry Pi** → kann direkt das `arm64`-Image ziehen
+
+### Image-Namen
+Je nach GitHub-Account heißen die Images typischerweise so:
+```bash
+ghcr.io/<dein-github-username>/cycling-backend:latest
+ghcr.io/<dein-github-username>/cycling-frontend:latest
+```
+
+### Auf dem Raspberry Pi nutzen
+```bash
+# Login nur nötig, wenn das Paket privat ist
+docker login ghcr.io
+
+# Backend und Frontend ziehen
+docker pull ghcr.io/<dein-github-username>/cycling-backend:latest
+docker pull ghcr.io/<dein-github-username>/cycling-frontend:latest
+
+# Dann starten, z. B. mit docker compose
+# docker-compose.yml kann auf image: ... umgestellt werden,
+# oder du nutzt die Images direkt in einem eigenen Compose-File.
+```
+
+### GitHub Secrets / Berechtigungen
+Für öffentliche Repos reicht meist `GITHUB_TOKEN` in der Action.
+Für private Repositories musst du auf dem Raspberry Pi per `docker login ghcr.io` anmelden oder ein PAT mit `read:packages` verwenden.
+
+---
+
 ## 📊 Funktionen
 
 ### Aktivitätsauswahl
@@ -145,4 +182,3 @@ cycling/
 ├── docker-compose.yml
 └── .env.example
 ```
-

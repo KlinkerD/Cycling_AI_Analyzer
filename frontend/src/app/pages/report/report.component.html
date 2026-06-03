@@ -80,6 +80,7 @@
       </mat-card-content>
     </mat-card>
 
+
     <!-- KI-Analyse Karten -->
     <div class="analysis-grid">
       <mat-card class="analysis-card strengths">
@@ -88,7 +89,7 @@
           <mat-card-title>Was gut lief</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <p>{{ report.analysis.strengths }}</p>
+          <p class="ai-text">{{ report.analysis.strengths }}</p>
         </mat-card-content>
       </mat-card>
 
@@ -98,7 +99,7 @@
           <mat-card-title>Auffälligkeiten</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <p>{{ report.analysis.anomalies }}</p>
+          <p class="ai-text">{{ report.analysis.anomalies }}</p>
         </mat-card-content>
       </mat-card>
 
@@ -109,7 +110,7 @@
           <mat-card-subtitle>Vergleich letzte 3 Trainings</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <p>{{ report.analysis.progress }}</p>
+          <p class="ai-text">{{ report.analysis.progress }}</p>
         </mat-card-content>
       </mat-card>
 
@@ -119,7 +120,7 @@
           <mat-card-title>Fazit</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <p class="summary-text">{{ report.analysis.summary }}</p>
+          <p class="summary-text ai-text">{{ report.analysis.summary }}</p>
         </mat-card-content>
       </mat-card>
     </div>

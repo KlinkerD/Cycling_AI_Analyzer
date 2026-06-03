@@ -154,13 +154,24 @@ public class GeminiService {
 
         sb.append("""
 
-                Antworte NUR mit einem JSON-Objekt in folgendem Format (kein Markdown, nur reines JSON):
+                WICHTIGE ANTWORTREGELN:
+                - Schreibe präzise auf Deutsch, konkret auf diese Einheit bezogen.
+                - Sei ausführlich: jede Textsektion soll 4-7 kurze Zeilen enthalten.
+                - Struktur: nutze Zeilenumbrüche und klare Überschriften pro Feld.
+                - Format in Textfeldern:
+                  1) Eine kurze Überschrift als reine Textzeile (z. B. "Vergleich mit früheren Trainingseinheiten")
+                  2) 3-5 Bullet-Points mit "- "
+                  3) Optional eine Zeile "Empfehlung: ..."
+                - Nutze KEINE Meta-Bezeichner wie "ÜBERSCHRIFT:", "TITLE:", "BULLETS:" oder ähnliche Präfixe.
+                - Bei fehlenden Daten keine Halluzinationen; stattdessen kurz transparent erwähnen.
+
+                Antworte NUR mit einem JSON-Objekt in folgendem Format (kein Markdown-Block, nur reines JSON):
                 {
                   "score": <Zahl 1-10>,
-                  "strengths": "<Was gut lief, konkrete Beobachtungen>",
-                  "anomalies": "<Auffälligkeiten, ungewöhnliche Muster, Warnsignale oder 'Keine Auffälligkeiten'>",
-                  "progress": "<Fortschrittsanalyse im Vergleich zu den letzten 3 Trainings>",
-                  "summary": "<Kurzes prägnantes Fazit in 2-3 Sätzen>"
+                  "strengths": "<Strukturierte Stärken mit Überschrift + Bullet-Points>",
+                  "anomalies": "<Strukturierte Auffälligkeiten mit Überschrift + Bullet-Points>",
+                  "progress": "<Strukturierter Vergleich zu den letzten Trainings>",
+                  "summary": "<Strukturiertes Fazit + konkrete nächste Schritte>"
                 }
                 """);
 

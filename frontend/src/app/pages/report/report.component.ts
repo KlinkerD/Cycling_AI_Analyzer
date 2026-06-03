@@ -130,8 +130,9 @@ export class ReportComponent implements OnInit {
     this.loading = true;
     this.activityService.getReport(this.activityId).subscribe({
       next: (report) => {
-        this.report = report;
-        this.buildCharts(report);
+        const normalizedReport = this.normalizeReportText(report);
+        this.report = normalizedReport;
+        this.buildCharts(normalizedReport);
         this.loading = false;
       },
       error: () => {
@@ -256,6 +257,32 @@ export class ReportComponent implements OnInit {
       ]
     };
   }
+
+  private normalizeReportText(report: Report): Report {
+    return {
+      ...report,
+      analysis: {
+        ...report.analysis,
+        strengths: this.cleanAiText(report.analysis.strengths),
+        anomalies: this.cleanAiText(report.analysis.anomalies),
+        progress: this.cleanAiText(report.analysis.progress),
+        summary: this.cleanAiText(report.analysis.summary)
+      }
+    };
+  }
+
+  private cleanAiText(text: string | null | undefined): string {
+    if (!text) {
+      return '';
+    }
+
+    return text
+      .replace(/\r\n/g, '\n')
+      .replace(/^\s*(ÜBERSCHRIFT|HEADING|TITLE|BULLETS?|STICHPUNKTE)\s*:\s*/gim, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
 
   private buildZoneChartData(zones: ZoneDistribution[]): ChartData<'doughnut'> {
     return {

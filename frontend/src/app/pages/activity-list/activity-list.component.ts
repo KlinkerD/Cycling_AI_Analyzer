@@ -1,0 +1,148 @@
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatListModule } from '@angular/material/list';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatBadgeModule } from '@angular/material/badge';
+import { ActivityService } from '../../services/activity.service';
+import { Activity } from '../../models/activity.model';
+
+@Component({
+  selector: 'app-activity-list',
+  standalone: true,
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatCardModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
+    MatButtonModule,
+    MatIconModule,
+    MatListModule,
+    MatProgressSpinnerModule,
+    MatChipsModule,
+    MatDividerModule,
+    MatSnackBarModule,
+    MatTooltipModule,
+    MatBadgeModule
+  ],
+  templateUrl: './activity-list.component.html',
+  styleUrl: './activity-list.component.scss'
+})
+export class ActivityListComponent implements OnInit {
+
+  filterForm: FormGroup;
+  activities: Activity[] = [];
+  analyzedIds = new Set<string>();
+  loading = false;
+  analyzingId: string | null = null;
+
+  constructor(
+    private fb: FormBuilder,
+    private activityService: ActivityService,
+    private router: Router,
+    private snackBar: MatSnackBar
+  ) {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - 90);
+
+    this.filterForm = this.fb.group({
+      from: [from, Validators.required],
+      to: [to, Validators.required]
+    });
+  }
+
+  ngOnInit(): void {
+    this.loadActivities();
+  }
+
+  loadActivities(): void {
+    if (this.filterForm.invalid) return;
+    this.loading = true;
+    this.activities = [];
+
+    const { from, to } = this.filterForm.value;
+    this.activityService.getActivities(from, to).subscribe({
+      next: (data) => {
+        this.activities = data;
+        this.loading = false;
+        this.loadAnalyzedIds();
+      },
+      error: (err) => {
+        this.loading = false;
+        this.snackBar.open('Fehler beim Laden: ' + (err.error?.message || err.message), 'OK', { duration: 5000 });
+      }
+    });
+  }
+
+  private loadAnalyzedIds(): void {
+    this.activityService.getAnalyzedIds().subscribe({
+      next: (ids) => this.analyzedIds = new Set(ids),
+      error: () => {}
+    });
+  }
+
+  isAnalyzed(activityId: string): boolean {
+    return this.analyzedIds.has(activityId);
+  }
+
+  analyzeActivity(activity: Activity): void {
+    this.analyzingId = activity.id;
+    this.activityService.analyzeActivity(activity).subscribe({
+      next: () => {
+        this.analyzingId = null;
+        this.analyzedIds.add(activity.id);
+        this.router.navigate(['/report', activity.id]);
+      },
+      error: (err) => {
+        this.analyzingId = null;
+        this.snackBar.open('Analyse fehlgeschlagen: ' + (err.error?.message || err.message), 'OK', { duration: 6000 });
+      }
+    });
+  }
+
+  viewReport(activity: Activity): void {
+    this.router.navigate(['/report', activity.id]);
+  }
+
+  formatDistance(meters: number): string {
+    return (meters / 1000).toFixed(1) + ' km';
+  }
+
+  formatSpeed(ms: number): string {
+    return (ms * 3.6).toFixed(1) + ' km/h';
+  }
+
+  formatDate(dateStr: string): string {
+    if (!dateStr) return '–';
+    // Normalize: replace space with T for ISO 8601 compatibility
+    const normalized = dateStr.replace(' ', 'T');
+    const d = new Date(normalized);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('de-DE', {
+      weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+  }
+
+  formatDuration(seconds: number): string {
+    if (seconds == null || isNaN(seconds)) return '–';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}:${String(m).padStart(2, '0')} h`;
+  }
+}

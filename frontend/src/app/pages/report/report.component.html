@@ -1,0 +1,253 @@
+<div class="page-container">
+
+  @if (loading) {
+    <div class="loading-container">
+      <mat-spinner diameter="56"></mat-spinner>
+      <p>Report wird geladen...</p>
+    </div>
+  }
+
+  @if (!loading && report) {
+    <!-- Navigation -->
+    <div class="back-row">
+      <button mat-button (click)="goBack()">
+        <mat-icon>arrow_back</mat-icon>
+        Zurück zur Übersicht
+      </button>
+    </div>
+
+    <!-- Header-Karte -->
+    <mat-card class="header-card">
+      <mat-card-content>
+        <div class="header-content">
+          <div class="header-info">
+            <h1 class="activity-title">
+              <mat-icon color="primary">directions_bike</mat-icon>
+              {{ report.analysis.activityName }}
+            </h1>
+            <p class="activity-date">{{ formatDate(report.analysis.activityDate) }}</p>
+
+            <div class="quick-stats">
+              <div class="quick-stat">
+                <span class="stat-value">{{ report.analysis.distanceKm | number:'1.1-1' }}</span>
+                <span class="stat-unit">km</span>
+              </div>
+              <div class="quick-stat">
+                <span class="stat-value">{{ formatDuration(report.analysis.durationSeconds) }}</span>
+                <span class="stat-unit">Dauer</span>
+              </div>
+              @if (report.analysis.avgPowerWatts) {
+                <div class="quick-stat">
+                  <span class="stat-value">{{ report.analysis.avgPowerWatts | number:'1.0-0' }}</span>
+                  <span class="stat-unit">W ø</span>
+                </div>
+              }
+              @if (report.analysis.avgHeartRate) {
+                <div class="quick-stat">
+                  <span class="stat-value">{{ report.analysis.avgHeartRate | number:'1.0-0' }}</span>
+                  <span class="stat-unit">bpm ø</span>
+                </div>
+              }
+              @if (report.analysis.avgSpeedKmh) {
+                <div class="quick-stat">
+                  <span class="stat-value">{{ report.analysis.avgSpeedKmh | number:'1.1-1' }}</span>
+                  <span class="stat-unit">km/h ø</span>
+                </div>
+              }
+              @if (report.analysis.elevationGainM) {
+                <div class="quick-stat">
+                  <span class="stat-value">{{ report.analysis.elevationGainM | number:'1.0-0' }}</span>
+                  <span class="stat-unit">hm</span>
+                </div>
+              }
+              @if (report.analysis.avgCadenceRpm) {
+                <div class="quick-stat">
+                  <span class="stat-value">{{ report.analysis.avgCadenceRpm | number:'1.0-0' }}</span>
+                  <span class="stat-unit">rpm ø</span>
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- Score -->
+          <div class="score-circle" [style.border-color]="getScoreColor(report.analysis.overallScore)">
+            <span class="score-value" [style.color]="getScoreColor(report.analysis.overallScore)">
+              {{ report.analysis.overallScore }}
+            </span>
+            <span class="score-label">/ 10</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- KI-Analyse Karten -->
+    <div class="analysis-grid">
+      <mat-card class="analysis-card strengths">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="icon-green">thumb_up</mat-icon>
+          <mat-card-title>Was gut lief</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p>{{ report.analysis.strengths }}</p>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="analysis-card anomalies">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="icon-orange">warning</mat-icon>
+          <mat-card-title>Auffälligkeiten</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p>{{ report.analysis.anomalies }}</p>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="analysis-card progress">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="icon-blue">trending_up</mat-icon>
+          <mat-card-title>Fortschritt</mat-card-title>
+          <mat-card-subtitle>Vergleich letzte 3 Trainings</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <p>{{ report.analysis.progress }}</p>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="analysis-card summary">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="icon-primary">summarize</mat-icon>
+          <mat-card-title>Fazit</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p class="summary-text">{{ report.analysis.summary }}</p>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- Charts Sektion -->
+    <h2 class="section-title">
+      <mat-icon>show_chart</mat-icon>
+      Leistungsanalyse
+    </h2>
+
+    <div class="charts-grid">
+
+      <!-- Leistung vs. Distanz -->
+      @if (report.streams.watts.length > 0) {
+        <mat-card class="chart-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="icon-primary">bolt</mat-icon>
+            <mat-card-title>Leistung über Distanz</mat-card-title>
+          </mat-card-header>
+          <mat-card-content class="chart-container">
+            <canvas baseChart
+              [data]="powerChartData"
+              [options]="powerChartOptions"
+              type="line">
+            </canvas>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <!-- HF vs. Distanz -->
+      @if (report.streams.heartrate.length > 0) {
+        <mat-card class="chart-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="icon-red">favorite</mat-icon>
+            <mat-card-title>Herzfrequenz über Distanz</mat-card-title>
+          </mat-card-header>
+          <mat-card-content class="chart-container">
+            <canvas baseChart
+              [data]="hrChartData"
+              [options]="hrChartOptions"
+              type="line">
+            </canvas>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <!-- Kadenz vs. Distanz -->
+      @if (report.streams.cadence && report.streams.cadence.length > 0) {
+        <mat-card class="chart-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="icon-green">rotate_right</mat-icon>
+            <mat-card-title>Kadenz über Distanz</mat-card-title>
+          </mat-card-header>
+          <mat-card-content class="chart-container">
+            <canvas baseChart
+              [data]="cadenceChartData"
+              [options]="cadenceChartOptions"
+              type="line">
+            </canvas>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <!-- Power Zonen -->
+      @if (report.powerZones.length > 0) {
+        <mat-card class="chart-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="icon-primary">electric_bolt</mat-icon>
+            <mat-card-title>Leistungszonen</mat-card-title>
+            <mat-card-subtitle>FTP-basiert</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content class="chart-container">
+            <canvas baseChart
+              [data]="powerZoneChartData"
+              [options]="powerZoneChartOptions"
+              type="doughnut">
+            </canvas>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      <!-- HF Zonen -->
+      @if (report.hrZones.length > 0) {
+        <mat-card class="chart-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="icon-red">monitor_heart</mat-icon>
+            <mat-card-title>Herzfrequenzzonen</mat-card-title>
+            <mat-card-subtitle>Max-HR-basiert</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content class="chart-container">
+            <canvas baseChart
+              [data]="hrZoneChartData"
+              [options]="hrZoneChartOptions"
+              type="doughnut">
+            </canvas>
+          </mat-card-content>
+        </mat-card>
+      }
+
+    </div>
+
+    <!-- Fortschrends-Trend -->
+    @if (report.trend.length > 1) {
+      <h2 class="section-title">
+        <mat-icon>insights</mat-icon>
+        Trainingsfortschritt
+      </h2>
+      <mat-card class="chart-card full-width">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="icon-green">trending_up</mat-icon>
+          <mat-card-title>Letzte {{ report.trend.length }} analysierte Trainings</mat-card-title>
+        </mat-card-header>
+        <mat-card-content class="chart-container">
+          <canvas baseChart
+            [data]="trendChartData"
+            [options]="trendChartOptions"
+            type="line">
+          </canvas>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <div class="analyzed-info">
+      <mat-icon>info_outline</mat-icon>
+      Analysiert am {{ report.analysis.analyzedAt | date:'dd.MM.yyyy HH:mm' }} Uhr
+    </div>
+
+  }
+
+</div>
+

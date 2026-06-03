@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CopilotDiffPersistence">
+    <option name="pendingDiffs">
+      <map>
+        <entry key="/WebConfig (snapshot).java">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="/WebConfig (snapshot).java" />
+              <option name="originalContent" value="package com.cycling.config;&#10;&#10;import org.springframework.context.annotation.Bean;&#10;import org.springframework.context.annotation.Configuration;&#10;import org.springframework.web.client.RestClient;&#10;import org.springframework.web.servlet.config.annotation.CorsRegistry;&#10;import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;&#10;&#10;@Configuration&#10;public class WebConfig implements WebMvcConfigurer {&#10;&#10;    @Override&#10;    public void addCorsMappings(CorsRegistry registry) {&#10;        registry.addMapping(&quot;/api/**&quot;)&#10;                .allowedOrigins(&quot;http://localhost:4200&quot;, &quot;http://localhost&quot;)&#10;                .allowedMethods(&quot;GET&quot;, &quot;POST&quot;, &quot;PUT&quot;, &quot;DELETE&quot;, &quot;OPTIONS&quot;)&#10;                .allowedHeaders(&quot;*&quot;);&#10;    }&#10;&#10;    @Bean&#10;    public RestClient restClient() {&#10;        return RestClient.builder().build();&#10;    }&#10;}&#10;&#10;" />
+              <option name="updatedContent" value="package com.cycling.config;&#10;&#10;import com.fasterxml.jackson.databind.DeserializationFeature;&#10;import com.fasterxml.jackson.databind.ObjectMapper;&#10;import com.fasterxml.jackson.databind.PropertyNamingStrategies;&#10;import org.springframework.context.annotation.Bean;&#10;import org.springframework.context.annotation.Configuration;&#10;import org.springframework.web.client.RestClient;&#10;import org.springframework.web.servlet.config.annotation.CorsRegistry;&#10;import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;&#10;&#10;@Configuration&#10;public class WebConfig implements WebMvcConfigurer {&#10;&#10;    @Override&#10;    public void addCorsMappings(CorsRegistry registry) {&#10;        registry.addMapping(&quot;/api/**&quot;)&#10;                .allowedOrigins(&quot;http://localhost:4200&quot;, &quot;http://localhost&quot;)&#10;                .allowedMethods(&quot;GET&quot;, &quot;POST&quot;, &quot;PUT&quot;, &quot;DELETE&quot;, &quot;OPTIONS&quot;)&#10;                .allowedHeaders(&quot;*&quot;);&#10;    }&#10;&#10;    @Bean&#10;    public RestClient restClient() {&#10;        return RestClient.builder().build();&#10;    }&#10;}&#10;&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

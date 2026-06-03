@@ -1,0 +1,37 @@
+
+services:
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cycling-backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - cycling-data:/app/data
+    environment:
+      - INTERVALS_API_KEY=${INTERVALS_API_KEY}
+      - INTERVALS_ATHLETE_ID=${INTERVALS_ATHLETE_ID}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - CYCLING_FTP=${CYCLING_FTP:-250}
+      - CYCLING_MAX_HR=${CYCLING_MAX_HR:-190}
+      # Spring-Properties via Env-Vars überschreiben
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/cycling-analysis;AUTO_SERVER=TRUE
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cycling-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  cycling-data:
+    driver: local
+

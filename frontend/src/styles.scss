@@ -1,0 +1,46 @@
+@use '@angular/material' as mat;
+
+@include mat.core();
+
+$cycling-primary: mat.define-palette(mat.$indigo-palette, 700);
+$cycling-accent: mat.define-palette(mat.$orange-palette, A400);
+$cycling-warn: mat.define-palette(mat.$red-palette);
+
+$cycling-theme: mat.define-light-theme((
+  color: (
+    primary: $cycling-primary,
+    accent: $cycling-accent,
+    warn: $cycling-warn,
+  ),
+  typography: mat.define-typography-config(),
+  density: 0
+));
+
+@include mat.all-component-themes($cycling-theme);
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+  background: #f5f5f5;
+  color: #212121;
+}
+
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.mat-card-elevated {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12) !important;
+}
+
+canvas {
+  max-height: 280px;
+}
+

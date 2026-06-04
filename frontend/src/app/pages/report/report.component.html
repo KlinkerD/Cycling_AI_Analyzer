@@ -229,6 +229,30 @@
 
     </div>
 
+    <!-- Bestleistungs-Kurve (Power Curve) -->
+    @if (powerCurveChartData) {
+      <h2 class="section-title">
+        <mat-icon>military_tech</mat-icon>
+        Bestleistungen
+      </h2>
+      <mat-card class="chart-card full-width">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="icon-primary">timeline</mat-icon>
+          <mat-card-title>Beste Leistung über Zeit (1s – 2h)</mat-card-title>
+          <mat-card-subtitle>
+            Aktuelles Training vs. {{ report.powerCurveSet?.previous?.length || 0 }} vorherige (transparent)
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content class="chart-container">
+          <canvas baseChart
+            [data]="powerCurveChartData"
+            [options]="powerCurveChartOptions"
+            type="line">
+          </canvas>
+        </mat-card-content>
+      </mat-card>
+    }
+
     <!-- Fortschrends-Trend -->
     @if (report.trend.length > 1) {
       <h2 class="section-title">

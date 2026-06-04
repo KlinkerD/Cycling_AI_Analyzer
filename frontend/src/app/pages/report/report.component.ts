@@ -12,7 +12,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ActivityService } from '../../services/activity.service';
-import { Report, ZoneDistribution } from '../../models/activity.model';
+import { Report, ZoneDistribution, PowerCurveSet } from '../../models/activity.model';
 
 @Component({
   selector: 'app-report',
@@ -111,6 +111,42 @@ export class ReportComponent implements OnInit {
         title: { display: true, text: 'bpm' },
         grid: { display: false },
         ticks: { color: '#E53935' }
+      }
+    }
+  };
+
+  // Chart: Bestleistungs-Kurve (Mean Maximal Power)
+  powerCurveChartData: ChartData<'line'> | null = null;
+  powerCurveChartOptions: ChartOptions<'line'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, boxWidth: 16 } },
+      tooltip: {
+        callbacks: {
+          title: (items) => 'Dauer: ' + this.formatPowerCurveDuration(Number(items[0].parsed.x)),
+          label: (item) => {
+            const label = item.dataset.label ?? '';
+            const v = item.parsed.y;
+            return ` ${label}: ${v == null ? '–' : v.toFixed(0) + ' W'}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        type: 'logarithmic',
+        title: { display: true, text: 'Dauer' },
+        ticks: {
+          autoSkip: true,
+          maxTicksLimit: 12,
+          callback: (value: any) => this.formatPowerCurveDuration(Number(value))
+        }
+      },
+      y: {
+        title: { display: true, text: 'Leistung (W)' },
+        beginAtZero: false
       }
     }
   };
@@ -257,6 +293,94 @@ export class ReportComponent implements OnInit {
         }
       ]
     };
+
+    // Power-Curve-Chart
+    this.powerCurveChartData = this.buildPowerCurveData(report.powerCurveSet);
+  }
+
+  private buildPowerCurveData(set: PowerCurveSet | null | undefined): ChartData<'line'> | null {
+    if (!set || !set.current || !set.current.points || set.current.points.length === 0) {
+      return null;
+    }
+
+    type Pt = { x: number; y: number | null };
+    const toPts = (points: { durationSeconds: number; watts: number | null }[]): Pt[] =>
+      points.map(p => ({ x: p.durationSeconds, y: p.watts }));
+
+    const datasets: any[] = [];
+
+    // Vorherige Trainings zuerst (damit aktuelle obenauf liegt). Aelter = blasser.
+    const alphas = [0.45, 0.30, 0.18];
+    (set.previous || []).forEach((prev, idx) => {
+      if (idx >= alphas.length) return;
+      const dateLabel = prev.activityDate
+        ? new Date(prev.activityDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
+        : '';
+      datasets.push({
+        label: (dateLabel ? dateLabel + ' ' : '') + this.shortName(prev.activityName),
+        data: toPts(prev.points),
+        borderColor: `rgba(120,120,120,${alphas[idx]})`,
+        backgroundColor: 'rgba(0,0,0,0)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        pointHoverRadius: 3,
+        tension: 0.35,
+        spanGaps: true,
+        fill: false
+      });
+    });
+
+    // Aktuelle Aktivitaet (deutlich)
+    const curDateLabel = set.current.activityDate
+      ? new Date(set.current.activityDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
+      : '';
+    datasets.push({
+      label: (curDateLabel ? curDateLabel + ' ' : '') + this.shortName(set.current.activityName),
+      data: toPts(set.current.points),
+      borderColor: '#3F51B5',
+      backgroundColor: 'rgba(63,81,181,0.08)',
+      borderWidth: 2.5,
+      pointRadius: 2,
+      pointHoverRadius: 5,
+      tension: 0.35,
+      spanGaps: true,
+      fill: false
+    });
+
+    // FTP-Reflinie (gestrichelt)
+    if (set.ftpWatts && set.ftpWatts > 0) {
+      const ftp = set.ftpWatts;
+      datasets.push({
+        label: `FTP ${ftp} W`,
+        data: set.current.points.map(p => ({ x: p.durationSeconds, y: ftp })),
+        borderColor: 'rgba(120,120,120,0.7)',
+        backgroundColor: 'rgba(0,0,0,0)',
+        borderWidth: 1,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0,
+        fill: false
+      });
+    }
+
+    return { datasets };
+  }
+
+  private shortName(name: string | null | undefined, max = 24): string {
+    if (!name) return '';
+    return name.length <= max ? name : name.substring(0, max - 1) + '…';
+  }
+
+  formatPowerCurveDuration(seconds: number): string {
+    if (!isFinite(seconds) || seconds <= 0) return '';
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    if (seconds < 3600) {
+      const m = seconds / 60;
+      return (m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)) + 'm';
+    }
+    const h = seconds / 3600;
+    return (h % 1 === 0 ? h.toFixed(0) : h.toFixed(1)) + 'h';
   }
 
   private normalizeReportText(report: Report): Report {

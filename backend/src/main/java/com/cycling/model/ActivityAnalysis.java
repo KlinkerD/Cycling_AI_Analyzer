@@ -3,6 +3,8 @@ package com.cycling.model;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "activity_analysis")
@@ -42,6 +44,16 @@ public class ActivityAnalysis {
     private String summary;
 
     private LocalDateTime analyzedAt;
+
+    /**
+     * Mean-Maximal-Power-Kurve dieser Aktivitaet auf festem Bucket-Schema
+     * (siehe {@code PowerCurveService.STANDARD_BUCKETS}).
+     * Eager geladen, weil die Kurve immer mit der Aktivitaet zusammen verwendet wird
+     * und die Listengroesse klein ist (~24 Punkte).
+     */
+    @OneToMany(mappedBy = "analysis", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OrderBy("durationSeconds ASC")
+    private List<PowerCurvePoint> powerCurve = new ArrayList<>();
 
     public ActivityAnalysis() {
     }
@@ -196,6 +208,24 @@ public class ActivityAnalysis {
 
     public void setAnalyzedAt(LocalDateTime analyzedAt) {
         this.analyzedAt = analyzedAt;
+    }
+
+    public List<PowerCurvePoint> getPowerCurve() {
+        return powerCurve;
+    }
+
+    /**
+     * Ersetzt die Power-Curve-Punkte und sorgt fuer korrekte Verknuepfung der Eltern-Beziehung.
+     * Die Liste wird in-place mutiert, damit Hibernate die {@code orphanRemoval}-Logik anwendet.
+     */
+    public void replacePowerCurve(List<PowerCurvePoint> points) {
+        this.powerCurve.clear();
+        if (points != null) {
+            for (PowerCurvePoint p : points) {
+                p.setAnalysis(this);
+                this.powerCurve.add(p);
+            }
+        }
     }
 }
 

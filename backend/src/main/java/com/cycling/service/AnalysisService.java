@@ -22,17 +22,20 @@ public class AnalysisService {
     private final ZoneCalculatorService zoneCalculator;
     private final ActivityAnalysisRepository repository;
     private final ReportMailService reportMailService;
+    private final PowerCurveService powerCurveService;
 
     public AnalysisService(IntervalsService intervalsService,
                            GeminiService geminiService,
                            ZoneCalculatorService zoneCalculator,
                            ActivityAnalysisRepository repository,
-                           ReportMailService reportMailService) {
+                           ReportMailService reportMailService,
+                           PowerCurveService powerCurveService) {
         this.intervalsService = intervalsService;
         this.geminiService = geminiService;
         this.zoneCalculator = zoneCalculator;
         this.repository = repository;
         this.reportMailService = reportMailService;
+        this.powerCurveService = powerCurveService;
     }
 
     /**
@@ -98,15 +101,28 @@ public class AnalysisService {
         analysis.setProgress(geminiResult.progress());
         analysis.setSummary(geminiResult.summary());
 
+        // Power-Curve fuer aktuelle Aktivitaet laden + an Entity haengen (Cascade speichert Punkte mit)
+        try {
+            analysis.replacePowerCurve(powerCurveService.buildPointsForActivity(activityId));
+        } catch (Exception e) {
+            log.warn("Power-Curve fuer aktuelle Aktivitaet {} konnte nicht geladen werden: {}", activityId, e.getMessage());
+        }
+
         // Speichern (upsert)
         repository.findByActivityId(activityId).ifPresent(existing -> analysis.setId(existing.getId()));
         ActivityAnalysis saved = repository.save(analysis);
 
+        // Lazy Backfill: fuer die 3 vorherigen Aktivitaeten Power-Curve nachladen, falls noch nicht vorhanden
+        powerCurveService.ensurePowerCurves(lastThree);
+
         // Trend-Daten
         List<TrendDataDto> trend = buildTrend();
 
+        // Power-Curve-Set fuer Report (aktuell + vorherige + FTP-Reflinie)
+        PowerCurveSetDto powerCurveSet = powerCurveService.buildReportSet(saved, lastThree, ftp);
+
         log.info("Analyse für {} abgeschlossen. Score: {}/10", activityDto.name(), geminiResult.score());
-        ReportDto report = new ReportDto(saved, streams, powerZones, hrZones, trend);
+        ReportDto report = new ReportDto(saved, streams, powerZones, hrZones, trend, powerCurveSet);
 
         // Async Mail-Versand (fail-soft, blockt nicht).
         try {
@@ -139,7 +155,20 @@ public class AnalysisService {
         List<ZoneDistributionDto> hrZones = zoneCalculator.calculateHrZones(streams.heartrate(), maxHr);
         List<TrendDataDto> trend = buildTrend();
 
-        return new ReportDto(analysis, streams, powerZones, hrZones, trend);
+        // Power-Curve sicherstellen (Backfill, falls aus alter Analyse-Version noch nicht vorhanden)
+        powerCurveService.ensurePowerCurves(List.of(analysis));
+
+        // Vorherige 3 fuer Vergleich laden + Power-Curves sicherstellen
+        List<ActivityAnalysis> lastThree = repository.findTop3ByOrderByActivityDateDesc()
+                .stream()
+                .filter(a -> !a.getActivityId().equals(activityId))
+                .limit(3)
+                .collect(Collectors.toList());
+        powerCurveService.ensurePowerCurves(lastThree);
+
+        PowerCurveSetDto powerCurveSet = powerCurveService.buildReportSet(analysis, lastThree, ftp);
+
+        return new ReportDto(analysis, streams, powerZones, hrZones, trend, powerCurveSet);
     }
 
     private List<TrendDataDto> buildTrend() {

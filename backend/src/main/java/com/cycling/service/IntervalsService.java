@@ -206,5 +206,161 @@ public class IntervalsService {
         for (JsonNode n : node) list.add(n.isNull() ? null : n.asInt());
         return list;
     }
+
+    /**
+     * Laedt die Power-Curve (Mean Maximal Power) einer Aktivitaet von intervals.icu
+     * als sortierte Map "Dauer in Sekunden -> Watt".
+     *
+     * Strategie:
+     * 1. Primaer: GET /api/v1/activity/{id}/power-curve  (falls verfuegbar; defensiv geparst)
+     * 2. Fallback: GET /api/v1/activity/{id}  und Auswertung der diskreten "icu_pm_p_<sec>"-Felder
+     *    bzw. eines "icu_pm" Map-Feldes.
+     *
+     * Liefert eine leere Map, wenn beide Wege scheitern.
+     */
+    public java.util.SortedMap<Integer, Integer> getActivityPowerCurve(String activityId) {
+        validateConfiguration();
+        java.util.TreeMap<Integer, Integer> out = new java.util.TreeMap<>();
+
+        // 1. Versuch: dedizierter Endpoint
+        try {
+            String url = BASE_URL + "/activity/" + activityId + "/power-curve";
+            String response = executeGet(url);
+            if (response != null && !response.isBlank()) {
+                JsonNode root = objectMapper.readTree(response);
+                parsePowerCurveJson(root, out);
+                if (!out.isEmpty()) {
+                    log.info("Power-Curve fuer {} via /power-curve geladen ({} Punkte)", activityId, out.size());
+                    return out;
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Power-Curve Endpoint fuer {} nicht verfuegbar oder fehlerhaft: {} – Fallback auf Activity-Detail",
+                    activityId, e.getMessage());
+        }
+
+        // 2. Fallback: Activity-Detail mit icu_pm_p_*
+        try {
+            String url = BASE_URL + "/activity/" + activityId;
+            String response = executeGet(url);
+            JsonNode root = objectMapper.readTree(response);
+            parseIcuPmFields(root, out);
+            log.info("Power-Curve fuer {} via Activity-Detail (icu_pm_p_*) geladen ({} Punkte)", activityId, out.size());
+        } catch (Exception e) {
+            log.warn("Power-Curve fuer {} konnte nicht geladen werden: {}", activityId, e.getMessage());
+        }
+        return out;
+    }
+
+    /**
+     * Versucht, eine Power-Curve aus verschiedenen denkbaren JSON-Formaten zu lesen.
+     * Akzeptiert:
+     * - Array von { "secs": n, "value"|"watts": w }
+     * - Array von { "duration": n, "power"|"watts": w }
+     * - Objekt mit "secs":[...], "values"|"watts":[...]
+     * - Objekt als Map "secs" -> watts (z.B. "5":510, "60":278, ...)
+     */
+    private void parsePowerCurveJson(JsonNode root, java.util.TreeMap<Integer, Integer> out) {
+        if (root == null || root.isMissingNode() || root.isNull()) return;
+
+        if (root.isArray()) {
+            for (JsonNode n : root) {
+                Integer secs = firstInt(n, "secs", "duration", "t", "x");
+                Integer watts = firstInt(n, "value", "watts", "power", "y");
+                if (secs != null && secs > 0 && watts != null && watts >= 0) {
+                    out.put(secs, watts);
+                }
+            }
+            return;
+        }
+        if (root.isObject()) {
+            // Variante: parallele Arrays
+            JsonNode secsArr = firstNode(root, "secs", "durations", "x");
+            JsonNode wattsArr = firstNode(root, "values", "watts", "power", "y");
+            if (secsArr != null && secsArr.isArray() && wattsArr != null && wattsArr.isArray()) {
+                int n = Math.min(secsArr.size(), wattsArr.size());
+                for (int i = 0; i < n; i++) {
+                    JsonNode s = secsArr.get(i);
+                    JsonNode w = wattsArr.get(i);
+                    if (s != null && !s.isNull() && w != null && !w.isNull()) {
+                        out.put(s.asInt(), w.asInt());
+                    }
+                }
+                return;
+            }
+            // Variante: Map "secs" -> watts
+            root.fields().forEachRemaining(e -> {
+                String key = e.getKey();
+                JsonNode v = e.getValue();
+                try {
+                    int secs = Integer.parseInt(key);
+                    if (v.isNumber()) {
+                        out.put(secs, v.asInt());
+                    }
+                } catch (NumberFormatException ignored) {
+                    // andere Felder ignorieren
+                }
+            });
+        }
+    }
+
+    /**
+     * Liest "icu_pm_p_<sec>" Felder aus einem Activity-Detail-Objekt.
+     * Beispiel-Felder: icu_pm_p_5, icu_pm_p_60, icu_pm_p_300, icu_pm_p_1200, icu_pm_p_3600 ...
+     * Optional gibt es auch ein "icu_pm" Map-Feld – beides wird beruecksichtigt.
+     */
+    private void parseIcuPmFields(JsonNode activity, java.util.TreeMap<Integer, Integer> out) {
+        if (activity == null || !activity.isObject()) return;
+
+        activity.fields().forEachRemaining(e -> {
+            String key = e.getKey();
+            if (key != null && key.startsWith("icu_pm_p_")) {
+                String suffix = key.substring("icu_pm_p_".length());
+                try {
+                    int secs = Integer.parseInt(suffix);
+                    JsonNode v = e.getValue();
+                    if (v != null && v.isNumber() && secs > 0) {
+                        int w = v.asInt();
+                        if (w > 0) out.put(secs, w);
+                    }
+                } catch (NumberFormatException ignored) { /* skip */ }
+            }
+        });
+
+        // Zusaetzliches Map-Feld 'icu_pm', falls vorhanden
+        JsonNode pm = activity.path("icu_pm");
+        if (pm.isObject()) {
+            pm.fields().forEachRemaining(e -> {
+                try {
+                    int secs = Integer.parseInt(e.getKey());
+                    JsonNode v = e.getValue();
+                    if (v != null && v.isNumber()) {
+                        int w = v.asInt();
+                        if (w > 0) out.putIfAbsent(secs, w);
+                    }
+                } catch (NumberFormatException ignored) { /* skip */ }
+            });
+        }
+    }
+
+    private static Integer firstInt(JsonNode obj, String... keys) {
+        if (obj == null || !obj.isObject()) return null;
+        for (String k : keys) {
+            JsonNode v = obj.path(k);
+            if (!v.isMissingNode() && !v.isNull() && v.isNumber()) {
+                return v.asInt();
+            }
+        }
+        return null;
+    }
+
+    private static JsonNode firstNode(JsonNode obj, String... keys) {
+        if (obj == null || !obj.isObject()) return null;
+        for (String k : keys) {
+            JsonNode v = obj.path(k);
+            if (!v.isMissingNode() && !v.isNull()) return v;
+        }
+        return null;
+    }
 }
 

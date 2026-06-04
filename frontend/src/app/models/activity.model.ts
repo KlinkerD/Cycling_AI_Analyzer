@@ -79,5 +79,25 @@ export interface Report {
   powerZones: ZoneDistribution[];
   hrZones: ZoneDistribution[];
   trend: TrendData[];
+  powerCurveSet: PowerCurveSet | null;
+}
+
+export interface PowerCurvePoint {
+  durationSeconds: number;
+  watts: number | null;
+}
+
+export interface PowerCurve {
+  activityId: string;
+  activityName: string;
+  activityDate: string;
+  points: PowerCurvePoint[];
+}
+
+export interface PowerCurveSet {
+  current: PowerCurve;
+  /** Neueste-zuerst sortiert (max. 3 Eintraege). */
+  previous: PowerCurve[];
+  ftpWatts: number | null;
 }
 

@@ -9,6 +9,7 @@ public record ReportDto(
         StreamDataDto streams,
         List<ZoneDistributionDto> powerZones,
         List<ZoneDistributionDto> hrZones,
-        List<TrendDataDto> trend
+        List<TrendDataDto> trend,
+        PowerCurveSetDto powerCurveSet
 ) {}
 

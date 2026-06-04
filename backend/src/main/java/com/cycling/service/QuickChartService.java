@@ -3,6 +3,9 @@ package com.cycling.service;
 import com.cycling.dto.StreamDataDto;
 import com.cycling.dto.TrendDataDto;
 import com.cycling.dto.ZoneDistributionDto;
+import com.cycling.dto.PowerCurveDto;
+import com.cycling.dto.PowerCurvePointDto;
+import com.cycling.dto.PowerCurveSetDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -135,6 +138,130 @@ public class QuickChartService {
         chart.put("options", options);
 
         return postChart(chart, CHART_WIDTH + 100, CHART_HEIGHT + 40);
+    }
+
+    // ---------- Power Curve (Bestleistungs-Kurve) ----------
+
+    /**
+     * Rendert die Bestleistungs-Kurve fuer den Mail-Report:
+     * - Aktuelle Aktivitaet: kraeftige Linie (Indigo)
+     * - Bis zu 3 vorherige Aktivitaeten: progressiv blasser (grau)
+     * - FTP-Reflinie als gestrichelte horizontale Linie
+     */
+    public byte[] renderPowerCurve(PowerCurveSetDto set) {
+        if (set == null || set.current() == null) return null;
+        List<PowerCurvePointDto> currentPts = set.current().points();
+        if (currentPts == null || currentPts.isEmpty()) return null;
+
+        // X-Werte (Sekunden) aus aktueller Kurve – Buckets sind fix gleich fuer alle
+        List<Integer> xs = new ArrayList<>(currentPts.size());
+        for (PowerCurvePointDto p : currentPts) xs.add(p.durationSeconds());
+
+        List<Map<String, Object>> datasets = new ArrayList<>();
+
+        // Vorherige zuerst (damit aktuelle obenauf gezeichnet wird).
+        // 'previous' ist neueste-zuerst sortiert -> alpha 0.45, 0.30, 0.18
+        double[] alphas = {0.45, 0.30, 0.18};
+        if (set.previous() != null) {
+            for (int i = 0; i < set.previous().size() && i < alphas.length; i++) {
+                PowerCurveDto prev = set.previous().get(i);
+                String label = (prev.activityDate() != null
+                        ? prev.activityDate().format(TREND_FMT) + " "
+                        : "") + safeShort(prev.activityName(), 24);
+                datasets.add(curveDataset(label, prev.points(),
+                        "rgba(120,120,120," + alphas[i] + ")", 1.5, false));
+            }
+        }
+
+        // Aktuelle Aktivitaet (deutlich)
+        String currentLabel = (set.current().activityDate() != null
+                ? set.current().activityDate().format(TREND_FMT) + " "
+                : "") + safeShort(set.current().activityName(), 24);
+        datasets.add(curveDataset(currentLabel, currentPts, "rgba(63,81,181,1)", 2.5, true));
+
+        // FTP-Reflinie (horizontale Linie ueber gesamten X-Bereich)
+        if (set.ftpWatts() != null && set.ftpWatts() > 0) {
+            int ftp = set.ftpWatts();
+            List<Integer> ftpLine = new ArrayList<>(xs.size());
+            for (int ignored : xs) ftpLine.add(ftp);
+            Map<String, Object> ftpDs = new LinkedHashMap<>();
+            ftpDs.put("label", "FTP " + ftp + " W");
+            ftpDs.put("data", ftpLine);
+            ftpDs.put("borderColor", "rgba(120,120,120,0.7)");
+            ftpDs.put("backgroundColor", "rgba(0,0,0,0)");
+            ftpDs.put("borderWidth", 1.0);
+            ftpDs.put("borderDash", List.of(6, 4));
+            ftpDs.put("pointRadius", 0);
+            ftpDs.put("fill", false);
+            ftpDs.put("tension", 0);
+            datasets.add(ftpDs);
+        }
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("labels", xs);
+        data.put("datasets", datasets);
+
+        // Tick-Callback: Sekunden -> "5s","1m","2h" usw.
+        // QuickChart erlaubt JS-Funktionen via "callback" String – als Fallback liefern wir
+        // statische Stuetzpunkte ueber 'afterBuildTicks' nicht; stattdessen nutzen wir
+        // die "ticks.callback" String-Eval-Variante von QuickChart.
+        String tickCallback = "function(value){"
+                + "var v=Number(value);"
+                + "if(v<60)return v+'s';"
+                + "if(v<3600){var m=v/60;return (m%1===0?m:m.toFixed(1))+'m';}"
+                + "var h=v/3600;return (h%1===0?h:h.toFixed(1))+'h';}";
+
+        Map<String, Object> xScale = new LinkedHashMap<>();
+        xScale.put("type", "logarithmic");
+        xScale.put("title", Map.of("display", true, "text", "Dauer"));
+        xScale.put("ticks", Map.of(
+                "callback", tickCallback,
+                "autoSkip", true,
+                "maxTicksLimit", 12
+        ));
+
+        Map<String, Object> yScale = new LinkedHashMap<>();
+        yScale.put("title", Map.of("display", true, "text", "Leistung (W)"));
+        yScale.put("beginAtZero", false);
+
+        Map<String, Object> options = new LinkedHashMap<>();
+        options.put("plugins", Map.of(
+                "title", Map.of("display", true, "text", "Bestleistungen (Mean Maximal Power)"),
+                "legend", Map.of("display", true, "position", "bottom")
+        ));
+        options.put("scales", Map.of("x", xScale, "y", yScale));
+        options.put("spanGaps", true);
+
+        Map<String, Object> chart = new LinkedHashMap<>();
+        chart.put("type", "line");
+        chart.put("data", data);
+        chart.put("options", options);
+
+        return postChart(chart, CHART_WIDTH + 100, CHART_HEIGHT + 60);
+    }
+
+    private Map<String, Object> curveDataset(String label, List<PowerCurvePointDto> points,
+                                             String borderColor, double borderWidth, boolean current) {
+        List<Integer> ys = new ArrayList<>(points.size());
+        for (PowerCurvePointDto p : points) ys.add(p.watts());
+
+        Map<String, Object> ds = new LinkedHashMap<>();
+        ds.put("label", label);
+        ds.put("data", ys);
+        ds.put("borderColor", borderColor);
+        ds.put("backgroundColor", "rgba(0,0,0,0)");
+        ds.put("borderWidth", borderWidth);
+        ds.put("pointRadius", current ? 2 : 0);
+        ds.put("pointHoverRadius", 4);
+        ds.put("fill", false);
+        ds.put("tension", 0.35);
+        ds.put("spanGaps", true);
+        return ds;
+    }
+
+    private static String safeShort(String s, int max) {
+        if (s == null) return "";
+        return s.length() <= max ? s : s.substring(0, Math.max(0, max - 1)) + "…";
     }
 
     // ---------- intern ----------

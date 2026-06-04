@@ -106,6 +106,7 @@ public class ReportMailService {
             byte[] powerZonesPng = quickChart.renderZoneDoughnut("Leistungszonen (FTP-basiert)", report.powerZones());
             byte[] hrZonesPng = quickChart.renderZoneDoughnut("Herzfrequenzzonen (Max-HR-basiert)", report.hrZones());
             byte[] trendPng = quickChart.renderTrend(report.trend());
+            byte[] powerCurvePng = quickChart.renderPowerCurve(report.powerCurveSet());
 
             // CIDs vergeben
             List<InlineImage> images = new ArrayList<>();
@@ -115,8 +116,9 @@ public class ReportMailService {
             String cidPowerZones = addIfPresent(images, "powerZonesChart", powerZonesPng);
             String cidHrZones = addIfPresent(images, "hrZonesChart", hrZonesPng);
             String cidTrend = addIfPresent(images, "trendChart", trendPng);
+            String cidPowerCurve = addIfPresent(images, "powerCurveChart", powerCurvePng);
 
-            String html = buildHtml(report, cidPower, cidHr, cidCadence, cidPowerZones, cidHrZones, cidTrend);
+            String html = buildHtml(report, cidPower, cidHr, cidCadence, cidPowerZones, cidHrZones, cidTrend, cidPowerCurve);
 
             MimeMessage mime = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mime, true, StandardCharsets.UTF_8.name());
@@ -170,7 +172,8 @@ public class ReportMailService {
 
     private String buildHtml(ReportDto report,
                              String cidPower, String cidHr, String cidCadence,
-                             String cidPowerZones, String cidHrZones, String cidTrend) {
+                             String cidPowerZones, String cidHrZones, String cidTrend,
+                             String cidPowerCurve) {
         ActivityAnalysis a = report.analysis();
         String scoreColor = scoreColor(a.getOverallScore());
 
@@ -227,6 +230,14 @@ public class ReportMailService {
         // Zonen-Tabellen als Fallback / zusaetzliche Info
         sb.append(zoneTable("Leistungszonen", report.powerZones()));
         sb.append(zoneTable("Herzfrequenzzonen", report.hrZones()));
+
+        // Bestleistungs-Kurve (Power Curve)
+        if (cidPowerCurve != null) {
+            sb.append("<h2 style=\"font-size:18px;color:#3f51b5;margin:24px 0 12px;\">Bestleistungen</h2>");
+            String prevCount = report.powerCurveSet() != null && report.powerCurveSet().previous() != null
+                    ? String.valueOf(report.powerCurveSet().previous().size()) : "0";
+            sb.append(chartCard("Aktuelles Training vs. " + prevCount + " vorherige (transparent)", cidPowerCurve));
+        }
 
         // Trend
         if (cidTrend != null) {

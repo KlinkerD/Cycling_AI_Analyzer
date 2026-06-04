@@ -7,6 +7,11 @@ export const routes: Routes = [
       .then(m => m.ActivityListComponent)
   },
   {
+    path: 'overview',
+    loadComponent: () => import('./pages/overview/overview.component')
+      .then(m => m.OverviewComponent)
+  },
+  {
     path: 'report/:id',
     loadComponent: () => import('./pages/report/report.component')
       .then(m => m.ReportComponent)

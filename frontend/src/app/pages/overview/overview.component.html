@@ -1,0 +1,206 @@
+<div class="overview-container">
+
+  <!-- ============= Fitness & Form ============= -->
+  <mat-card class="section">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>insights</mat-icon> Fitness, Ermüdung &amp; Form
+      </mat-card-title>
+      <mat-card-subtitle>
+        CTL / ATL / TSB aus intervals.icu
+      </mat-card-subtitle>
+      <button mat-icon-button class="refresh-btn"
+              (click)="refresh()"
+              matTooltip="Daten neu laden (Cache umgehen)"
+              [disabled]="loadingWellness || loadingZones">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </mat-card-header>
+
+    <mat-card-content>
+      <div class="range-toolbar">
+        <div class="quick-ranges">
+          @for (r of ranges; track r.key) {
+            <button mat-stroked-button
+                    [color]="selectedRange === r.key ? 'primary' : ''"
+                    (click)="selectRange(r.key)">
+              {{ r.label }}
+            </button>
+          }
+        </div>
+        <div class="custom-range">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Zeitraum</mat-label>
+            <mat-date-range-input [rangePicker]="picker">
+              <input matStartDate placeholder="Von" [(ngModel)]="from" (dateChange)="onCustomDateChange()">
+              <input matEndDate   placeholder="Bis" [(ngModel)]="to"   (dateChange)="onCustomDateChange()">
+            </mat-date-range-input>
+            <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+            <mat-date-range-picker #picker></mat-date-range-picker>
+          </mat-form-field>
+        </div>
+      </div>
+
+      <div class="chart-wrapper">
+        @if (loadingWellness) {
+          <div class="loading-overlay">
+            <mat-spinner diameter="40"></mat-spinner>
+          </div>
+        }
+        @if (wellness.length > 0) {
+          <canvas baseChart
+                  [data]="fitnessChartData"
+                  [options]="fitnessChartOptions"
+                  type="line">
+          </canvas>
+        } @else if (!loadingWellness) {
+          <p class="empty">Keine Wellness-Daten für diesen Zeitraum verfügbar.</p>
+        }
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ============= Schwellenwerte ============= -->
+  @if (zones?.thresholds) {
+    <mat-card class="section thresholds-card">
+      <mat-card-header>
+        <mat-card-title><mat-icon>tune</mat-icon> Schwellenwerte</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="threshold-grid">
+          <div class="threshold-item">
+            <span class="label">FTP</span>
+            <span class="value">{{ zones?.thresholds?.ftp ?? '–' }} W</span>
+          </div>
+          <div class="threshold-item">
+            <span class="label">LTHR</span>
+            <span class="value">{{ zones?.thresholds?.lthr ?? '–' }} bpm</span>
+          </div>
+          <div class="threshold-item">
+            <span class="label">HFmax</span>
+            <span class="value">{{ zones?.thresholds?.maxHr ?? '–' }} bpm</span>
+          </div>
+          <div class="threshold-item">
+            <span class="label">Gewicht</span>
+            <span class="value">{{ zones?.thresholds?.weight ?? '–' }} kg</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <!-- ============= Leistungs-Zonen ============= -->
+  <mat-card class="section">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>bolt</mat-icon> Leistungs-Zonen
+      </mat-card-title>
+      <mat-card-subtitle>
+        @if (zones?.thresholds?.ftp) {
+          Bezogen auf FTP {{ zones?.thresholds?.ftp }} W
+        }
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      @if (loadingZones) {
+        <mat-spinner diameter="32"></mat-spinner>
+      } @else if (zones && zones.powerZones.length > 0) {
+        <div class="stacked-bar">
+          @for (z of sortedPowerZonesForBar; track z.index) {
+            <div class="segment"
+                 [style.flex-basis.%]="zoneSegmentWidth(sortedPowerZonesForBar, z)"
+                 [style.background]="z.color"
+                 [matTooltip]="z.name + ' • ' + formatRange(z, 'W')">
+              <span class="segment-label">{{ z.index === 8 ? 'SS' : 'Z' + z.index }}</span>
+            </div>
+          }
+        </div>
+
+        <table class="zones-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Name</th><th>% FTP</th><th>Watt</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (z of zones.powerZones; track z.index) {
+              <tr>
+                <td>
+                  <span class="zone-dot" [style.background]="z.color"></span>
+                  {{ z.index === 8 ? 'SS' : 'Z' + z.index }}
+                </td>
+                <td>{{ z.name }}</td>
+                <td>{{ formatPct(z.lowerPct) }} – {{ z.upperPct == null ? '∞' : formatPct(z.upperPct) }}</td>
+                <td>{{ formatRange(z, 'W') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <p class="empty">Keine Leistungs-Zonen konfiguriert.</p>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ============= HF-Zonen ============= -->
+  <mat-card class="section">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>favorite</mat-icon> Herzfrequenz-Zonen
+      </mat-card-title>
+      <mat-card-subtitle>
+        @if (zones) {
+          Bezogen auf {{ hrReferenceLabel() }}
+          @if (zones.hrReference === 'lthr' && zones.thresholds.lthr) {
+            ({{ zones.thresholds.lthr }} bpm)
+          } @else if (zones.hrReference === 'max_hr' && zones.thresholds.maxHr) {
+            ({{ zones.thresholds.maxHr }} bpm)
+          }
+        }
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      @if (loadingZones) {
+        <mat-spinner diameter="32"></mat-spinner>
+      } @else if (zones && zones.hrZones.length > 0) {
+        <div class="stacked-bar">
+          @for (z of zones.hrZones; track z.index) {
+            <div class="segment"
+                 [style.flex-basis.%]="zoneSegmentWidth(zones.hrZones, z)"
+                 [style.background]="z.color"
+                 [matTooltip]="z.name + ' • ' + formatRange(z, 'bpm')">
+              <span class="segment-label">Z{{ z.index }}</span>
+            </div>
+          }
+        </div>
+
+        <table class="zones-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Name</th><th>% {{ hrReferenceLabel() }}</th><th>BPM</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (z of zones.hrZones; track z.index) {
+              <tr>
+                <td>
+                  <span class="zone-dot" [style.background]="z.color"></span>
+                  Z{{ z.index }}
+                </td>
+                <td>{{ z.name }}</td>
+                <td>{{ formatPct(z.lowerPct) }} – {{ z.upperPct == null ? '∞' : formatPct(z.upperPct) }}</td>
+                <td>{{ formatRange(z, 'bpm') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <p class="empty">Keine HF-Zonen konfiguriert.</p>
+      }
+    </mat-card-content>
+  </mat-card>
+
+</div>
+

@@ -1,0 +1,262 @@
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { MatCardModule } from '@angular/material/card';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDividerModule } from '@angular/material/divider';
+import { BaseChartDirective } from 'ng2-charts';
+import { ChartConfiguration, ChartData } from 'chart.js';
+import { OverviewService } from '../../services/overview.service';
+import { AthleteZones, WellnessPoint, Zone } from '../../models/activity.model';
+
+type RangeKey = '7d' | '1m' | '3m' | '6m' | '1y' | 'custom';
+
+interface RangeOption {
+  key: RangeKey;
+  label: string;
+  days: number;
+}
+
+@Component({
+  selector: 'app-overview',
+  standalone: true,
+  imports: [
+    CommonModule, FormsModule,
+    MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule,
+    MatTooltipModule, MatFormFieldModule, MatInputModule, MatDatepickerModule,
+    MatNativeDateModule, MatSnackBarModule, MatDividerModule,
+    BaseChartDirective
+  ],
+  templateUrl: './overview.component.html',
+  styleUrl: './overview.component.scss'
+})
+export class OverviewComponent implements OnInit {
+
+  readonly ranges: RangeOption[] = [
+    { key: '7d', label: '7 Tage',   days: 7 },
+    { key: '1m', label: '1 Monat',  days: 30 },
+    { key: '3m', label: '3 Monate', days: 90 },
+    { key: '6m', label: '6 Monate', days: 180 },
+    { key: '1y', label: '1 Jahr',   days: 365 }
+  ];
+
+  selectedRange: RangeKey = '3m';
+  from: Date;
+  to: Date;
+
+  loadingWellness = false;
+  loadingZones = false;
+  wellness: WellnessPoint[] = [];
+  zones: AthleteZones | null = null;
+  sortedPowerZonesForBar: Zone[] = []; // für Stacked-Bar Visualisierung
+
+  // ---- Chart-Konfiguration -------------------------------------------------
+  fitnessChartData: ChartData<'line'> = { labels: [], datasets: [] };
+  fitnessChartOptions: ChartConfiguration<'line'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { position: 'top' },
+      tooltip: { mode: 'index', intersect: false }
+    },
+    scales: {
+      x: { ticks: { maxTicksLimit: 12, autoSkip: true } },
+      y:    { position: 'left',  title: { display: true, text: 'Fitness / Ermüdung' } },
+      yTsb: { position: 'right', title: { display: true, text: 'Form (TSB)' }, grid: { drawOnChartArea: false } }
+    },
+    elements: { point: { radius: 0 }, line: { tension: 0.25, borderWidth: 2 } }
+  };
+
+  constructor(
+    private overviewService: OverviewService,
+    private snackBar: MatSnackBar
+  ) {
+    this.to = new Date();
+    this.from = this.subDays(this.to, 90);
+  }
+
+  ngOnInit(): void {
+    this.loadAll();
+  }
+
+  selectRange(key: RangeKey): void {
+    const opt = this.ranges.find(r => r.key === key);
+    if (!opt) return;
+    this.selectedRange = key;
+    this.to = new Date();
+    this.from = this.subDays(this.to, opt.days);
+    this.loadWellness();
+  }
+
+  onCustomDateChange(): void {
+    if (!this.from || !this.to) return;
+    this.selectedRange = 'custom';
+    this.loadWellness();
+  }
+
+  refresh(): void {
+    this.loadAll(true);
+  }
+
+  private loadAll(refresh = false): void {
+    this.loadWellness(refresh);
+    this.loadZones(refresh);
+  }
+
+  private loadWellness(refresh = false): void {
+    this.loadingWellness = true;
+    this.overviewService.getWellness(this.from, this.to, refresh).subscribe({
+      next: (data) => {
+        this.wellness = data;
+        this.buildFitnessChart();
+        this.loadingWellness = false;
+      },
+      error: (err) => {
+        this.loadingWellness = false;
+        this.snackBar.open('Fehler beim Laden der Fitness-Daten: ' + (err.error?.message || err.message), 'OK', { duration: 5000 });
+      }
+    });
+  }
+
+  private loadZones(refresh = false): void {
+    this.loadingZones = true;
+    this.overviewService.getZones(refresh).subscribe({
+      next: (data) => {
+        this.zones = data;
+        this.sortedPowerZonesForBar = this.sortedZonesForBar(data.powerZones);
+        this.loadingZones = false;
+      },
+      error: (err) => {
+        this.loadingZones = false;
+        this.snackBar.open('Fehler beim Laden der Zonen: ' + (err.error?.message || err.message), 'OK', { duration: 5000 });
+      }
+    });
+  }
+
+  private buildFitnessChart(): void {
+    const labels = this.wellness.map(w => this.formatChartLabel(w.date));
+    const ctl  = this.wellness.map(w => w.ctl);
+    const atl  = this.wellness.map(w => w.atl);
+    const form = this.wellness.map(w => w.form);
+
+    this.fitnessChartData = {
+      labels,
+      datasets: [
+        {
+          label: 'Fitness (CTL)',
+          data: ctl as number[],
+          borderColor: '#42a5f5',
+          backgroundColor: 'rgba(66,165,245,0.15)',
+          fill: true,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Ermüdung (ATL)',
+          data: atl as number[],
+          borderColor: '#e91e63',
+          backgroundColor: 'rgba(233,30,99,0.10)',
+          fill: false,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Form (TSB)',
+          data: form as number[],
+          borderColor: '#9e9e9e',
+          backgroundColor: 'rgba(158,158,158,0.10)',
+          fill: false,
+          borderDash: [4, 4],
+          yAxisID: 'yTsb'
+        }
+      ]
+    };
+  }
+
+  // ---- Stacked-Bar fuer Zonen ---------------------------------------------
+
+  /**
+   * Sortiert Power-Zonen für Stacked-Bar: Sweet Spot (SS, Index 8) wird zwischen Z3 und Z4
+   * eingeordnet, damit die Bar visuell dem Leistungsbereich entspricht.
+   */
+  sortedZonesForBar(zones: Zone[]): Zone[] {
+    if (!zones || zones.length === 0) return [];
+    const regular = zones.filter(z => z.index <= 7);
+    const ss = zones.find(z => z.index === 8);
+    if (!ss) return regular;
+    // SS (84-97%) liegt zwischen Z3 (76-90%) und Z4 (91-105%) → nach Z3 einfügen
+    const result = [...regular];
+    const z3Idx = result.findIndex(z => z.index === 3);
+    if (z3Idx >= 0) {
+      result.splice(z3Idx + 1, 0, ss);
+    } else {
+      result.push(ss);
+    }
+    return result;
+  }
+
+  /**
+   * Berechnet die Breite (in %) eines Segments fuer den Stacked-Bar.
+   * Die Skala laeuft von 0 bis upperOfLastZoneWithBound; die letzte (open-ended) Zone
+   * bekommt eine sinnvolle visuelle Breite (proportional zur vorletzten).
+   */
+  zoneSegmentWidth(zones: Zone[], zone: Zone): number {
+    const total = this.scaleMax(zones);
+    if (total <= 0) return 0;
+    const upper = zone.upperValue ?? this.openEndedUpper(zones);
+    const lower = zone.lowerValue ?? 0;
+    return Math.max(0, ((upper - lower) / total) * 100);
+  }
+
+  private scaleMax(zones: Zone[]): number {
+    if (!zones.length) return 0;
+    const last = zones[zones.length - 1];
+    return last.upperValue ?? this.openEndedUpper(zones);
+  }
+
+  /** Heuristik fuer die Breite der open-ended Top-Zone: 1.3x der vorletzten Obergrenze. */
+  private openEndedUpper(zones: Zone[]): number {
+    for (let i = zones.length - 1; i >= 0; i--) {
+      if (zones[i].upperValue != null) return Math.round(zones[i].upperValue! * 1.3);
+    }
+    return 100;
+  }
+
+  // ---- Helpers -------------------------------------------------------------
+
+  formatPct(p: number | null): string {
+    if (p == null) return '–';
+    return Math.round(p * 100) + ' %';
+  }
+
+  formatRange(zone: Zone, unit: string): string {
+    const lo = zone.lowerValue != null ? zone.lowerValue : '–';
+    const hi = zone.upperValue != null ? zone.upperValue : '∞';
+    return `${lo} – ${hi} ${unit}`;
+  }
+
+  hrReferenceLabel(): string {
+    if (!this.zones) return '';
+    return this.zones.hrReference === 'max_hr' ? 'HFmax' : 'LTHR';
+  }
+
+  private subDays(d: Date, days: number): Date {
+    const out = new Date(d);
+    out.setDate(out.getDate() - days);
+    return out;
+  }
+
+  private formatChartLabel(date: string): string {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return date;
+    return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  }
+}
+

@@ -1,0 +1,164 @@
+.overview-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section {
+  mat-card-header {
+    align-items: center;
+    position: relative;
+
+    mat-card-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+  }
+
+  .refresh-btn {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+  }
+}
+
+// ----- Range-Toolbar ----------------------------------------------------
+.range-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 12px;
+
+  .quick-ranges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .custom-range mat-form-field {
+    width: 280px;
+  }
+}
+
+// ----- Chart ------------------------------------------------------------
+.chart-wrapper {
+  position: relative;
+  height: 380px;
+
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.6);
+    z-index: 5;
+  }
+
+  .empty {
+    text-align: center;
+    color: rgba(0, 0, 0, 0.55);
+    padding-top: 40px;
+  }
+}
+
+// ----- Schwellenwerte ---------------------------------------------------
+.threshold-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+
+  .threshold-item {
+    display: flex;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 8px;
+    padding: 12px 14px;
+
+    .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: rgba(0, 0, 0, 0.55);
+    }
+    .value {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+  }
+}
+
+// ----- Stacked-Bar ------------------------------------------------------
+.stacked-bar {
+  display: flex;
+  width: 100%;
+  height: 38px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+
+  .segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    cursor: default;
+    transition: filter 0.15s ease;
+
+    &:hover { filter: brightness(1.1); }
+
+    .segment-label {
+      padding: 0 4px;
+    }
+  }
+}
+
+// ----- Zonen-Tabelle ----------------------------------------------------
+.zones-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+
+  th, td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+  th {
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.65);
+    background: rgba(0, 0, 0, 0.03);
+  }
+  td:first-child {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+  }
+
+  .zone-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+  }
+}
+
+.empty {
+  color: rgba(0, 0, 0, 0.55);
+  font-style: italic;
+}
+

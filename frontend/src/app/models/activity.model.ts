@@ -101,3 +101,32 @@ export interface PowerCurveSet {
   ftpWatts: number | null;
 }
 
+// ---------------------------------------------------------------------------
+// Overview-Seite
+// ---------------------------------------------------------------------------
+
+export interface WellnessPoint {
+  date: string;     // YYYY-MM-DD
+  ctl: number | null;
+  atl: number | null;
+  form: number | null;
+}
+
+export interface Zone {
+  index: number;
+  name: string;
+  lowerPct: number | null;
+  upperPct: number | null;
+  lowerValue: number | null;
+  upperValue: number | null;
+  color: string;
+}
+
+export interface AthleteZones {
+  thresholds: AthleteThresholds;
+  powerZones: Zone[];
+  hrZones: Zone[];
+  /** "lthr" oder "max_hr" - Referenz fuer die HF-Zonen-Prozente */
+  hrReference: 'lthr' | 'max_hr';
+}
+

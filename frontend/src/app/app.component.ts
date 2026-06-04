@@ -1,21 +1,35 @@
 import { Component, OnInit } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatButtonModule } from '@angular/material/button';
 import { ActivityService } from './services/activity.service';
 import { AthleteThresholds } from './models/activity.model';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, CommonModule, MatToolbarModule, MatIconModule, MatChipsModule, MatTooltipModule],
+  imports: [
+    RouterOutlet, RouterLink, RouterLinkActive, CommonModule,
+    MatToolbarModule, MatIconModule, MatChipsModule, MatTooltipModule, MatButtonModule
+  ],
   template: `
     <mat-toolbar color="primary" class="app-toolbar">
       <mat-icon>directions_bike</mat-icon>
       <span class="toolbar-title">Cycling Analysis</span>
+
+      <nav class="main-nav">
+        <a mat-button routerLink="/" routerLinkActive="active-link"
+           [routerLinkActiveOptions]="{ exact: true }">
+          <mat-icon>list</mat-icon> Aktivitäten
+        </a>
+        <a mat-button routerLink="/overview" routerLinkActive="active-link">
+          <mat-icon>insights</mat-icon> Übersicht
+        </a>
+      </nav>
 
       @if (thresholds) {
         <div class="athlete-info">
@@ -67,6 +81,23 @@ import { AthleteThresholds } from './models/activity.model';
       font-weight: 500;
       letter-spacing: 0.5px;
       white-space: nowrap;
+    }
+    .main-nav {
+      display: flex;
+      gap: 4px;
+      margin-left: 8px;
+      a {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: rgba(255,255,255,0.85);
+        font-weight: 500;
+        mat-icon { font-size: 18px; height: 18px; width: 18px; }
+        &.active-link {
+          background: rgba(255,255,255,0.18);
+          color: #fff;
+        }
+      }
     }
     .toolbar-subtitle {
       font-size: 0.8rem;

@@ -2,7 +2,10 @@ package com.cycling.service;
 
 import com.cycling.dto.ActivityDto;
 import com.cycling.dto.AthleteThresholdsDto;
+import com.cycling.dto.AthleteZonesDto;
 import com.cycling.dto.StreamDataDto;
+import com.cycling.dto.WellnessPointDto;
+import com.cycling.dto.ZoneDto;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -361,6 +364,249 @@ public class IntervalsService {
             if (!v.isMissingNode() && !v.isNull()) return v;
         }
         return null;
+    }
+
+    // ====================================================================================
+    // Overview-Page: Wellness (CTL/ATL/Form) und Athleten-Zonen
+    // ====================================================================================
+
+    /**
+     * Coggan-Farbschema fuer 7 Zonen. Falls mehr Zonen vorhanden sind, wird die letzte Farbe
+     * dupliziert.
+     */
+    private static final String[] ZONE_COLORS = {
+            "#9e9e9e", // Z1 grau
+            "#42a5f5", // Z2 blau
+            "#66bb6a", // Z3 gruen
+            "#ffca28", // Z4 gelb
+            "#ff9800", // Z5 orange
+            "#ef5350", // Z6 rot
+            "#b71c1c"  // Z7 dunkelrot
+    };
+
+    /**
+     * Lädt die Wellness-Daten (CTL, ATL) für einen Zeitraum aus intervals.icu.
+     * API: GET /api/v1/athlete/{id}/wellness?oldest=YYYY-MM-DD&newest=YYYY-MM-DD
+     * <p>
+     * Form (TSB) wird lokal als CTL - ATL berechnet.
+     */
+    public List<WellnessPointDto> getWellness(String from, String to) {
+        validateConfiguration();
+        log.info("Lade Wellness-Daten von {} bis {} fuer Athlet {}", from, to, athleteId);
+        try {
+            String url = BASE_URL + "/athlete/" + athleteId + "/wellness?oldest=" + from + "&newest=" + to;
+            String response = executeGet(url);
+            JsonNode root = objectMapper.readTree(response);
+            List<WellnessPointDto> result = new ArrayList<>();
+            if (root.isArray()) {
+                for (JsonNode n : root) {
+                    String date = n.path("id").asText(null);
+                    if (date == null || date.isBlank()) {
+                        date = n.path("date").asText(null);
+                    }
+                    Double ctl = n.path("ctl").isNumber() ? n.path("ctl").asDouble() : null;
+                    Double atl = n.path("atl").isNumber() ? n.path("atl").asDouble() : null;
+                    Double form = (ctl != null && atl != null) ? ctl - atl : null;
+                    if (date != null) {
+                        result.add(new WellnessPointDto(date, ctl, atl, form));
+                    }
+                }
+            }
+            // Aufsteigend nach Datum sortieren (intervals.icu liefert i.d.R. neueste-zuerst)
+            result.sort(Comparator.comparing(WellnessPointDto::date));
+            log.info("{} Wellness-Punkte geladen", result.size());
+            return result;
+        } catch (Exception e) {
+            log.error("Fehler beim Laden der Wellness-Daten: {}", e.getMessage(), e);
+            throw new RuntimeException("Fehler beim Laden der Wellness-Daten: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Lädt FTP, LTHR, MaxHR sowie die Power- und HF-Zonen des Athleten aus intervals.icu.
+     * Wird ueber {@code sportSettings[type=Ride]} gelesen.
+     */
+    public AthleteZonesDto getAthleteZones() {
+        validateConfiguration();
+        log.info("Lade Athleten-Zonen fuer Athlet {}", athleteId);
+        try {
+            String url = BASE_URL + "/athlete/" + athleteId;
+            String response = executeGet(url);
+            JsonNode root = objectMapper.readTree(response);
+
+            String name = root.path("name").asText(null);
+            double weight = root.path("icu_weight").asDouble(0);
+
+            Integer ftp = null, lthr = null, maxHr = null;
+            List<Double> powerPercents = Collections.emptyList();
+            List<String> powerNames = Collections.emptyList();
+            List<Double> hrPercents = Collections.emptyList();
+            List<String> hrNames = Collections.emptyList();
+            boolean hrZonesAreMaxHr = false;
+
+            JsonNode sportSettings = root.path("sportSettings");
+            if (sportSettings.isArray()) {
+                for (JsonNode setting : sportSettings) {
+                    boolean isRide = false;
+                    for (JsonNode t : setting.path("types")) {
+                        if ("Ride".equals(t.asText()) || "VirtualRide".equals(t.asText())) {
+                            isRide = true;
+                            break;
+                        }
+                    }
+                    if (!isRide) continue;
+
+                    ftp = setting.path("ftp").isNull() ? null : setting.path("ftp").asInt();
+                    lthr = setting.path("lthr").isNull() ? null : setting.path("lthr").asInt();
+                    maxHr = setting.path("max_hr").isNull() ? null : setting.path("max_hr").asInt();
+
+                    powerPercents = parseDoubleList(setting.path("power_zones"));
+                    powerNames = parseStringList(setting.path("power_zone_names"));
+                    hrPercents = parseDoubleList(setting.path("hr_zones"));
+                    hrNames = parseStringList(setting.path("hr_zone_names"));
+                    hrZonesAreMaxHr = setting.path("hr_zones_max_hr").asBoolean(false);
+                    break;
+                }
+            }
+
+            AthleteThresholdsDto thresholds = new AthleteThresholdsDto(
+                    name, ftp, lthr, maxHr, weight > 0 ? weight : null);
+
+            // Power-Zonen: intervals.icu liefert Prozente als Dezimalzahlen (0.55, 0.75, ...)
+            List<ZoneDto> powerZones = ftp != null && ftp > 0
+                    ? buildPowerZones(powerPercents, powerNames, ftp)
+                    : Collections.emptyList();
+
+            log.debug("Power-Zonen-Rohdaten: percentages={}, names={}", powerPercents, powerNames);
+
+            // HF-Zonen: intervals.icu liefert ABSOLUTE BPM-Werte (140, 155, 162, ...)
+            int hrReferenceVal;
+            String hrReference;
+            if (hrZonesAreMaxHr) {
+                hrReference = "max_hr";
+                hrReferenceVal = maxHr != null ? maxHr : 0;
+            } else {
+                hrReference = "lthr";
+                hrReferenceVal = lthr != null ? lthr : 0;
+            }
+            List<ZoneDto> hrZones = hrReferenceVal > 0
+                    ? buildHrZones(hrPercents, hrNames, hrReferenceVal)
+                    : Collections.emptyList();
+
+            log.info("Zonen geladen: FTP={}, LTHR={}, MaxHR={}, PowerZonen={}, HFZonen={} (Ref={})",
+                    ftp, lthr, maxHr, powerZones.size(), hrZones.size(), hrReference);
+
+            return new AthleteZonesDto(thresholds, powerZones, hrZones, hrReference);
+        } catch (Exception e) {
+            log.error("Athleten-Zonen konnten nicht geladen werden: {}", e.getMessage(), e);
+            return new AthleteZonesDto(
+                    new AthleteThresholdsDto(null, null, null, null, null),
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    "lthr"
+            );
+        }
+    }
+
+    /**
+     * Baut Power-Zonen aus intervals.icu Prozent-Schwellen.
+     * Format: percentages = [55, 75, 90, 105, 120, 150, ...] (Ganzzahlen = Prozent, Obere Grenze je Zone)
+     * Namen: ["Active Recovery", "Endurance", "Tempo", "Threshold", "VO2 Max", "Anaerobic", "Neuromuscular", "Sweet Spot"]
+     *
+     * Die letzte reguläre Zone (Z7) ist open-ended. Sweet Spot (SS) wird separat behandelt.
+     */
+    private List<ZoneDto> buildPowerZones(List<Double> percentages, List<String> names, int ftp) {
+        if (percentages == null) percentages = Collections.emptyList();
+        if (names == null) names = Collections.emptyList();
+        if (percentages.isEmpty() && names.isEmpty()) return Collections.emptyList();
+
+        List<ZoneDto> zones = new ArrayList<>();
+        int regularZones = Math.min(7, Math.max(names.size(), percentages.size()));
+
+        // Z1-Z7 (reguläre Zonen)
+        for (int i = 0; i < regularZones; i++) {
+            // intervals.icu liefert Ganzzahlen (55, 75, 90, ...) → durch 100 teilen
+            double lowerPct = (i == 0) ? 0.0 : safeGet(percentages, i - 1, 0.0) / 100.0;
+            Double upperPct = i < percentages.size() ? percentages.get(i) / 100.0 : null;
+            // Z7 ist open-ended
+            if (i == regularZones - 1 && regularZones == 7) upperPct = null;
+
+            Integer lowerVal = (int) Math.round(lowerPct * ftp);
+            Integer upperVal = upperPct == null ? null : (int) Math.round(upperPct * ftp);
+
+            String name = i < names.size() ? names.get(i) : "Z" + (i + 1);
+            String color = ZONE_COLORS[Math.min(i, ZONE_COLORS.length - 1)];
+
+            zones.add(new ZoneDto(i + 1, name, lowerPct, upperPct, lowerVal, upperVal, color));
+        }
+
+        // Sweet Spot (SS) IMMER hinzufügen (Coggan-Standard: 84% - 97% FTP)
+        // intervals.icu zeigt SS in der UI, liefert es aber evtl. nicht über power_zones API.
+        // Daher fügen wir es immer manuell hinzu.
+        boolean hasSweetSpot = false;
+        for (int i = regularZones; i < names.size(); i++) {
+            String name = names.get(i);
+            if (name != null && (name.equalsIgnoreCase("Sweet Spot")
+                              || name.equalsIgnoreCase("SweetSpot")
+                              || name.equalsIgnoreCase("SS"))) {
+                hasSweetSpot = true;
+                break;
+            }
+        }
+
+        if (!hasSweetSpot) {
+            // Sweet Spot nicht in intervals.icu-Daten gefunden → Coggan-Standard hinzufügen
+            double lowerPct = 0.84;
+            double upperPct = 0.97;
+            Integer lowerVal = (int) Math.round(lowerPct * ftp);
+            Integer upperVal = (int) Math.round(upperPct * ftp);
+            zones.add(new ZoneDto(8, "Sweet Spot", lowerPct, upperPct, lowerVal, upperVal, "#66bb6a")); // grün
+            log.debug("Sweet Spot als Standard-Zone (84-97% FTP) hinzugefügt");
+        }
+
+        log.debug("Power-Zonen gebaut: {} Zonen (inkl. SS)", zones.size());
+        return zones;
+    }
+
+    /**
+     * Baut HF-Zonen aus intervals.icu ABSOLUTEN BPM-Werten.
+     * Format: percentages = [140, 155, 162, 173, 178, 183, ...] (BPM, NICHT Prozente!)
+     * Die Prozente werden rückgerechnet als bpm/referenceHr.
+     */
+    private List<ZoneDto> buildHrZones(List<Double> bpmLimits, List<String> names, int referenceHr) {
+        if (bpmLimits == null) bpmLimits = Collections.emptyList();
+        if (names == null) names = Collections.emptyList();
+        int n = Math.max(names.size(), bpmLimits.size());
+        if (n == 0) return Collections.emptyList();
+
+        List<ZoneDto> zones = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            // Untere Grenze: vorheriger Wert + 1, oder 0 bei Z1
+            int lowerVal = (i == 0) ? 0 : ((int) Math.round(safeGet(bpmLimits, i - 1, 0.0))) + 1;
+            Integer upperVal = i < bpmLimits.size() ? (int) Math.round(bpmLimits.get(i)) : null;
+            // Letzte Zone ist open-ended
+            if (i == n - 1) upperVal = null;
+
+            double lowerPct = (double) lowerVal / referenceHr;
+            Double upperPct = upperVal != null ? (double) upperVal / referenceHr : null;
+
+            String name = i < names.size() ? names.get(i) : "Z" + (i + 1);
+            String color = ZONE_COLORS[Math.min(i, ZONE_COLORS.length - 1)];
+
+            zones.add(new ZoneDto(i + 1, name, lowerPct, upperPct, lowerVal, upperVal, color));
+        }
+        return zones;
+    }
+
+    private static double safeGet(List<Double> list, int idx, double def) {
+        return (idx >= 0 && idx < list.size() && list.get(idx) != null) ? list.get(idx) : def;
+    }
+
+    private List<String> parseStringList(JsonNode node) {
+        if (node == null || !node.isArray()) return Collections.emptyList();
+        List<String> list = new ArrayList<>();
+        for (JsonNode n : node) list.add(n.isNull() ? null : n.asText());
+        return list;
     }
 }
 

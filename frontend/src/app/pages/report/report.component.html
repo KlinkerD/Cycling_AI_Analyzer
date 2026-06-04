@@ -14,6 +14,13 @@
         <mat-icon>arrow_back</mat-icon>
         Zurück zur Übersicht
       </button>
+      <span class="back-row-spacer"></span>
+      <button mat-stroked-button color="primary"
+              (click)="resendReportMail()"
+              [disabled]="resending">
+        <mat-icon>{{ resending ? 'hourglass_top' : 'mail' }}</mat-icon>
+        {{ resending ? 'Wird gesendet…' : 'Report per E-Mail senden' }}
+      </button>
     </div>
 
     <!-- Header-Karte -->

@@ -36,6 +36,7 @@ export class ReportComponent implements OnInit {
 
   report: Report | null = null;
   loading = true;
+  resending = false;
   activityId!: string;
 
   // Chart: Leistung vs. Distanz
@@ -363,6 +364,21 @@ export class ReportComponent implements OnInit {
 
   goBack(): void {
     this.router.navigate(['/']);
+  }
+
+  resendReportMail(): void {
+    if (this.resending) return;
+    this.resending = true;
+    this.activityService.resendReportMail(this.activityId).subscribe({
+      next: () => {
+        this.resending = false;
+        this.snackBar.open('Report wurde per E-Mail verschickt.', 'OK', { duration: 4000 });
+      },
+      error: () => {
+        this.resending = false;
+        this.snackBar.open('Versand fehlgeschlagen. Bitte Logs prüfen.', 'OK', { duration: 5000 });
+      }
+    });
   }
 }
 

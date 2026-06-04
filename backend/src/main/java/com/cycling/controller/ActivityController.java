@@ -5,6 +5,7 @@ import com.cycling.dto.AthleteThresholdsDto;
 import com.cycling.dto.ReportDto;
 import com.cycling.service.AnalysisService;
 import com.cycling.service.IntervalsService;
+import com.cycling.service.ReportMailService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/activities")
@@ -19,10 +21,14 @@ public class ActivityController {
 
     private final IntervalsService intervalsService;
     private final AnalysisService analysisService;
+    private final ReportMailService reportMailService;
 
-    public ActivityController(IntervalsService intervalsService, AnalysisService analysisService) {
+    public ActivityController(IntervalsService intervalsService,
+                              AnalysisService analysisService,
+                              ReportMailService reportMailService) {
         this.intervalsService = intervalsService;
         this.analysisService = analysisService;
+        this.reportMailService = reportMailService;
     }
 
     /**
@@ -81,6 +87,25 @@ public class ActivityController {
         try {
             ReportDto report = analysisService.getReport(id);
             return ResponseEntity.ok(report);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * POST /api/activities/{id}/resend-mail
+     * Sendet den bereits gespeicherten Report erneut per E-Mail.
+     * Versand erfolgt asynchron - Antwort heisst nur "angestossen", nicht "zugestellt".
+     */
+    @PostMapping("/{id}/resend-mail")
+    public ResponseEntity<Map<String, String>> resendReportMail(@PathVariable String id) {
+        try {
+            ReportDto report = analysisService.getReport(id);
+            reportMailService.sendReportEmail(report);
+            return ResponseEntity.accepted().body(Map.of(
+                    "status", "queued",
+                    "message", "Mailversand wurde angestossen."
+            ));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }

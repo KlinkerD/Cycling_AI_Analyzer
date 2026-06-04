@@ -33,6 +33,12 @@ export class ActivityService {
     return this.http.get<Report>(`${this.baseUrl}/${activityId}/report`);
   }
 
+  resendReportMail(activityId: string): Observable<{ status: string; message: string }> {
+    return this.http.post<{ status: string; message: string }>(
+      `${this.baseUrl}/${activityId}/resend-mail`, {}
+    );
+  }
+
   private formatDate(date: Date): string {
     return date.toISOString().split('T')[0];
   }

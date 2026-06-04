@@ -21,15 +21,18 @@ public class AnalysisService {
     private final GeminiService geminiService;
     private final ZoneCalculatorService zoneCalculator;
     private final ActivityAnalysisRepository repository;
+    private final ReportMailService reportMailService;
 
     public AnalysisService(IntervalsService intervalsService,
                            GeminiService geminiService,
                            ZoneCalculatorService zoneCalculator,
-                           ActivityAnalysisRepository repository) {
+                           ActivityAnalysisRepository repository,
+                           ReportMailService reportMailService) {
         this.intervalsService = intervalsService;
         this.geminiService = geminiService;
         this.zoneCalculator = zoneCalculator;
         this.repository = repository;
+        this.reportMailService = reportMailService;
     }
 
     /**
@@ -103,7 +106,16 @@ public class AnalysisService {
         List<TrendDataDto> trend = buildTrend();
 
         log.info("Analyse für {} abgeschlossen. Score: {}/10", activityDto.name(), geminiResult.score());
-        return new ReportDto(saved, streams, powerZones, hrZones, trend);
+        ReportDto report = new ReportDto(saved, streams, powerZones, hrZones, trend);
+
+        // Async Mail-Versand (fail-soft, blockt nicht).
+        try {
+            reportMailService.sendReportEmail(report);
+        } catch (Exception mailEx) {
+            log.warn("Mail-Trigger fehlgeschlagen: {}", mailEx.getMessage());
+        }
+
+        return report;
     }
 
     public List<String> getAnalyzedIds() {

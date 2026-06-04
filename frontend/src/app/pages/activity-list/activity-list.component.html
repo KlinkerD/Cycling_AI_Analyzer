@@ -63,34 +63,30 @@
 
           <mat-card-content>
             <div class="stats-row">
-              <div class="stat">
+              <div class="stat" matTooltip="Distanz">
                 <mat-icon>straighten</mat-icon>
                 <span>{{ formatDistance(activity.distance) }}</span>
               </div>
-              <div class="stat">
+              <div class="stat" matTooltip="Dauer (bewegt)">
                 <mat-icon>schedule</mat-icon>
                 <span>{{ formatDuration(activity.movingTime) }}</span>
               </div>
-              <div class="stat">
-                <mat-icon>bolt</mat-icon>
-                <span>{{ activity.averageWatts ? (activity.averageWatts | number:'1.0-0') + ' W' : '– W' }}</span>
+              <div class="stat" matTooltip="Durchschnittsgeschwindigkeit">
+                <mat-icon>speed</mat-icon>
+                <span>{{ activity.averageSpeed != null ? formatSpeed(activity.averageSpeed) : '–' }}</span>
               </div>
-              @if (activity.averageHeartrate) {
-                <div class="stat">
-                  <mat-icon>favorite</mat-icon>
-                  <span>{{ activity.averageHeartrate | number:'1.0-0' }} bpm</span>
-                </div>
-              }
+              <div class="stat" matTooltip="Durchschnittsleistung">
+                <mat-icon>bolt</mat-icon>
+                <span>{{ activity.averageWatts != null ? (activity.averageWatts | number:'1.0-0') + ' W' : '–' }}</span>
+              </div>
+              <div class="stat" matTooltip="Durchschnittliche Herzfrequenz">
+                <mat-icon>favorite</mat-icon>
+                <span>{{ activity.averageHeartrate != null ? (activity.averageHeartrate | number:'1.0-0') + ' bpm' : '–' }}</span>
+              </div>
               @if (activity.totalElevationGain) {
-                <div class="stat">
+                <div class="stat" matTooltip="Höhenmeter">
                   <mat-icon>landscape</mat-icon>
                   <span>{{ activity.totalElevationGain | number:'1.0-0' }} m</span>
-                </div>
-              }
-              @if (activity.averageSpeed) {
-                <div class="stat">
-                  <mat-icon>speed</mat-icon>
-                  <span>{{ formatSpeed(activity.averageSpeed) }}</span>
                 </div>
               }
             </div>

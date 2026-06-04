@@ -59,6 +59,19 @@ public class QuickChartService {
                 "rgba(244,67,54,1)", "rgba(244,67,54,0.2)");
     }
 
+    /**
+     * Geschwindigkeit ueber Distanz. Quelle ist {@code velocity} in m/s und wird zu km/h umgerechnet.
+     */
+    public byte[] renderSpeedOverDistance(StreamDataDto streams) {
+        if (streams.velocity() == null || streams.velocity().isEmpty()) return null;
+        List<Double> speedKmh = new ArrayList<>(streams.velocity().size());
+        for (Double v : streams.velocity()) {
+            speedKmh.add(v != null ? Math.round(v * 3.6 * 10.0) / 10.0 : null);
+        }
+        return renderLine("Geschwindigkeit (km/h)", "Distanz (km)", streams.distance(), speedKmh,
+                "rgba(255,152,0,1)", "rgba(255,152,0,0.2)");
+    }
+
     public byte[] renderCadenceOverDistance(StreamDataDto streams) {
         return renderLine("Kadenz (rpm)", "Distanz (km)", streams.distance(), streams.cadence(),
                 "rgba(76,175,80,1)", "rgba(76,175,80,0.2)");

@@ -174,6 +174,23 @@
         </mat-card>
       }
 
+      <!-- Geschwindigkeit vs. Distanz -->
+      @if (report.streams.velocity && report.streams.velocity.length > 0) {
+        <mat-card class="chart-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="icon-orange">speed</mat-icon>
+            <mat-card-title>Geschwindigkeit über Distanz</mat-card-title>
+          </mat-card-header>
+          <mat-card-content class="chart-container">
+            <canvas baseChart
+              [data]="speedChartData"
+              [options]="speedChartOptions"
+              type="line">
+            </canvas>
+          </mat-card-content>
+        </mat-card>
+      }
+
       <!-- Kadenz vs. Distanz -->
       @if (report.streams.cadence && report.streams.cadence.length > 0) {
         <mat-card class="chart-card">

@@ -47,6 +47,10 @@ export class ReportComponent implements OnInit {
   hrChartData!: ChartData<'line'>;
   hrChartOptions: ChartOptions<'line'> = this.lineChartOptions('Herzfrequenz (bpm)');
 
+  // Chart: Geschwindigkeit vs. Distanz
+  speedChartData!: ChartData<'line'>;
+  speedChartOptions: ChartOptions<'line'> = this.lineChartOptions('Geschwindigkeit (km/h)');
+
   // Chart: Kadenz vs. Distanz
   cadenceChartData!: ChartData<'line'>;
   cadenceChartOptions: ChartOptions<'line'> = this.lineChartOptions('Kadenz (rpm)');
@@ -220,6 +224,30 @@ export class ReportComponent implements OnInit {
         tension: 0.2
       }]
     };
+
+    // Speed Chart (m/s -> km/h, Bucket-Mittelwert fuer ruhigere Linie trotz Stops/Spitzen)
+    const velocityMs = streams.velocity || [];
+    if (velocityMs.length > 0) {
+      const targetPoints = Math.min(500, distKm.length);
+      const speedDist = this.bucketAverage(distKm, targetPoints)
+        .map(v => v != null ? +v.toFixed(2) : null);
+      const speedKmh = this.bucketAverage(velocityMs.map(v => v != null ? v * 3.6 : null), targetPoints)
+        .map(v => v != null ? +v.toFixed(1) : null);
+      this.speedChartData = {
+        labels: speedDist,
+        datasets: [{
+          label: 'Geschwindigkeit (km/h)',
+          data: speedKmh,
+          borderColor: '#FF9800',
+          backgroundColor: 'rgba(255,152,0,0.08)',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: true,
+          tension: 0.25,
+          spanGaps: true
+        }]
+      };
+    }
 
     // Cadence Chart
     this.cadenceChartData = {
@@ -408,6 +436,35 @@ export class ReportComponent implements OnInit {
       .trim();
   }
 
+  /**
+   * Bucket-Mittelwert-Downsampling: teilt die Quelle in {@code maxPoints} gleich grosse
+   * Buckets und mittelt nicht-null Werte pro Bucket. Liefert eine ruhigere Linie als
+   * striktes Subsampling – wichtig bei Geschwindigkeit (Stops/Sprints).
+   */
+  private bucketAverage(src: (number | null)[], maxPoints: number): (number | null)[] {
+    if (!src || src.length === 0) return [];
+    const n = src.length;
+    if (n <= maxPoints) return src.slice();
+    const step = n / maxPoints;
+    const out: (number | null)[] = new Array(maxPoints);
+    for (let i = 0; i < maxPoints; i++) {
+      const from = Math.floor(i * step);
+      let to = Math.floor((i + 1) * step);
+      if (to <= from) to = from + 1;
+      if (to > n) to = n;
+      let sum = 0;
+      let count = 0;
+      for (let j = from; j < to; j++) {
+        const v = src[j];
+        if (v != null && !isNaN(v as number)) {
+          sum += v as number;
+          count++;
+        }
+      }
+      out[i] = count > 0 ? sum / count : null;
+    }
+    return out;
+  }
 
   private buildZoneChartData(zones: ZoneDistribution[]): ChartData<'doughnut'> {
     return {
@@ -505,4 +562,3 @@ export class ReportComponent implements OnInit {
     });
   }
 }
-

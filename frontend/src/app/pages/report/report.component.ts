@@ -531,7 +531,8 @@ export class ReportComponent implements OnInit {
     return '#F44336';
   }
 
-  formatDuration(seconds: number): string {
+  formatDuration(seconds: number | null | undefined): string {
+    if (seconds == null || isNaN(seconds as number) || seconds <= 0) return '–';
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     return `${h}:${String(m).padStart(2, '0')} h`;

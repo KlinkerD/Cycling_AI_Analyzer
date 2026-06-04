@@ -1,5 +1,6 @@
 package com.cycling.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -44,29 +45,32 @@ public class ActivityDto {
     @JsonIgnore private Double icuElevationGain;
 
     // ---- Setter mit JSON-Property: nur fuer Deserialisierung ----
+    // intervals.icu liefert snake_case (z.B. "moving_time"), das Frontend postet das
+    // serialisierte DTO mit camelCase-Keys (z.B. "movingTime"). Beides muss akzeptiert werden,
+    // sonst landet beim Analyse-POST z.B. movingTime=null in der DB -> Dauer = 0:00 im Report.
     @JsonProperty("id") public void setId(String v) { this.id = v; }
     @JsonProperty("name") public void setName(String v) { this.name = v; }
-    @JsonProperty("start_date_local") public void setStartDateLocal(String v) { this.startDateLocal = v; }
+    @JsonProperty("start_date_local") @JsonAlias("startDateLocal") public void setStartDateLocal(String v) { this.startDateLocal = v; }
     @JsonProperty("distance") public void setDistance(Double v) { this.distance = v; }
-    @JsonProperty("moving_time") public void setMovingTime(Integer v) { this.movingTime = v; }
-    @JsonProperty("elapsed_time") public void setElapsedTime(Integer v) { this.elapsedTime = v; }
+    @JsonProperty("moving_time") @JsonAlias("movingTime") public void setMovingTime(Integer v) { this.movingTime = v; }
+    @JsonProperty("elapsed_time") @JsonAlias("elapsedTime") public void setElapsedTime(Integer v) { this.elapsedTime = v; }
     @JsonProperty("type") public void setType(String v) { this.type = v; }
 
-    @JsonProperty("average_watts") public void setAverageWattsRaw(Double v) { this.averageWattsRaw = v; }
+    @JsonProperty("average_watts") @JsonAlias("averageWatts") public void setAverageWattsRaw(Double v) { this.averageWattsRaw = v; }
     @JsonProperty("icu_average_watts") public void setIcuAverageWatts(Double v) { this.icuAverageWatts = v; }
     @JsonProperty("icu_weighted_avg_watts") public void setIcuWeightedAvgWatts(Double v) { this.icuWeightedAvgWatts = v; }
-    @JsonProperty("max_watts") public void setMaxWattsRaw(Double v) { this.maxWattsRaw = v; }
+    @JsonProperty("max_watts") @JsonAlias("maxWatts") public void setMaxWattsRaw(Double v) { this.maxWattsRaw = v; }
     @JsonProperty("icu_max_watts") public void setIcuMaxWatts(Double v) { this.icuMaxWatts = v; }
 
-    @JsonProperty("average_heartrate") public void setAverageHeartrateRaw(Double v) { this.averageHeartrateRaw = v; }
+    @JsonProperty("average_heartrate") @JsonAlias("averageHeartrate") public void setAverageHeartrateRaw(Double v) { this.averageHeartrateRaw = v; }
     @JsonProperty("icu_average_heartrate") public void setIcuAverageHeartrate(Double v) { this.icuAverageHeartrate = v; }
-    @JsonProperty("max_heartrate") public void setMaxHeartrateRaw(Double v) { this.maxHeartrateRaw = v; }
+    @JsonProperty("max_heartrate") @JsonAlias("maxHeartrate") public void setMaxHeartrateRaw(Double v) { this.maxHeartrateRaw = v; }
     @JsonProperty("icu_max_heartrate") public void setIcuMaxHeartrate(Double v) { this.icuMaxHeartrate = v; }
 
-    @JsonProperty("average_speed") public void setAverageSpeedRaw(Double v) { this.averageSpeedRaw = v; }
+    @JsonProperty("average_speed") @JsonAlias("averageSpeed") public void setAverageSpeedRaw(Double v) { this.averageSpeedRaw = v; }
     @JsonProperty("icu_average_speed") public void setIcuAverageSpeed(Double v) { this.icuAverageSpeed = v; }
 
-    @JsonProperty("total_elevation_gain") public void setTotalElevationGainRaw(Double v) { this.totalElevationGainRaw = v; }
+    @JsonProperty("total_elevation_gain") @JsonAlias("totalElevationGain") public void setTotalElevationGainRaw(Double v) { this.totalElevationGainRaw = v; }
     @JsonProperty("icu_elevation_gain") public void setIcuElevationGain(Double v) { this.icuElevationGain = v; }
 
     // ---- Accessoren (auch fuer Serialisierung Richtung Frontend) ----
@@ -115,4 +119,3 @@ public class ActivityDto {
         return null;
     }
 }
-

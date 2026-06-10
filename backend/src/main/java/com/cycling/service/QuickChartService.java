@@ -147,8 +147,9 @@ public class QuickChartService {
         List<Double> values = new ArrayList<>();
         List<String> colors = new ArrayList<>();
         for (ZoneDistributionDto z : zones) {
-            labels.add(z.zoneName() + " " + z.zoneLabel());
-            values.add(round1(z.percentage()));
+            double pct = round1(z.percentage());
+            labels.add(z.zoneName() + " " + z.zoneLabel() + " – " + fmtPct(pct) + " %");
+            values.add(pct);
             colors.add(z.color());
         }
 
@@ -170,7 +171,7 @@ public class QuickChartService {
                 )
         ));
 
-        return postChart(chart, DOUGHNUT_SIZE, DOUGHNUT_SIZE);
+        return postChart(chart, DOUGHNUT_SIZE + 180, DOUGHNUT_SIZE);
     }
 
     public byte[] renderTrend(List<TrendDataDto> trend) {
@@ -525,6 +526,11 @@ public class QuickChartService {
 
     private static double round1(double v) {
         return Math.round(v * 10.0) / 10.0;
+    }
+
+    /** Prozentwert ohne ueberfluessige Nachkommastelle: 23.0 -> "23", 23.4 -> "23.4". */
+    private static String fmtPct(double v) {
+        return v % 1 == 0 ? String.valueOf((long) v) : String.valueOf(v);
     }
 
     private static List<Double> downsampleDouble(List<Double> src, int maxPoints) {

@@ -97,12 +97,8 @@ public class ReportMailService {
 
         try {
             // Charts rendern (jeweils null falls keine Daten / Fehler)
-            byte[] powerPng = report.streams().watts() != null && !report.streams().watts().isEmpty()
-                    ? quickChart.renderPowerOverDistance(report.streams()) : null;
-            byte[] hrPng = report.streams().heartrate() != null && !report.streams().heartrate().isEmpty()
-                    ? quickChart.renderHrOverDistance(report.streams()) : null;
-            byte[] speedPng = report.streams().velocity() != null && !report.streams().velocity().isEmpty()
-                    ? quickChart.renderSpeedOverDistance(report.streams()) : null;
+            byte[] speedAltPng = quickChart.renderSpeedAndAltitude(report.streams());
+            byte[] powerHrPng = quickChart.renderPowerAndHr(report.streams());
             byte[] cadencePng = report.streams().cadence() != null && !report.streams().cadence().isEmpty()
                     ? quickChart.renderCadenceOverDistance(report.streams()) : null;
             byte[] powerZonesPng = quickChart.renderZoneDoughnut("Leistungszonen (FTP-basiert)", report.powerZones());
@@ -112,16 +108,15 @@ public class ReportMailService {
 
             // CIDs vergeben
             List<InlineImage> images = new ArrayList<>();
-            String cidPower = addIfPresent(images, "powerChart", powerPng);
-            String cidHr = addIfPresent(images, "hrChart", hrPng);
-            String cidSpeed = addIfPresent(images, "speedChart", speedPng);
+            String cidSpeedAlt = addIfPresent(images, "speedAltChart", speedAltPng);
+            String cidPowerHr = addIfPresent(images, "powerHrChart", powerHrPng);
             String cidCadence = addIfPresent(images, "cadenceChart", cadencePng);
             String cidPowerZones = addIfPresent(images, "powerZonesChart", powerZonesPng);
             String cidHrZones = addIfPresent(images, "hrZonesChart", hrZonesPng);
             String cidTrend = addIfPresent(images, "trendChart", trendPng);
             String cidPowerCurve = addIfPresent(images, "powerCurveChart", powerCurvePng);
 
-            String html = buildHtml(report, cidPower, cidHr, cidSpeed, cidCadence, cidPowerZones, cidHrZones, cidTrend, cidPowerCurve);
+            String html = buildHtml(report, cidSpeedAlt, cidPowerHr, cidCadence, cidPowerZones, cidHrZones, cidTrend, cidPowerCurve);
 
             MimeMessage mime = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mime, true, StandardCharsets.UTF_8.name());
@@ -174,7 +169,7 @@ public class ReportMailService {
     // ---------- HTML-Aufbau ----------
 
     private String buildHtml(ReportDto report,
-                             String cidPower, String cidHr, String cidSpeed, String cidCadence,
+                             String cidSpeedAlt, String cidPowerHr, String cidCadence,
                              String cidPowerZones, String cidHrZones, String cidTrend,
                              String cidPowerCurve) {
         ActivityAnalysis a = report.analysis();
@@ -224,9 +219,8 @@ public class ReportMailService {
 
         // Charts
         sb.append("<h2 style=\"font-size:18px;color:#3f51b5;margin:24px 0 12px;\">Leistungsanalyse</h2>");
-        sb.append(chartCard("Leistung über Distanz", cidPower));
-        sb.append(chartCard("Herzfrequenz über Distanz", cidHr));
-        sb.append(chartCard("Geschwindigkeit über Distanz", cidSpeed));
+        sb.append(chartCard("Geschwindigkeit & Höhe über Distanz", cidSpeedAlt));
+        sb.append(chartCard("Leistung & Herzfrequenz über Distanz", cidPowerHr));
         sb.append(chartCard("Kadenz über Distanz", cidCadence));
         sb.append(chartCard("Leistungszonen (FTP-basiert)", cidPowerZones));
         sb.append(chartCard("Herzfrequenzzonen (Max-HR-basiert)", cidHrZones));

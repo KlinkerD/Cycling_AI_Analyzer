@@ -49,27 +49,90 @@ public class QuickChartService {
 
     // ---------- public API ----------
 
-    public byte[] renderPowerOverDistance(StreamDataDto streams) {
-        return renderLine("Leistung (W)", "Distanz (km)", streams.distance(), streams.watts(),
-                "rgba(63,81,181,1)", "rgba(63,81,181,0.2)");
-    }
-
-    public byte[] renderHrOverDistance(StreamDataDto streams) {
-        return renderLine("Herzfrequenz (bpm)", "Distanz (km)", streams.distance(), streams.heartrate(),
-                "rgba(244,67,54,1)", "rgba(244,67,54,0.2)");
-    }
-
     /**
-     * Geschwindigkeit ueber Distanz. Quelle ist {@code velocity} in m/s und wird zu km/h umgerechnet.
+     * Geschwindigkeit (km/h, links als Linie) kombiniert mit dem Hoehenprofil
+     * (m, rechts als gefuellte Flaeche ab Min-Hoehe). Faellt die Hoehe weg (Indoor/konstant),
+     * bleibt nur die gefuellte Geschwindigkeitslinie.
      */
-    public byte[] renderSpeedOverDistance(StreamDataDto streams) {
+    public byte[] renderSpeedAndAltitude(StreamDataDto streams) {
         if (streams.velocity() == null || streams.velocity().isEmpty()) return null;
+
         List<Double> speedKmh = new ArrayList<>(streams.velocity().size());
         for (Double v : streams.velocity()) {
             speedKmh.add(v != null ? Math.round(v * 3.6 * 10.0) / 10.0 : null);
         }
-        return renderLine("Geschwindigkeit (km/h)", "Distanz (km)", streams.distance(), speedKmh,
-                "rgba(255,152,0,1)", "rgba(255,152,0,0.2)");
+
+        List<Double> xs = downsampleDouble(toDistKm(streams.distance()), MAX_POINTS);
+        boolean hasAlt = hasVariation(streams.altitude(), 2.0);
+
+        List<Map<String, Object>> datasets = new ArrayList<>();
+        // Hoehe zuerst -> wird hinter der Geschwindigkeitslinie gezeichnet
+        if (hasAlt) {
+            datasets.add(axisDataset("Höhe (m)", downsampleNumber(streams.altitude(), MAX_POINTS),
+                    "rgba(120,120,120,0.5)", "rgba(120,120,120,0.18)", true, "yAlt", 1.0, 2));
+        }
+        datasets.add(axisDataset("Geschwindigkeit (km/h)", downsampleNumber(speedKmh, MAX_POINTS),
+                "rgba(255,152,0,1)", "rgba(255,152,0,0.12)", !hasAlt, "ySpeed", 1.5, 1));
+
+        Map<String, Object> scales = new LinkedHashMap<>();
+        scales.put("x", Map.of("type", "linear", "title", Map.of("display", true, "text", "Distanz (km)")));
+        Map<String, Object> ySpeed = new LinkedHashMap<>();
+        ySpeed.put("type", "linear");
+        ySpeed.put("position", "left");
+        ySpeed.put("title", Map.of("display", true, "text", "km/h"));
+        ySpeed.put("beginAtZero", false);
+        scales.put("ySpeed", ySpeed);
+        if (hasAlt) {
+            Map<String, Object> yAlt = new LinkedHashMap<>();
+            yAlt.put("type", "linear");
+            yAlt.put("position", "right");
+            yAlt.put("title", Map.of("display", true, "text", "Höhe (m)"));
+            yAlt.put("grid", Map.of("drawOnChartArea", false));
+            Double minAlt = minValue(streams.altitude());
+            if (minAlt != null) yAlt.put("min", Math.floor(minAlt));
+            scales.put("yAlt", yAlt);
+        }
+
+        return postMultiAxis("Geschwindigkeit & Höhe über Distanz", xs, datasets, scales, hasAlt);
+    }
+
+    /**
+     * Leistung (W, links als gefuellte Flaeche) kombiniert mit der Herzfrequenz
+     * (bpm, rechts als Linie). Fehlt eine der beiden Metriken, wird nur die vorhandene gezeigt.
+     */
+    public byte[] renderPowerAndHr(StreamDataDto streams) {
+        boolean hasWatts = hasAny(streams.watts());
+        boolean hasHr = hasAny(streams.heartrate());
+        if (!hasWatts && !hasHr) return null;
+
+        List<Double> xs = downsampleDouble(toDistKm(streams.distance()), MAX_POINTS);
+        List<Map<String, Object>> datasets = new ArrayList<>();
+        Map<String, Object> scales = new LinkedHashMap<>();
+        scales.put("x", Map.of("type", "linear", "title", Map.of("display", true, "text", "Distanz (km)")));
+
+        if (hasWatts) {
+            datasets.add(axisDataset("Leistung (W)", downsampleNumber(streams.watts(), MAX_POINTS),
+                    "rgba(63,81,181,1)", "rgba(63,81,181,0.12)", true, "yPower", 1.5, 2));
+            Map<String, Object> yPower = new LinkedHashMap<>();
+            yPower.put("type", "linear");
+            yPower.put("position", "left");
+            yPower.put("title", Map.of("display", true, "text", "Watt"));
+            yPower.put("beginAtZero", false);
+            scales.put("yPower", yPower);
+        }
+        if (hasHr) {
+            datasets.add(axisDataset("Herzfrequenz (bpm)", downsampleNumber(streams.heartrate(), MAX_POINTS),
+                    "rgba(244,67,54,1)", "rgba(0,0,0,0)", false, "yHr", 2.0, 1));
+            Map<String, Object> yHr = new LinkedHashMap<>();
+            yHr.put("type", "linear");
+            yHr.put("position", "right");
+            yHr.put("title", Map.of("display", true, "text", "bpm"));
+            yHr.put("beginAtZero", false);
+            yHr.put("grid", Map.of("drawOnChartArea", false));
+            scales.put("yHr", yHr);
+        }
+
+        return postMultiAxis("Leistung & Herzfrequenz über Distanz", xs, datasets, scales, hasWatts && hasHr);
     }
 
     public byte[] renderCadenceOverDistance(StreamDataDto streams) {
@@ -341,6 +404,90 @@ public class QuickChartService {
         ds.put("pointRadius", 3);
         ds.put("fill", false);
         return ds;
+    }
+
+    /** Ein Dataset fuer einen Multi-Achsen-Chart (Speed+Hoehe bzw. Leistung+HF). */
+    private Map<String, Object> axisDataset(String label, List<Double> data, String border, String fill,
+                                            boolean fillArea, String yAxisId, double borderWidth, int order) {
+        Map<String, Object> ds = new LinkedHashMap<>();
+        ds.put("label", label);
+        ds.put("data", data);
+        ds.put("borderColor", border);
+        ds.put("backgroundColor", fill);
+        ds.put("fill", fillArea);
+        ds.put("pointRadius", 0);
+        ds.put("borderWidth", borderWidth);
+        ds.put("tension", 0.25);
+        ds.put("spanGaps", true);
+        ds.put("yAxisID", yAxisId);
+        ds.put("order", order);
+        return ds;
+    }
+
+    private byte[] postMultiAxis(String title, List<Double> xs, List<Map<String, Object>> datasets,
+                                 Map<String, Object> scales, boolean showLegend) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("labels", xs);
+        data.put("datasets", datasets);
+
+        Map<String, Object> options = new LinkedHashMap<>();
+        options.put("plugins", Map.of(
+                "title", Map.of("display", true, "text", title),
+                "legend", Map.of("display", showLegend, "position", "top")
+        ));
+        options.put("scales", scales);
+
+        Map<String, Object> chart = new LinkedHashMap<>();
+        chart.put("type", "line");
+        chart.put("data", data);
+        chart.put("options", options);
+
+        return postChart(chart, CHART_WIDTH, CHART_HEIGHT);
+    }
+
+    /** Distanz in Metern -> km, auf 2 Nachkommastellen gerundet. */
+    private static List<Double> toDistKm(List<Double> distanceMeters) {
+        List<Double> distKm = new ArrayList<>(distanceMeters != null ? distanceMeters.size() : 0);
+        if (distanceMeters != null) {
+            for (Double d : distanceMeters) {
+                distKm.add(d != null ? Math.round(d / 1000.0 * 100.0) / 100.0 : 0.0);
+            }
+        }
+        return distKm;
+    }
+
+    private static boolean hasAny(List<? extends Number> src) {
+        if (src == null) return false;
+        for (Number v : src) if (v != null) return true;
+        return false;
+    }
+
+    /** True, wenn die Serie eine Spannweite >= minRange hat (z. B. Hoehe auf Rolle ist konstant). */
+    private static boolean hasVariation(List<Double> src, double minRange) {
+        if (src == null || src.isEmpty()) return false;
+        double min = Double.MAX_VALUE, max = -Double.MAX_VALUE;
+        int count = 0;
+        for (Double v : src) {
+            if (v != null) {
+                if (v < min) min = v;
+                if (v > max) max = v;
+                count++;
+            }
+        }
+        return count > 0 && (max - min) >= minRange;
+    }
+
+    private static Double minValue(List<Double> src) {
+        if (src == null) return null;
+        double min = Double.MAX_VALUE;
+        boolean found = false;
+        for (Double v : src) {
+            if (v != null && v < min) {
+                min = v;
+                found = true;
+            }
+        }
+        return found ? min : null;
     }
 
     private byte[] postChart(Map<String, Object> chart, int width, int height) {

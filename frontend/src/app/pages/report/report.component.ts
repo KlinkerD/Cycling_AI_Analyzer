@@ -39,17 +39,13 @@ export class ReportComponent implements OnInit {
   resending = false;
   activityId!: string;
 
-  // Chart: Leistung vs. Distanz
-  powerChartData!: ChartData<'line'>;
-  powerChartOptions: ChartOptions<'line'> = this.lineChartOptions('Leistung (W)');
+  // Chart: Leistung & Herzfrequenz (kombiniert, Doppel-Y-Achse)
+  powerHrChartData!: ChartData<'line'>;
+  powerHrChartOptions!: ChartOptions<'line'>;
 
-  // Chart: Herzfrequenz vs. Distanz
-  hrChartData!: ChartData<'line'>;
-  hrChartOptions: ChartOptions<'line'> = this.lineChartOptions('Herzfrequenz (bpm)');
-
-  // Chart: Geschwindigkeit vs. Distanz
+  // Chart: Geschwindigkeit & Höhe (kombiniert, Doppel-Y-Achse)
   speedChartData!: ChartData<'line'>;
-  speedChartOptions: ChartOptions<'line'> = this.lineChartOptions('Geschwindigkeit (km/h)');
+  speedChartOptions!: ChartOptions<'line'>;
 
   // Chart: Kadenz vs. Distanz
   cadenceChartData!: ChartData<'line'>;
@@ -195,37 +191,7 @@ export class ReportComponent implements OnInit {
     const sampledHr = (streams.heartrate || []).filter((_, i) => i % step === 0);
     const sampledCadence = (streams.cadence || []).filter((_, i) => i % step === 0);
 
-    // Power Chart
-    this.powerChartData = {
-      labels: sampledDist,
-      datasets: [{
-        label: 'Leistung (W)',
-        data: sampledWatts,
-        borderColor: '#3F51B5',
-        backgroundColor: 'rgba(63,81,181,0.08)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: true,
-        tension: 0.2
-      }]
-    };
-
-    // HR Chart
-    this.hrChartData = {
-      labels: sampledDist,
-      datasets: [{
-        label: 'Herzfrequenz (bpm)',
-        data: sampledHr,
-        borderColor: '#F44336',
-        backgroundColor: 'rgba(244,67,54,0.08)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: true,
-        tension: 0.2
-      }]
-    };
-
-    // Speed Chart (m/s -> km/h, Bucket-Mittelwert fuer ruhigere Linie trotz Stops/Spitzen)
+    // Geschwindigkeit + Höhe (m/s -> km/h, Bucket-Mittelwert; Höhe als Fläche auf 2. Achse)
     const velocityMs = streams.velocity || [];
     if (velocityMs.length > 0) {
       const targetPoints = Math.min(500, distKm.length);
@@ -233,20 +199,82 @@ export class ReportComponent implements OnInit {
         .map(v => v != null ? +v.toFixed(2) : null);
       const speedKmh = this.bucketAverage(velocityMs.map(v => v != null ? v * 3.6 : null), targetPoints)
         .map(v => v != null ? +v.toFixed(1) : null);
-      this.speedChartData = {
-        labels: speedDist,
-        datasets: [{
-          label: 'Geschwindigkeit (km/h)',
-          data: speedKmh,
-          borderColor: '#FF9800',
-          backgroundColor: 'rgba(255,152,0,0.08)',
+
+      const altitude = streams.altitude || [];
+      const hasAltitude = this.hasVariation(altitude, 2);
+      const speedDatasets: any[] = [];
+
+      // Höhe zuerst -> wird als Fläche hinter der Geschwindigkeitslinie gezeichnet
+      if (hasAltitude) {
+        const altSampled = this.bucketAverage(altitude.map(v => v != null ? v : null), targetPoints)
+          .map(v => v != null ? +v.toFixed(0) : null);
+        speedDatasets.push({
+          label: 'Höhe (m)',
+          data: altSampled,
+          borderColor: 'rgba(120,120,120,0.5)',
+          backgroundColor: 'rgba(120,120,120,0.18)',
+          borderWidth: 1,
+          pointRadius: 0,
+          fill: true,
+          tension: 0.3,
+          spanGaps: true,
+          yAxisID: 'yAlt',
+          order: 2
+        });
+      }
+      speedDatasets.push({
+        label: 'Geschwindigkeit (km/h)',
+        data: speedKmh,
+        borderColor: '#FF9800',
+        backgroundColor: 'rgba(255,152,0,0.08)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: !hasAltitude,
+        tension: 0.25,
+        spanGaps: true,
+        yAxisID: 'ySpeed',
+        order: 1
+      });
+
+      this.speedChartData = { labels: speedDist, datasets: speedDatasets };
+      this.speedChartOptions = this.buildSpeedAltOptions(hasAltitude, this.minValue(altitude));
+    }
+
+    // Leistung + Herzfrequenz (kombiniert, Doppel-Y-Achse)
+    const hasWatts = (streams.watts || []).some(v => v != null);
+    const hasHr = (streams.heartrate || []).some(v => v != null);
+    if (hasWatts || hasHr) {
+      const phDatasets: any[] = [];
+      if (hasWatts) {
+        phDatasets.push({
+          label: 'Leistung (W)',
+          data: sampledWatts,
+          borderColor: '#3F51B5',
+          backgroundColor: 'rgba(63,81,181,0.12)',
           borderWidth: 1.5,
           pointRadius: 0,
           fill: true,
-          tension: 0.25,
-          spanGaps: true
-        }]
-      };
+          tension: 0.2,
+          yAxisID: 'yPower',
+          order: 2
+        });
+      }
+      if (hasHr) {
+        phDatasets.push({
+          label: 'Herzfrequenz (bpm)',
+          data: sampledHr,
+          borderColor: '#F44336',
+          backgroundColor: 'rgba(0,0,0,0)',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          tension: 0.2,
+          yAxisID: 'yHr',
+          order: 1
+        });
+      }
+      this.powerHrChartData = { labels: sampledDist, datasets: phDatasets };
+      this.powerHrChartOptions = this.buildPowerHrOptions(hasWatts, hasHr);
     }
 
     // Cadence Chart
@@ -475,6 +503,117 @@ export class ReportComponent implements OnInit {
         borderWidth: 2,
         borderColor: '#fff'
       }]
+    };
+  }
+
+  /** Prüft, ob eine Serie eine sinnvolle Spannweite hat (z. B. Höhe auf Indoor-Fahrten ist konstant). */
+  private hasVariation(src: (number | null)[] | undefined, minRange: number): boolean {
+    if (!src || src.length === 0) return false;
+    let min = Infinity, max = -Infinity, count = 0;
+    for (const v of src) {
+      if (v != null && !isNaN(v)) {
+        if (v < min) min = v;
+        if (v > max) max = v;
+        count++;
+      }
+    }
+    return count > 0 && (max - min) >= minRange;
+  }
+
+  private minValue(src: (number | null)[] | undefined): number | null {
+    if (!src || src.length === 0) return null;
+    let min = Infinity, found = false;
+    for (const v of src) {
+      if (v != null && !isNaN(v) && v < min) { min = v; found = true; }
+    }
+    return found ? min : null;
+  }
+
+  /** Optionen für den kombinierten Speed+Höhe-Chart (Speed links/Linie, Höhe rechts/Fläche ab Min-Höhe). */
+  private buildSpeedAltOptions(hasAltitude: boolean, altMin: number | null): ChartOptions<'line'> {
+    const scales: any = {
+      x: {
+        title: { display: true, text: 'Distanz (km)' },
+        grid: { display: false },
+        ticks: { maxTicksLimit: 10 }
+      },
+      ySpeed: {
+        type: 'linear',
+        position: 'left',
+        title: { display: true, text: 'km/h' },
+        beginAtZero: false,
+        grid: { color: 'rgba(0,0,0,0.05)' },
+        ticks: { color: '#FF9800' }
+      }
+    };
+    if (hasAltitude) {
+      scales.yAlt = {
+        type: 'linear',
+        position: 'right',
+        title: { display: true, text: 'Höhe (m)' },
+        grid: { display: false },
+        ticks: { color: '#888' }
+      };
+      if (altMin != null) scales.yAlt.min = Math.floor(altMin);
+    }
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: hasAltitude, position: 'top' },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: { title: (items) => `${items[0].label} km` }
+        }
+      },
+      scales
+    };
+  }
+
+  /** Optionen für den kombinierten Leistung+HF-Chart (Watt links/Fläche, HF rechts/Linie). */
+  private buildPowerHrOptions(hasWatts: boolean, hasHr: boolean): ChartOptions<'line'> {
+    const scales: any = {
+      x: {
+        title: { display: true, text: 'Distanz (km)' },
+        grid: { display: false },
+        ticks: { maxTicksLimit: 10 }
+      }
+    };
+    if (hasWatts) {
+      scales.yPower = {
+        type: 'linear',
+        position: 'left',
+        title: { display: true, text: 'Watt' },
+        beginAtZero: false,
+        grid: { color: 'rgba(0,0,0,0.05)' },
+        ticks: { color: '#3F51B5' }
+      };
+    }
+    if (hasHr) {
+      scales.yHr = {
+        type: 'linear',
+        position: 'right',
+        title: { display: true, text: 'bpm' },
+        beginAtZero: false,
+        grid: { display: false },
+        ticks: { color: '#F44336' }
+      };
+    }
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: hasWatts && hasHr, position: 'top' },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: { title: (items) => `${items[0].label} km` }
+        }
+      },
+      scales
     };
   }
 

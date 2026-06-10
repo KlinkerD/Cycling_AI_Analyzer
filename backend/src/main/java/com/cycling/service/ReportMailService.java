@@ -192,6 +192,9 @@ public class ReportMailService {
         sb.append(quickStat(num(a.getDistanceKm(), 1), "km"));
         sb.append(quickStat(formatDuration(a.getDurationSeconds()), "Dauer"));
         if (a.getAvgPowerWatts() != null) sb.append(quickStat(num(a.getAvgPowerWatts(), 0), "W ø"));
+        if (a.getNormalizedPowerWatts() != null) sb.append(quickStat(num(a.getNormalizedPowerWatts(), 0), "W NP"));
+        if (a.getTrainingLoad() != null) sb.append(quickStat(num(a.getTrainingLoad(), 0), "TSS"));
+        if (a.getIntensityFactor() != null) sb.append(quickStat(num(a.getIntensityFactor(), 2), "IF"));
         if (a.getAvgHeartRate() != null) sb.append(quickStat(num(a.getAvgHeartRate(), 0), "bpm ø"));
         if (a.getAvgSpeedKmh() != null) sb.append(quickStat(num(a.getAvgSpeedKmh(), 1), "km/h ø"));
         if (a.getElevationGainM() != null) sb.append(quickStat(num(a.getElevationGainM(), 0), "hm"));

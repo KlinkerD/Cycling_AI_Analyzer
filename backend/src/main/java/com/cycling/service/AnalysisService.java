@@ -84,6 +84,9 @@ public class AnalysisService {
         analysis.setAvgCadenceRpm(avgCadence > 0 ? avgCadence : null);
         analysis.setAnalyzedAt(LocalDateTime.now());
 
+        // NP / IF / TSS aus Stream + FTP ableiten
+        enrichLoadMetrics(analysis, activityDto, streams, ftp);
+
         // Letzte 3 Analysen für Vergleich laden
         List<ActivityAnalysis> lastThree = repository.findTop3ByOrderByActivityDateDesc()
                 .stream()
@@ -155,6 +158,9 @@ public class AnalysisService {
         List<ZoneDistributionDto> hrZones = zoneCalculator.calculateHrZones(streams.heartrate(), maxHr);
         List<TrendDataDto> trend = buildTrend();
 
+        // NP / IF / TSS nachziehen, falls aus alter Analyse-Version noch nicht gespeichert
+        enrichLoadMetrics(analysis, null, streams, ftp);
+
         // Power-Curve sicherstellen (Backfill, falls aus alter Analyse-Version noch nicht vorhanden)
         powerCurveService.ensurePowerCurves(List.of(analysis));
 
@@ -198,6 +204,60 @@ public class AnalysisService {
                 return null;
             }
         }
+    }
+
+    /**
+     * Leitet Normalized Power, Intensity Factor und Training Stress Score ab und setzt sie auf der Analyse.
+     * No-op, wenn die NP bereits gesetzt ist (idempotent) oder keine Leistungsdaten vorliegen.
+     * NP wird bevorzugt aus intervals.icu uebernommen, sonst aus dem Watt-Stream berechnet.
+     */
+    private void enrichLoadMetrics(ActivityAnalysis analysis, ActivityDto dto, StreamDataDto streams, int ftp) {
+        if (analysis.getNormalizedPowerWatts() != null) return;
+
+        Double np = (dto != null && dto.normalizedPower() != null && dto.normalizedPower() > 0)
+                ? dto.normalizedPower()
+                : computeNormalizedPower(streams != null ? streams.watts() : null);
+        if (np == null || np <= 0) return;
+
+        analysis.setNormalizedPowerWatts(Math.round(np * 10.0) / 10.0);
+
+        if (ftp > 0) {
+            double intensityFactor = np / ftp;
+            analysis.setIntensityFactor(Math.round(intensityFactor * 100.0) / 100.0);
+
+            Integer durationSec = analysis.getDurationSeconds();
+            if (durationSec != null && durationSec > 0) {
+                double tss = (durationSec * np * intensityFactor) / (ftp * 3600.0) * 100.0;
+                analysis.setTrainingLoad((double) Math.round(tss));
+            }
+        }
+    }
+
+    /**
+     * Normalized Power nach Coggan: 30s-gleitender Mittelwert der Leistung, jeweils hoch 4,
+     * davon der Mittelwert, dann die 4. Wurzel. Erwartet 1s-Sampling (intervals.icu-Standard).
+     */
+    private Double computeNormalizedPower(List<Integer> watts) {
+        if (watts == null || watts.size() < 30) return null;
+        final int window = 30;
+        java.util.ArrayDeque<Integer> q = new java.util.ArrayDeque<>(window);
+        double rollingSum = 0;
+        double sumPow4 = 0;
+        int count = 0;
+        for (Integer raw : watts) {
+            int p = raw != null ? raw : 0;
+            q.addLast(p);
+            rollingSum += p;
+            if (q.size() > window) rollingSum -= q.removeFirst();
+            if (q.size() == window) {
+                double avg = rollingSum / window;
+                sumPow4 += avg * avg * avg * avg;
+                count++;
+            }
+        }
+        if (count == 0) return null;
+        double np = Math.pow(sumPow4 / count, 0.25);
+        return np > 0 ? np : null;
     }
 
     private double average(double[] values) {

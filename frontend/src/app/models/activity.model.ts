@@ -50,6 +50,9 @@ export interface ActivityAnalysis {
   durationSeconds: number;
   avgPowerWatts: number | null;
   maxPowerWatts: number | null;
+  normalizedPowerWatts: number | null;
+  intensityFactor: number | null;
+  trainingLoad: number | null;
   avgHeartRate: number | null;
   maxHeartRate: number | null;
   avgSpeedKmh: number | null;

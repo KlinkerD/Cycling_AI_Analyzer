@@ -92,6 +92,12 @@ public class ActivityDto {
         return firstNonNull(icuMaxWatts, maxWattsRaw);
     }
 
+    /** Normalized Power aus intervals.icu (icu_weighted_avg_watts), falls vorhanden. */
+    @JsonProperty("normalizedPower")
+    public Double normalizedPower() {
+        return icuWeightedAvgWatts;
+    }
+
     @JsonProperty("averageHeartrate")
     public Double averageHeartrate() {
         return firstNonNull(icuAverageHeartrate, averageHeartrateRaw);

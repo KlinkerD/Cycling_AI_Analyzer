@@ -49,6 +49,24 @@
                   <span class="stat-unit">W ø</span>
                 </div>
               }
+              @if (report.analysis.normalizedPowerWatts) {
+                <div class="quick-stat">
+                  <span class="stat-value">{{ report.analysis.normalizedPowerWatts | number:'1.0-0' }}</span>
+                  <span class="stat-unit">W NP</span>
+                </div>
+              }
+              @if (report.analysis.trainingLoad) {
+                <div class="quick-stat">
+                  <span class="stat-value">{{ report.analysis.trainingLoad | number:'1.0-0' }}</span>
+                  <span class="stat-unit">TSS</span>
+                </div>
+              }
+              @if (report.analysis.intensityFactor) {
+                <div class="quick-stat">
+                  <span class="stat-value">{{ report.analysis.intensityFactor | number:'1.2-2' }}</span>
+                  <span class="stat-unit">IF</span>
+                </div>
+              }
               @if (report.analysis.avgHeartRate) {
                 <div class="quick-stat">
                   <span class="stat-value">{{ report.analysis.avgHeartRate | number:'1.0-0' }}</span>

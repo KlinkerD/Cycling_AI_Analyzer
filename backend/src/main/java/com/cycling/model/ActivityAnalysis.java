@@ -29,6 +29,13 @@ public class ActivityAnalysis {
     private Double elevationGainM;
     private Double avgCadenceRpm;
 
+    /** Normalized Power (belastungsgewichteter Leistungsschnitt) in Watt. */
+    private Double normalizedPowerWatts;
+    /** Intensity Factor = NP / FTP (typ. 0.5 - 1.05). */
+    private Double intensityFactor;
+    /** Training Stress Score (1h an der FTP = 100). */
+    private Double trainingLoad;
+
     private Integer overallScore;
 
     @Column(columnDefinition = "TEXT")
@@ -160,6 +167,30 @@ public class ActivityAnalysis {
 
     public void setAvgCadenceRpm(Double avgCadenceRpm) {
         this.avgCadenceRpm = avgCadenceRpm;
+    }
+
+    public Double getNormalizedPowerWatts() {
+        return normalizedPowerWatts;
+    }
+
+    public void setNormalizedPowerWatts(Double normalizedPowerWatts) {
+        this.normalizedPowerWatts = normalizedPowerWatts;
+    }
+
+    public Double getIntensityFactor() {
+        return intensityFactor;
+    }
+
+    public void setIntensityFactor(Double intensityFactor) {
+        this.intensityFactor = intensityFactor;
+    }
+
+    public Double getTrainingLoad() {
+        return trainingLoad;
+    }
+
+    public void setTrainingLoad(Double trainingLoad) {
+        this.trainingLoad = trainingLoad;
     }
 
     public Integer getOverallScore() {

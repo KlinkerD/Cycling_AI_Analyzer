@@ -493,6 +493,7 @@ public class QuickChartService {
     private byte[] postChart(Map<String, Object> chart, int width, int height) {
         try {
             Map<String, Object> body = new LinkedHashMap<>();
+            body.put("version", "4");
             body.put("chart", chart);
             body.put("width", width);
             body.put("height", height);

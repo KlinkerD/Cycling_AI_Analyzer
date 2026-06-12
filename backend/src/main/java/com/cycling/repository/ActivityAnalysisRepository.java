@@ -16,6 +16,8 @@ public interface ActivityAnalysisRepository extends JpaRepository<ActivityAnalys
 
     List<ActivityAnalysis> findTop10ByOrderByActivityDateDesc();
 
+    List<ActivityAnalysis> findByActivityDateAfterOrderByActivityDateDesc(java.time.LocalDateTime after);
+
     @org.springframework.data.jpa.repository.Query("SELECT a.activityId FROM ActivityAnalysis a")
     List<String> findAllActivityIds();
 }

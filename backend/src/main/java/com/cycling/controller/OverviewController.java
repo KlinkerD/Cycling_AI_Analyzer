@@ -2,13 +2,16 @@ package com.cycling.controller;
 
 import com.cycling.config.CacheConfig;
 import com.cycling.dto.AthleteZonesDto;
+import com.cycling.dto.DailyRecommendationDto;
 import com.cycling.dto.WellnessPointDto;
 import com.cycling.service.IntervalsService;
+import com.cycling.service.RecommendationService;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,10 +34,14 @@ public class OverviewController {
 
     private final IntervalsService intervalsService;
     private final CacheManager cacheManager;
+    private final RecommendationService recommendationService;
 
-    public OverviewController(IntervalsService intervalsService, CacheManager cacheManager) {
+    public OverviewController(IntervalsService intervalsService,
+                              CacheManager cacheManager,
+                              RecommendationService recommendationService) {
         this.intervalsService = intervalsService;
         this.cacheManager = cacheManager;
+        this.recommendationService = recommendationService;
     }
 
     @GetMapping("/wellness")
@@ -71,6 +78,18 @@ public class OverviewController {
                 ? cache.get(key, intervalsService::getAthleteZones)
                 : intervalsService.getAthleteZones();
         return ResponseEntity.ok(result);
+    }
+
+    /** Aktuelle Tagesempfehlung (wird bei Kaltstart einmalig synchron berechnet). */
+    @GetMapping("/recommendation")
+    public ResponseEntity<DailyRecommendationDto> getRecommendation() {
+        return ResponseEntity.ok(recommendationService.getCurrent());
+    }
+
+    /** Erzwingt eine sofortige Neuberechnung (Refresh-Button) – gleicher Code-Pfad wie der Scheduler. */
+    @PostMapping("/recommendation/refresh")
+    public ResponseEntity<DailyRecommendationDto> refreshRecommendation() {
+        return ResponseEntity.ok(recommendationService.computeAndStore());
     }
 }
 

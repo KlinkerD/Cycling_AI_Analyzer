@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { AthleteZones, WellnessPoint } from '../models/activity.model';
+import { AthleteZones, DailyRecommendation, WellnessPoint } from '../models/activity.model';
 
 @Injectable({ providedIn: 'root' })
 export class OverviewService {
@@ -22,6 +22,14 @@ export class OverviewService {
     let params = new HttpParams();
     if (refresh) params = params.set('refresh', 'true');
     return this.http.get<AthleteZones>(`${this.baseUrl}/zones`, { params });
+  }
+
+  getRecommendation(): Observable<DailyRecommendation> {
+    return this.http.get<DailyRecommendation>(`${this.baseUrl}/recommendation`);
+  }
+
+  refreshRecommendation(): Observable<DailyRecommendation> {
+    return this.http.post<DailyRecommendation>(`${this.baseUrl}/recommendation/refresh`, {});
   }
 
   private formatDate(date: Date): string {

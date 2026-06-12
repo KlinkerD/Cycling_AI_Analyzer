@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClient;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -76,6 +77,72 @@ public class GeminiService {
         } catch (Exception e) {
             log.error("Gemini Analyse fehlgeschlagen: {}", e.getMessage(), e);
             throw new RuntimeException("Gemini Analyse fehlgeschlagen: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Formuliert den Begleittext fuer eine Tagesempfehlung. Die Kategorie steht bereits fest
+     * (regelbasiert) und darf NICHT veraendert werden – Gemini liefert nur 1-2 motivierende Saetze.
+     * Gibt reinen Text zurueck (kein JSON). Wirft bei Fehler, damit der Aufrufer den Fallback nutzt.
+     */
+    public String phraseRecommendation(
+            String categoryLabel,
+            double form,
+            double rampRate,
+            boolean rampCapped,
+            String last7DaysSummary
+    ) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Du bist ein Radsport-Trainer. Formuliere eine kurze Tagesempfehlung auf Deutsch.\n\n");
+        sb.append("Die Trainingskategorie steht bereits fest und darf NICHT geaendert werden: ")
+                .append(categoryLabel).append("\n");
+        sb.append(String.format(Locale.GERMAN, "Form (TSB): %.0f\n", form));
+        sb.append(String.format(Locale.GERMAN, "Ramp Rate (CTL-Aufbau pro Woche): %.1f\n", rampRate));
+        if (rampCapped) {
+            sb.append("HINWEIS: Der Athlet baut schnell auf – die Empfehlung wurde bewusst etwas zurueckhaltender gewaehlt. Erwaehne das kurz.\n");
+        }
+        sb.append("\nTrainingsverlauf der letzten 7 Tage:\n");
+        sb.append(last7DaysSummary == null || last7DaysSummary.isBlank()
+                ? "- Keine Aktivitaeten erfasst.\n"
+                : last7DaysSummary);
+        sb.append("""
+
+                REGELN:
+                - Antworte mit 1-2 kurzen Saetzen, direkt an den Athleten gerichtet ("du").
+                - Beziehe dich konkret auf Form und die feststehende Kategorie, gib einen praktischen Hinweis.
+                - Nenne die Kategorie nicht woertlich als Label, sondern beschreibe die Einheit natuerlich.
+                - KEINE Aufzaehlungen, KEIN Markdown, KEINE Ueberschriften – nur Fliesstext.
+                """);
+
+        try {
+            Map<String, Object> requestBody = Map.of(
+                    "contents", List.of(
+                            Map.of("parts", List.of(Map.of("text", sb.toString())))
+                    ),
+                    "generationConfig", Map.of("temperature", 0.5)
+            );
+
+            String url = GEMINI_URL.replace("{model}", model).replace("{key}", apiKey);
+
+            String response = restClient.post()
+                    .uri(url)
+                    .header("Content-Type", "application/json")
+                    .body(requestBody)
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode root = objectMapper.readTree(response);
+            String text = root
+                    .path("candidates").get(0)
+                    .path("content").path("parts").get(0)
+                    .path("text").asText("").strip();
+            if (text.isBlank()) {
+                throw new RuntimeException("Gemini lieferte leeren Empfehlungstext");
+            }
+            return text;
+        } catch (Exception e) {
+            log.error("Gemini Empfehlungstext fehlgeschlagen: {}", e.getMessage());
+            throw new RuntimeException("Gemini Empfehlungstext fehlgeschlagen: " + e.getMessage(), e);
         }
     }
 

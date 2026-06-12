@@ -15,7 +15,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartData } from 'chart.js';
 import { OverviewService } from '../../services/overview.service';
-import { AthleteZones, WellnessPoint, Zone } from '../../models/activity.model';
+import { AthleteZones, DailyRecommendation, WellnessPoint, Zone } from '../../models/activity.model';
 
 type RangeKey = '7d' | '1m' | '3m' | '6m' | '1y' | 'custom';
 
@@ -54,8 +54,10 @@ export class OverviewComponent implements OnInit {
 
   loadingWellness = false;
   loadingZones = false;
+  loadingRecommendation = false;
   wellness: WellnessPoint[] = [];
   zones: AthleteZones | null = null;
+  recommendation: DailyRecommendation | null = null;
   sortedPowerZonesForBar: Zone[] = []; // für Stacked-Bar Visualisierung
 
   // ---- Chart-Konfiguration -------------------------------------------------
@@ -110,6 +112,28 @@ export class OverviewComponent implements OnInit {
   private loadAll(refresh = false): void {
     this.loadWellness(refresh);
     this.loadZones(refresh);
+    this.loadRecommendation(refresh);
+  }
+
+  /**
+   * Laedt die Tagesempfehlung. Bei {@code refresh=true} (Button) wird serverseitig neu berechnet
+   * (POST, ~Gemini-Latenz), sonst nur der gespeicherte Stand geholt (GET).
+   */
+  private loadRecommendation(refresh = false): void {
+    this.loadingRecommendation = true;
+    const req = refresh
+      ? this.overviewService.refreshRecommendation()
+      : this.overviewService.getRecommendation();
+    req.subscribe({
+      next: (data) => {
+        this.recommendation = data;
+        this.loadingRecommendation = false;
+      },
+      error: (err) => {
+        this.loadingRecommendation = false;
+        this.snackBar.open('Fehler beim Laden der Empfehlung: ' + (err.error?.message || err.message), 'OK', { duration: 5000 });
+      }
+    });
   }
 
   private loadWellness(refresh = false): void {
@@ -251,6 +275,14 @@ export class OverviewComponent implements OnInit {
     const out = new Date(d);
     out.setDate(out.getDate() - days);
     return out;
+  }
+
+  /** "Stand: HH:MM Uhr" aus dem computedAt-Zeitstempel der Empfehlung. */
+  recommendationStand(): string {
+    if (!this.recommendation?.computedAt) return '';
+    const d = new Date(this.recommendation.computedAt);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
   }
 
   private formatChartLabel(date: string): string {

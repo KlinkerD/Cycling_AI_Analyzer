@@ -115,6 +115,18 @@ export interface WellnessPoint {
   form: number | null;
 }
 
+export interface DailyRecommendation {
+  category: string;        // REST | EASY | ENDURANCE | TEMPO | HARD_INTERVALS | INSUFFICIENT_DATA
+  categoryLabel: string;
+  color: string;
+  text: string;
+  form: number | null;
+  rampRate: number | null;
+  rampCapped: boolean;
+  refDate: string | null;      // YYYY-MM-DD
+  computedAt: string | null;   // ISO datetime
+}
+
 export interface Zone {
   index: number;
   name: string;

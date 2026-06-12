@@ -11,8 +11,8 @@
       </mat-card-subtitle>
       <button mat-icon-button class="refresh-btn"
               (click)="refresh()"
-              matTooltip="Daten neu laden (Cache umgehen)"
-              [disabled]="loadingWellness || loadingZones">
+              matTooltip="Daten neu laden (Cache umgehen, Empfehlung neu berechnen)"
+              [disabled]="loadingWellness || loadingZones || loadingRecommendation">
         <mat-icon>refresh</mat-icon>
       </button>
     </mat-card-header>
@@ -57,6 +57,47 @@
           <p class="empty">Keine Wellness-Daten für diesen Zeitraum verfügbar.</p>
         }
       </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ============= Tagesempfehlung ============= -->
+  <mat-card class="section recommendation-card"
+            [style.border-left-color]="recommendation?.color || '#bdbdbd'">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>tips_and_updates</mat-icon> Empfehlung für heute
+      </mat-card-title>
+      <mat-card-subtitle>
+        @if (recommendation?.computedAt) {
+          Stand: {{ recommendationStand() }}
+        }
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      @if (loadingRecommendation) {
+        <mat-spinner diameter="32"></mat-spinner>
+      } @else if (recommendation) {
+        <div class="rec-badge"
+             [style.background]="recommendation.color">
+          {{ recommendation.categoryLabel }}
+        </div>
+        <p class="rec-text">{{ recommendation.text }}</p>
+        @if (recommendation.category !== 'INSUFFICIENT_DATA') {
+          <div class="rec-metrics">
+            @if (recommendation.form != null) {
+              <span>Form {{ recommendation.form > 0 ? '+' : '' }}{{ recommendation.form }}</span>
+            }
+            @if (recommendation.rampRate != null) {
+              <span [class.warn]="recommendation.rampCapped">
+                Ramp Rate {{ recommendation.rampRate > 0 ? '+' : '' }}{{ recommendation.rampRate }} CTL/Woche
+              </span>
+            }
+          </div>
+        }
+      } @else {
+        <p class="empty">Keine Empfehlung verfügbar.</p>
+      }
     </mat-card-content>
   </mat-card>
 

@@ -184,30 +184,46 @@ public class QuickChartService {
         List<String> labels = new ArrayList<>();
         List<Double> power = new ArrayList<>();
         List<Double> hr = new ArrayList<>();
+        List<Double> speed = new ArrayList<>();
         List<Double> score = new ArrayList<>();
         for (TrendDataDto t : ordered) {
             labels.add(t.activityDate() != null ? t.activityDate().format(TREND_FMT) : "?");
             power.add(t.avgPowerWatts());
             hr.add(t.avgHeartRate());
+            speed.add(t.avgSpeedKmh());
             score.add(t.overallScore() != null ? t.overallScore().doubleValue() : null);
         }
 
+        // Reihenfolge/Farben/Achsen analog zum Web-Frontend (report.component.ts)
         List<Map<String, Object>> datasets = new ArrayList<>();
-        datasets.add(lineDataset("Ø Leistung (W)", power, "rgba(63,81,181,1)", "rgba(63,81,181,0.1)", "y"));
-        datasets.add(lineDataset("Ø HF (bpm)", hr, "rgba(244,67,54,1)", "rgba(244,67,54,0.1)", "y"));
-        datasets.add(lineDataset("Score", score, "rgba(76,175,80,1)", "rgba(76,175,80,0.1)", "y1"));
+        datasets.add(lineDataset("Score (1-10)", score, "rgba(255,152,0,1)", "rgba(255,152,0,0.1)", "yScore"));
+        datasets.add(lineDataset("Ø Geschw. (km/h)", speed, "rgba(76,175,80,1)", "rgba(76,175,80,0.1)", "ySpeed"));
+        datasets.add(lineDataset("Ø Leistung (W)", power, "rgba(63,81,181,1)", "rgba(63,81,181,0.1)", "yPower"));
+        datasets.add(lineDataset("Ø HF (bpm)", hr, "rgba(229,57,53,1)", "rgba(229,57,53,0.1)", "yHr"));
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("labels", labels);
         data.put("datasets", datasets);
 
         Map<String, Object> options = new LinkedHashMap<>();
-        options.put("plugins", Map.of("title", Map.of("display", true, "text", "Trainingsfortschritt")));
-        options.put("scales", Map.of(
-                "y", Map.of("type", "linear", "position", "left"),
-                "y1", Map.of("type", "linear", "position", "right", "min", 0, "max", 10,
-                        "grid", Map.of("drawOnChartArea", false))
+        options.put("plugins", Map.of(
+                "title", Map.of("display", true, "text", "Trainingsfortschritt"),
+                "legend", Map.of("display", true, "position", "top")
         ));
+        Map<String, Object> scales = new LinkedHashMap<>();
+        scales.put("x", Map.of("grid", Map.of("display", false)));
+        scales.put("yScore", Map.of("type", "linear", "position", "left", "min", 0, "max", 10,
+                "title", Map.of("display", true, "text", "Score")));
+        scales.put("ySpeed", Map.of("type", "linear", "position", "right",
+                "title", Map.of("display", true, "text", "km/h"),
+                "grid", Map.of("drawOnChartArea", false)));
+        scales.put("yPower", Map.of("type", "linear", "position", "right",
+                "title", Map.of("display", true, "text", "Watt"),
+                "grid", Map.of("drawOnChartArea", false)));
+        scales.put("yHr", Map.of("type", "linear", "position", "left",
+                "title", Map.of("display", true, "text", "bpm"),
+                "grid", Map.of("drawOnChartArea", false)));
+        options.put("scales", scales);
 
         Map<String, Object> chart = new LinkedHashMap<>();
         chart.put("type", "line");

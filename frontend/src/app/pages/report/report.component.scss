@@ -179,3 +179,20 @@
   .charts-grid { grid-template-columns: 1fr; }
 }
 
+// ----- Dark Mode ------------------------------------------------------------
+:host-context(.dark-theme) {
+  .loading-container { color: #aaa; }
+
+  .analysis-card {
+    p { color: #c5c5c5; }
+    .summary-text { color: #e0e0e0; }
+  }
+
+  .section-title {
+    color: #e0e0e0;
+    mat-icon { color: #7986cb; }
+  }
+
+  .analyzed-info { color: #888; }
+}
+

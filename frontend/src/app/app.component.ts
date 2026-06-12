@@ -63,6 +63,10 @@ import { AthleteThresholds } from './models/activity.model';
       }
 
       <span class="spacer"></span>
+      <button mat-icon-button (click)="toggleTheme()"
+              [matTooltip]="darkMode ? 'Heller Modus' : 'Dunkler Modus'">
+        <mat-icon>{{ darkMode ? 'light_mode' : 'dark_mode' }}</mat-icon>
+      </button>
       <span class="toolbar-subtitle">Powered by Gemini AI</span>
     </mat-toolbar>
     <router-outlet />
@@ -142,10 +146,34 @@ import { AthleteThresholds } from './models/activity.model';
 })
 export class AppComponent implements OnInit {
   thresholds: AthleteThresholds | null = null;
+  darkMode = false;
+
+  private static readonly THEME_KEY = 'cycling-theme';
 
   constructor(private activityService: ActivityService) {}
 
+  toggleTheme(): void {
+    this.darkMode = !this.darkMode;
+    this.applyTheme();
+    localStorage.setItem(AppComponent.THEME_KEY, this.darkMode ? 'dark' : 'light');
+  }
+
+  private applyTheme(): void {
+    document.body.classList.toggle('dark-theme', this.darkMode);
+  }
+
+  private initTheme(): void {
+    const stored = localStorage.getItem(AppComponent.THEME_KEY);
+    if (stored) {
+      this.darkMode = stored === 'dark';
+    } else {
+      this.darkMode = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+    }
+    this.applyTheme();
+  }
+
   ngOnInit(): void {
+    this.initTheme();
     this.activityService.getAthleteThresholds().subscribe({
       next: (t) => {
         console.log('Athleten-Daten:', t);

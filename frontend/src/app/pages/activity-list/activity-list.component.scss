@@ -103,3 +103,17 @@
   }
 }
 
+// ----- Dark Mode ------------------------------------------------------------
+:host-context(.dark-theme) {
+  .loading-container { color: #aaa; }
+  .list-header h2 { color: #bbb; }
+  .activity-card.analyzed {
+    background-color: rgba(76, 175, 80, 0.12);
+  }
+  .stat {
+    color: #bbb;
+    mat-icon { color: #999; }
+  }
+  .empty-state { color: #888; }
+}
+

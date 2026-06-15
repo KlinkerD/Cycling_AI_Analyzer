@@ -102,7 +102,7 @@ public class ReportMailService {
             byte[] cadencePng = report.streams().cadence() != null && !report.streams().cadence().isEmpty()
                     ? quickChart.renderCadenceOverDistance(report.streams()) : null;
             byte[] powerZonesPng = quickChart.renderZoneDoughnut("Leistungszonen (FTP-basiert)", report.powerZones());
-            byte[] hrZonesPng = quickChart.renderZoneDoughnut("Herzfrequenzzonen (Max-HR-basiert)", report.hrZones());
+            byte[] hrZonesPng = quickChart.renderZoneDoughnut("Herzfrequenzzonen", report.hrZones());
             byte[] trendPng = quickChart.renderTrend(report.trend());
             byte[] powerCurvePng = quickChart.renderPowerCurve(report.powerCurveSet());
 
@@ -226,7 +226,7 @@ public class ReportMailService {
         sb.append(chartCard("Leistung & Herzfrequenz über Distanz", cidPowerHr));
         sb.append(chartCard("Kadenz über Distanz", cidCadence));
         sb.append(chartCard("Leistungszonen (FTP-basiert)", cidPowerZones));
-        sb.append(chartCard("Herzfrequenzzonen (Max-HR-basiert)", cidHrZones));
+        sb.append(chartCard("Herzfrequenzzonen", cidHrZones));
 
         // Zonen-Tabellen als Fallback / zusaetzliche Info
         sb.append(zoneTable("Leistungszonen", report.powerZones()));

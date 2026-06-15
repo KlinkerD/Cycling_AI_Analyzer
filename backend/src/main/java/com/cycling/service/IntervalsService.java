@@ -1,10 +1,12 @@
 package com.cycling.service;
 
 import com.cycling.dto.ActivityDto;
+import com.cycling.dto.ActivityZonesDto;
 import com.cycling.dto.AthleteThresholdsDto;
 import com.cycling.dto.AthleteZonesDto;
 import com.cycling.dto.StreamDataDto;
 import com.cycling.dto.WellnessPointDto;
+import com.cycling.dto.ZoneDistributionDto;
 import com.cycling.dto.ZoneDto;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -506,6 +508,118 @@ public class IntervalsService {
                     "lthr"
             );
         }
+    }
+
+    /**
+     * Liefert die Zonen-Verteilung einer Aktivitaet auf Basis der von intervals.icu
+     * VORBERECHNETEN Zonen-Zeiten (icu_zone_times / icu_hr_zone_times) aus dem Activity-Detail.
+     * Dadurch stimmen die Report-Werte exakt mit der intervals.icu-Website ueberein.
+     * <p>
+     * Power: nur regulaere Zonen Z1-Z7 (Sweet Spot wird verworfen, da er Z2-Z4 ueberlappt und
+     *        die Summe sonst &gt; 100% waere). HF: alle konfigurierten Zonen (inkl. 0%-Zonen).
+     * <p>
+     * Namen und Farben stammen aus {@link #getAthleteZones()}. Fehlt eine Metrik in den
+     * icu-Daten, ist die jeweilige Liste leer (der Report blendet den Block dann aus).
+     */
+    public ActivityZonesDto getActivityZones(String activityId) {
+        validateConfiguration();
+        log.info("Lade Aktivitaets-Zonen fuer Aktivitaet {}", activityId);
+        try {
+            String url = BASE_URL + "/activity/" + activityId;
+            JsonNode root = objectMapper.readTree(executeGet(url));
+
+            AthleteZonesDto athleteZones = getAthleteZones();
+
+            List<ZoneDistributionDto> powerZones =
+                    buildPowerDistribution(root.path("icu_zone_times"), athleteZones.powerZones());
+            List<ZoneDistributionDto> hrZones =
+                    buildHrDistribution(root.path("icu_hr_zone_times"), athleteZones.hrZones());
+
+            log.info("Aktivitaets-Zonen fuer {} geladen: {} Power-, {} HF-Zonen",
+                    activityId, powerZones.size(), hrZones.size());
+            return new ActivityZonesDto(powerZones, hrZones);
+        } catch (Exception e) {
+            log.error("Aktivitaets-Zonen fuer {} konnten nicht geladen werden: {}", activityId, e.getMessage(), e);
+            return new ActivityZonesDto(Collections.emptyList(), Collections.emptyList());
+        }
+    }
+
+    /**
+     * Baut die Power-Zonen-Verteilung aus {@code icu_zone_times}.
+     * Format: [{"id":"Z1","secs":..}, ..., {"id":"Z7",..}, {"id":"SS",..}].
+     * Sweet Spot (SS) wird verworfen, damit die Summe der Prozente 100% ergibt.
+     */
+    private List<ZoneDistributionDto> buildPowerDistribution(JsonNode zoneTimes, List<ZoneDto> defs) {
+        if (zoneTimes == null || !zoneTimes.isArray() || zoneTimes.isEmpty()) return Collections.emptyList();
+
+        List<String> ids = new ArrayList<>();
+        List<Integer> secs = new ArrayList<>();
+        long total = 0;
+        for (JsonNode n : zoneTimes) {
+            String id = n.path("id").asText("");
+            if (id.equalsIgnoreCase("SS")) continue; // Sweet Spot ueberlappt Z2-Z4 -> nicht mitzaehlen
+            int s = n.path("secs").asInt(0);
+            ids.add(id);
+            secs.add(s);
+            total += s;
+        }
+        return toDistribution(ids, secs, total, defs);
+    }
+
+    /**
+     * Baut die HF-Zonen-Verteilung aus {@code icu_hr_zone_times}.
+     * Format: paralleles Array [secs, secs, ...] – Index entspricht der Zone (Z1..Zn).
+     */
+    private List<ZoneDistributionDto> buildHrDistribution(JsonNode zoneTimes, List<ZoneDto> defs) {
+        if (zoneTimes == null || !zoneTimes.isArray() || zoneTimes.isEmpty()) return Collections.emptyList();
+
+        List<String> ids = new ArrayList<>();
+        List<Integer> secs = new ArrayList<>();
+        long total = 0;
+        int i = 0;
+        for (JsonNode n : zoneTimes) {
+            int s = n.asInt(0);
+            ids.add("Z" + (i + 1));
+            secs.add(s);
+            total += s;
+            i++;
+        }
+        return toDistribution(ids, secs, total, defs);
+    }
+
+    /**
+     * Verbindet Zonen-Zeiten (id + Sekunden) mit Namen/Farben aus den Athleten-Zonen
+     * und rechnet die Prozente relativ zur Gesamtzeit aus.
+     */
+    private List<ZoneDistributionDto> toDistribution(List<String> ids, List<Integer> secs, long total, List<ZoneDto> defs) {
+        Map<Integer, ZoneDto> byIndex = new HashMap<>();
+        if (defs != null) {
+            for (ZoneDto d : defs) byIndex.put(d.index(), d);
+        }
+
+        List<ZoneDistributionDto> out = new ArrayList<>(ids.size());
+        for (int i = 0; i < ids.size(); i++) {
+            String id = ids.get(i);
+            ZoneDto def = byIndex.get(parseZoneNumber(id, i + 1));
+            String label = (def != null && def.name() != null) ? def.name() : "";
+            String color = (def != null && def.color() != null)
+                    ? def.color()
+                    : ZONE_COLORS[Math.min(i, ZONE_COLORS.length - 1)];
+            int s = secs.get(i);
+            double pct = total > 0 ? (double) s / total * 100.0 : 0.0;
+            out.add(new ZoneDistributionDto(id, label, s, Math.round(pct * 10.0) / 10.0, color));
+        }
+        return out;
+    }
+
+    /** Parst die Zonennummer aus einer Id wie "Z3" -&gt; 3; faellt auf {@code fallback} zurueck. */
+    private static Integer parseZoneNumber(String id, int fallback) {
+        if (id != null && id.length() > 1 && (id.charAt(0) == 'Z' || id.charAt(0) == 'z')) {
+            try {
+                return Integer.parseInt(id.substring(1));
+            } catch (NumberFormatException ignored) { /* fallback */ }
+        }
+        return fallback;
     }
 
     /**

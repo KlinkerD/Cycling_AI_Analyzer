@@ -57,9 +57,11 @@ public class AnalysisService {
         // Streams laden
         StreamDataDto streams = intervalsService.getStreams(activityId);
 
-        // Zonen berechnen
-        List<ZoneDistributionDto> powerZones = zoneCalculator.calculatePowerZones(streams.watts(), ftp);
-        List<ZoneDistributionDto> hrZones = zoneCalculator.calculateHrZones(streams.heartrate(), maxHr);
+        // Zonen aus den von intervals.icu vorberechneten Zonen-Zeiten uebernehmen
+        // (exakt wie auf der intervals.icu-Website; leere Liste -> Block wird im Report ausgeblendet)
+        ActivityZonesDto zones = intervalsService.getActivityZones(activityId);
+        List<ZoneDistributionDto> powerZones = zones.powerZones();
+        List<ZoneDistributionDto> hrZones = zones.hrZones();
 
         // Basismetriken aus Streams ableiten
         double avgPower = average(streams.watts().stream().mapToDouble(w -> w != null ? w : 0).toArray());
@@ -154,8 +156,9 @@ public class AnalysisService {
         int ftp = thresholds.ftpOrDefault(zoneCalculator.getFtp());
         int maxHr = thresholds.maxHrOrDefault(zoneCalculator.getMaxHr());
 
-        List<ZoneDistributionDto> powerZones = zoneCalculator.calculatePowerZones(streams.watts(), ftp);
-        List<ZoneDistributionDto> hrZones = zoneCalculator.calculateHrZones(streams.heartrate(), maxHr);
+        ActivityZonesDto zones = intervalsService.getActivityZones(activityId);
+        List<ZoneDistributionDto> powerZones = zones.powerZones();
+        List<ZoneDistributionDto> hrZones = zones.hrZones();
         List<TrendDataDto> trend = buildTrend();
 
         // NP / IF / TSS nachziehen, falls aus alter Analyse-Version noch nicht gespeichert

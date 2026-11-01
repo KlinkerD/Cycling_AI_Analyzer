@@ -32,7 +32,12 @@
               <mat-icon color="primary">directions_bike</mat-icon>
               {{ report.analysis.activityName }}
             </h1>
-            <p class="activity-date">{{ formatDate(report.analysis.activityDate) }}</p>
+            <p class="activity-date">
+              {{ formatDate(report.analysis.activityDate) }}
+              @if (report.analysis.ftpUsed) {
+                · {{ report.analysis.indoor ? 'Indoor' : 'Outdoor' }} · FTP {{ report.analysis.ftpUsed }} W
+              }
+            </p>
 
             <div class="quick-stats">
               <div class="quick-stat">

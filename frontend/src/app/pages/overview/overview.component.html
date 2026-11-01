@@ -113,6 +113,12 @@
             <span class="label">FTP</span>
             <span class="value">{{ zones?.thresholds?.ftp ?? '–' }} W</span>
           </div>
+          @if (zones?.thresholds?.indoorFtp) {
+            <div class="threshold-item">
+              <span class="label">FTP Indoor</span>
+              <span class="value">{{ zones?.thresholds?.indoorFtp }} W</span>
+            </div>
+          }
           <div class="threshold-item">
             <span class="label">LTHR</span>
             <span class="value">{{ zones?.thresholds?.lthr ?? '–' }} bpm</span>
@@ -139,6 +145,9 @@
       <mat-card-subtitle>
         @if (zones?.thresholds?.ftp) {
           Bezogen auf FTP {{ zones?.thresholds?.ftp }} W
+          @if (zones?.thresholds?.indoorFtp) {
+            (Indoor {{ zones?.thresholds?.indoorFtp }} W)
+          }
         }
       </mat-card-subtitle>
     </mat-card-header>
@@ -161,7 +170,12 @@
         <table class="zones-table">
           <thead>
             <tr>
-              <th>#</th><th>Name</th><th>% FTP</th><th>Watt</th>
+              <th>#</th><th>Name</th><th>% FTP</th>
+              @if (zones.thresholds.indoorFtp) {
+                <th>Watt Outdoor</th><th>Watt Indoor</th>
+              } @else {
+                <th>Watt</th>
+              }
             </tr>
           </thead>
           <tbody>
@@ -174,6 +188,9 @@
                 <td>{{ z.name }}</td>
                 <td>{{ formatPct(z.lowerPct) }} – {{ z.upperPct == null ? '∞' : formatPct(z.upperPct) }}</td>
                 <td>{{ formatRange(z, 'W') }}</td>
+                @if (zones.thresholds.indoorFtp) {
+                  <td>{{ formatScaledRange(z, zones.thresholds.indoorFtp, 'W') }}</td>
+                }
               </tr>
             }
           </tbody>

@@ -146,7 +146,20 @@ public class GeminiService {
         }
     }
 
-    private String buildPrompt(
+    /** z. B. "[Indoor, FTP 235 W, IF 0.85]"; fehlende Angaben (alte Analysen) werden ausgelassen. */
+    private static String ftpContextLabel(ActivityAnalysis a) {
+        StringBuilder label = new StringBuilder("[");
+        label.append(a.getIndoor() == null ? "Fahrtart unbekannt" : a.getIndoor() ? "Indoor" : "Outdoor");
+        if (a.getFtpUsed() != null) {
+            label.append(", FTP ").append(a.getFtpUsed()).append(" W");
+        }
+        if (a.getIntensityFactor() != null) {
+            label.append(String.format(Locale.ROOT, ", IF %.2f", a.getIntensityFactor()));
+        }
+        return label.append("]").toString();
+    }
+
+    String buildPrompt(
             ActivityAnalysis a,
             List<ZoneDistributionDto> powerZones,
             List<ZoneDistributionDto> hrZones,
@@ -159,10 +172,12 @@ public class GeminiService {
 
         sb.append("Analysiere dieses Radsport-Training und erstelle einen strukturierten Bericht auf Deutsch.\n\n");
         sb.append("ATHLETEN-SCHWELLENWERTE:\n");
-        sb.append("- FTP: ").append(ftp).append(" W\n");
+        boolean indoor = Boolean.TRUE.equals(a.getIndoor());
+        sb.append("- FTP: ").append(ftp).append(" W (").append(indoor ? "Indoor" : "Outdoor").append("-FTP)\n");
         sb.append("- Max-HR: ").append(maxHr).append(" bpm\n\n");
         sb.append("AKTIVITÄTSDATEN:\n");
         sb.append("- Name: ").append(a.getActivityName()).append("\n");
+        sb.append("- Fahrtart: ").append(indoor ? "Indoor (Rolle / Smart-Trainer)" : "Outdoor").append("\n");
         sb.append("- Datum: ").append(a.getActivityDate() != null ? a.getActivityDate().format(fmt) : "unbekannt").append("\n");
         sb.append("- Distanz: ").append(String.format("%.1f", a.getDistanceKm())).append(" km\n");
         sb.append("- Dauer: ").append(formatDuration(a.getDurationSeconds())).append("\n");
@@ -200,13 +215,16 @@ public class GeminiService {
         }
 
         sb.append("\nVERGLEICH MIT DEN LETZTEN 3 TRAININGS:\n");
+        sb.append("Vergleiche Leistungen relativ zur jeweiligen FTP (IF), nicht in absoluten Watt: ")
+          .append("Indoor- und Outdoor-Fahrten haben unterschiedliche FTP-Werte.\n");
         if (lastThree.isEmpty()) {
             sb.append("- Keine Vergleichsdaten vorhanden (erstes analysiertes Training)\n");
         } else {
             for (ActivityAnalysis prev : lastThree) {
-                sb.append(String.format("- %s (%s): %.1f km, %.0f W avg",
+                sb.append(String.format("- %s (%s) %s: %.1f km, %.0f W avg",
                         prev.getActivityName(),
                         prev.getActivityDate() != null ? prev.getActivityDate().format(fmt) : "?",
+                        ftpContextLabel(prev),
                         prev.getDistanceKm() != null ? prev.getDistanceKm() : 0,
                         prev.getAvgPowerWatts() != null ? prev.getAvgPowerWatts() : 0));
                 if (prev.getAvgHeartRate() != null) {

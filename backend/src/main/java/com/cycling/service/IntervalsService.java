@@ -74,42 +74,49 @@ public class IntervalsService {
         try {
             String url = BASE_URL + "/athlete/" + athleteId;
             String response = executeGet(url);
-            JsonNode root = objectMapper.readTree(response);
-
-            String name = root.path("name").asText(null);
-            double weight = root.path("icu_weight").asDouble(0);
-
-            // FTP, LTHR und Max-HR aus sportSettings für Ride holen
-            Integer ftp = null, lthr = null, maxHr = null;
-            JsonNode sportSettings = root.path("sportSettings");
-            if (sportSettings.isArray()) {
-                for (JsonNode setting : sportSettings) {
-                    JsonNode types = setting.path("types");
-                    boolean isRide = false;
-                    for (JsonNode t : types) {
-                        if ("Ride".equals(t.asText()) || "VirtualRide".equals(t.asText())) {
-                            isRide = true;
-                            break;
-                        }
-                    }
-                    if (isRide) {
-                        ftp   = setting.path("ftp").isNull()    ? null : setting.path("ftp").asInt();
-                        lthr  = setting.path("lthr").isNull()   ? null : setting.path("lthr").asInt();
-                        maxHr = setting.path("max_hr").isNull() ? null : setting.path("max_hr").asInt();
-                        break;
-                    }
-                }
-            }
-
-            AthleteThresholdsDto thresholds = new AthleteThresholdsDto(
-                    name, ftp, lthr, maxHr, weight > 0 ? weight : null);
+            AthleteThresholdsDto thresholds = parseThresholds(objectMapper.readTree(response));
             log.info("Schwellenwerte geladen: Name={}, FTP={}, LTHR={}, MaxHR={}, Gewicht={}",
                     thresholds.name(), thresholds.ftp(), thresholds.lthr(), thresholds.maxHr(), thresholds.weight());
             return thresholds;
         } catch (Exception e) {
             log.error("Athleten-Schwellenwerte konnten nicht geladen werden: {}", e.getMessage(), e);
-            return new AthleteThresholdsDto(null, null, null, null, null);
+            return new AthleteThresholdsDto(null, null, null, null, null, null);
         }
+    }
+
+    /** Liest Name, Gewicht und die Rad-Schwellenwerte aus der Athleten-Antwort von intervals.icu. */
+    static AthleteThresholdsDto parseThresholds(JsonNode root) {
+        String name = root.path("name").asText(null);
+        double weight = root.path("icu_weight").asDouble(0);
+
+        Integer ftp = null, indoorFtp = null, lthr = null, maxHr = null;
+        JsonNode setting = findRideSetting(root);
+        if (setting != null) {
+            ftp   = setting.path("ftp").isNull()    ? null : setting.path("ftp").asInt();
+            indoorFtp = intOrNull(setting.path("indoor_ftp"));
+            lthr  = setting.path("lthr").isNull()   ? null : setting.path("lthr").asInt();
+            maxHr = setting.path("max_hr").isNull() ? null : setting.path("max_hr").asInt();
+        }
+        return new AthleteThresholdsDto(name, ftp, indoorFtp, lthr, maxHr, weight > 0 ? weight : null);
+    }
+
+    /** Ganzzahl oder null, wenn das Feld fehlt oder explizit null ist. */
+    private static Integer intOrNull(JsonNode node) {
+        return node.isMissingNode() || node.isNull() ? null : node.asInt();
+    }
+
+    /** Erster sportSettings-Eintrag, der fuer Ride oder VirtualRide gilt; null, wenn keiner. */
+    private static JsonNode findRideSetting(JsonNode root) {
+        JsonNode sportSettings = root.path("sportSettings");
+        if (!sportSettings.isArray()) return null;
+        for (JsonNode setting : sportSettings) {
+            for (JsonNode t : setting.path("types")) {
+                if ("Ride".equals(t.asText()) || "VirtualRide".equals(t.asText())) {
+                    return setting;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -436,43 +443,23 @@ public class IntervalsService {
             String response = executeGet(url);
             JsonNode root = objectMapper.readTree(response);
 
-            String name = root.path("name").asText(null);
-            double weight = root.path("icu_weight").asDouble(0);
+            AthleteThresholdsDto thresholds = parseThresholds(root);
+            Integer ftp = thresholds.ftp(), lthr = thresholds.lthr(), maxHr = thresholds.maxHr();
 
-            Integer ftp = null, lthr = null, maxHr = null;
             List<Double> powerPercents = Collections.emptyList();
             List<String> powerNames = Collections.emptyList();
             List<Double> hrPercents = Collections.emptyList();
             List<String> hrNames = Collections.emptyList();
             boolean hrZonesAreMaxHr = false;
 
-            JsonNode sportSettings = root.path("sportSettings");
-            if (sportSettings.isArray()) {
-                for (JsonNode setting : sportSettings) {
-                    boolean isRide = false;
-                    for (JsonNode t : setting.path("types")) {
-                        if ("Ride".equals(t.asText()) || "VirtualRide".equals(t.asText())) {
-                            isRide = true;
-                            break;
-                        }
-                    }
-                    if (!isRide) continue;
-
-                    ftp = setting.path("ftp").isNull() ? null : setting.path("ftp").asInt();
-                    lthr = setting.path("lthr").isNull() ? null : setting.path("lthr").asInt();
-                    maxHr = setting.path("max_hr").isNull() ? null : setting.path("max_hr").asInt();
-
-                    powerPercents = parseDoubleList(setting.path("power_zones"));
-                    powerNames = parseStringList(setting.path("power_zone_names"));
-                    hrPercents = parseDoubleList(setting.path("hr_zones"));
-                    hrNames = parseStringList(setting.path("hr_zone_names"));
-                    hrZonesAreMaxHr = setting.path("hr_zones_max_hr").asBoolean(false);
-                    break;
-                }
+            JsonNode setting = findRideSetting(root);
+            if (setting != null) {
+                powerPercents = parseDoubleList(setting.path("power_zones"));
+                powerNames = parseStringList(setting.path("power_zone_names"));
+                hrPercents = parseDoubleList(setting.path("hr_zones"));
+                hrNames = parseStringList(setting.path("hr_zone_names"));
+                hrZonesAreMaxHr = setting.path("hr_zones_max_hr").asBoolean(false);
             }
-
-            AthleteThresholdsDto thresholds = new AthleteThresholdsDto(
-                    name, ftp, lthr, maxHr, weight > 0 ? weight : null);
 
             // Power-Zonen: intervals.icu liefert Prozente als Dezimalzahlen (0.55, 0.75, ...)
             List<ZoneDto> powerZones = ftp != null && ftp > 0
@@ -502,7 +489,7 @@ public class IntervalsService {
         } catch (Exception e) {
             log.error("Athleten-Zonen konnten nicht geladen werden: {}", e.getMessage(), e);
             return new AthleteZonesDto(
-                    new AthleteThresholdsDto(null, null, null, null, null),
+                    new AthleteThresholdsDto(null, null, null, null, null, null),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     "lthr"
@@ -537,11 +524,22 @@ public class IntervalsService {
 
             log.info("Aktivitaets-Zonen fuer {} geladen: {} Power-, {} HF-Zonen",
                     activityId, powerZones.size(), hrZones.size());
-            return new ActivityZonesDto(powerZones, hrZones);
+            return toActivityZones(root, powerZones, hrZones);
         } catch (Exception e) {
             log.error("Aktivitaets-Zonen fuer {} konnten nicht geladen werden: {}", activityId, e.getMessage(), e);
-            return new ActivityZonesDto(Collections.emptyList(), Collections.emptyList());
+            return new ActivityZonesDto(Collections.emptyList(), Collections.emptyList(), null, null);
         }
+    }
+
+    /** Ergaenzt die Zonen um Indoor-Kennung und {@code icu_ftp} der geladenen Aktivitaet. */
+    static ActivityZonesDto toActivityZones(JsonNode activity,
+                                            List<ZoneDistributionDto> powerZones,
+                                            List<ZoneDistributionDto> hrZones) {
+        JsonNode trainer = activity.path("trainer");
+        boolean indoor = FtpResolver.isIndoor(
+                activity.path("type").asText(null),
+                trainer.isBoolean() ? trainer.asBoolean() : null);
+        return new ActivityZonesDto(powerZones, hrZones, indoor, intOrNull(activity.path("icu_ftp")));
     }
 
     /**

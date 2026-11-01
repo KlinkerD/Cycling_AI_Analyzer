@@ -11,14 +11,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record AthleteThresholdsDto(
         @JsonProperty("name") String name,
         @JsonProperty("ftp") Integer ftp,
+        /** Indoor-FTP aus intervals.icu ({@code indoor_ftp}); null, wenn nicht eingetragen. */
+        @JsonProperty("indoorFtp") Integer indoorFtp,
         @JsonProperty("lthr") Integer lthr,
         @JsonProperty("max_hr") Integer maxHr,
         @JsonProperty("weight") Double weight
 ) {
-    public int ftpOrDefault(int defaultFtp) {
-        return (ftp != null && ftp > 0) ? ftp : defaultFtp;
-    }
-
     public int maxHrOrDefault(int defaultMaxHr) {
         return (maxHr != null && maxHr > 0) ? maxHr : defaultMaxHr;
     }

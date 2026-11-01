@@ -40,8 +40,13 @@ import { AthleteThresholds } from './models/activity.model';
             <span class="divider">|</span>
           }
           @if (thresholds.ftp) {
-            <span class="threshold-chip" matTooltip="Functional Threshold Power">
-              <mat-icon>bolt</mat-icon> FTP {{ thresholds.ftp }} W
+            <span class="threshold-chip" matTooltip="Functional Threshold Power für Outdoor-Fahrten">
+              <mat-icon>bolt</mat-icon> FTP Outdoor {{ thresholds.ftp }} W
+            </span>
+          }
+          @if (thresholds.indoorFtp) {
+            <span class="threshold-chip" matTooltip="Functional Threshold Power für Indoor-Fahrten (Rolle / Smart-Trainer)">
+              <mat-icon>home</mat-icon> Indoor {{ thresholds.indoorFtp }} W
             </span>
           }
           @if (thresholds.lthr) {

@@ -23,13 +23,16 @@ public class AnalysisService {
     private final ActivityAnalysisRepository repository;
     private final ReportMailService reportMailService;
     private final PowerCurveService powerCurveService;
+    private final FtpResolver ftpResolver;
 
     public AnalysisService(IntervalsService intervalsService,
                            GeminiService geminiService,
                            ZoneCalculatorService zoneCalculator,
                            ActivityAnalysisRepository repository,
                            ReportMailService reportMailService,
-                           PowerCurveService powerCurveService) {
+                           PowerCurveService powerCurveService,
+                           FtpResolver ftpResolver) {
+        this.ftpResolver = ftpResolver;
         this.intervalsService = intervalsService;
         this.geminiService = geminiService;
         this.zoneCalculator = zoneCalculator;
@@ -50,9 +53,7 @@ public class AnalysisService {
 
         // Athleten-Schwellenwerte laden
         AthleteThresholdsDto thresholds = intervalsService.getAthleteThresholds();
-        int ftp = thresholds.ftpOrDefault(zoneCalculator.getFtp());
         int maxHr = thresholds.maxHrOrDefault(zoneCalculator.getMaxHr());
-        log.info("Verwende Schwellenwerte: FTP={} W, MaxHR={} bpm", ftp, maxHr);
 
         // Streams laden
         StreamDataDto streams = intervalsService.getStreams(activityId);
@@ -62,6 +63,14 @@ public class AnalysisService {
         ActivityZonesDto zones = intervalsService.getActivityZones(activityId);
         List<ZoneDistributionDto> powerZones = zones.powerZones();
         List<ZoneDistributionDto> hrZones = zones.hrZones();
+
+        // Indoor-Kennung aus der geladenen Aktivitaet; schlug das Laden fehl, zaehlt der Typ
+        boolean indoor = zones.indoor() != null
+                ? zones.indoor()
+                : FtpResolver.isIndoor(activityDto.type(), null);
+        int ftp = ftpResolver.resolve(zones.icuFtp(), indoor, thresholds);
+        log.info("Verwende Schwellenwerte: FTP={} W ({}), MaxHR={} bpm",
+                ftp, indoor ? "indoor" : "outdoor", maxHr);
 
         // Basismetriken aus Streams ableiten
         double avgPower = average(streams.watts().stream().mapToDouble(w -> w != null ? w : 0).toArray());
@@ -86,8 +95,9 @@ public class AnalysisService {
         analysis.setAvgCadenceRpm(avgCadence > 0 ? avgCadence : null);
         analysis.setAnalyzedAt(LocalDateTime.now());
 
-        // NP / IF / TSS aus Stream + FTP ableiten
-        enrichLoadMetrics(analysis, activityDto, streams, ftp);
+        // NP aus intervals.icu bzw. Stream, IF / TSS mit der FTP der Fahrt
+        enrichNormalizedPower(analysis, activityDto, streams);
+        applyFtpContext(analysis, indoor, ftp);
 
         // Letzte 3 Analysen für Vergleich laden
         List<ActivityAnalysis> lastThree = repository.findTop3ByOrderByActivityDateDesc()
@@ -153,16 +163,22 @@ public class AnalysisService {
         StreamDataDto streams = intervalsService.getStreams(activityId);
 
         AthleteThresholdsDto thresholds = intervalsService.getAthleteThresholds();
-        int ftp = thresholds.ftpOrDefault(zoneCalculator.getFtp());
-        int maxHr = thresholds.maxHrOrDefault(zoneCalculator.getMaxHr());
 
         ActivityZonesDto zones = intervalsService.getActivityZones(activityId);
         List<ZoneDistributionDto> powerZones = zones.powerZones();
         List<ZoneDistributionDto> hrZones = zones.hrZones();
         List<TrendDataDto> trend = buildTrend();
 
-        // NP / IF / TSS nachziehen, falls aus alter Analyse-Version noch nicht gespeichert
-        enrichLoadMetrics(analysis, null, streams, ftp);
+        // Analysen aus alter Version: Indoor-Kennung + FTP nachtragen, IF/TSS damit neu rechnen
+        if (analysis.getFtpUsed() == null) {
+            boolean indoor = Boolean.TRUE.equals(zones.indoor());
+            int ftp = ftpResolver.resolve(zones.icuFtp(), indoor, thresholds);
+            enrichNormalizedPower(analysis, null, streams);
+            applyFtpContext(analysis, indoor, ftp);
+            repository.save(analysis);
+            log.info("Analyse {} nachgetragen: indoor={}, FTP={} W", activityId, indoor, ftp);
+        }
+        int ftp = analysis.getFtpUsed();
 
         // Power-Curve sicherstellen (Backfill, falls aus alter Analyse-Version noch nicht vorhanden)
         powerCurveService.ensurePowerCurves(List.of(analysis));
@@ -210,11 +226,11 @@ public class AnalysisService {
     }
 
     /**
-     * Leitet Normalized Power, Intensity Factor und Training Stress Score ab und setzt sie auf der Analyse.
+     * Setzt die Normalized Power auf der Analyse (IF/TSS rechnet danach {@link #applyFtpContext}).
      * No-op, wenn die NP bereits gesetzt ist (idempotent) oder keine Leistungsdaten vorliegen.
      * NP wird bevorzugt aus intervals.icu uebernommen, sonst aus dem Watt-Stream berechnet.
      */
-    private void enrichLoadMetrics(ActivityAnalysis analysis, ActivityDto dto, StreamDataDto streams, int ftp) {
+    private void enrichNormalizedPower(ActivityAnalysis analysis, ActivityDto dto, StreamDataDto streams) {
         if (analysis.getNormalizedPowerWatts() != null) return;
 
         Double np = (dto != null && dto.normalizedPower() != null && dto.normalizedPower() > 0)
@@ -223,16 +239,30 @@ public class AnalysisService {
         if (np == null || np <= 0) return;
 
         analysis.setNormalizedPowerWatts(Math.round(np * 10.0) / 10.0);
+    }
 
-        if (ftp > 0) {
-            double intensityFactor = np / ftp;
-            analysis.setIntensityFactor(Math.round(intensityFactor * 100.0) / 100.0);
+    /**
+     * Haengt Indoor-Kennung und verwendete FTP an die Analyse und berechnet IF/TSS aus der
+     * gespeicherten NP mit dieser FTP neu. Ohne NP bleiben IF/TSS unveraendert.
+     */
+    static void applyFtpContext(ActivityAnalysis analysis, boolean indoor, int ftp) {
+        analysis.setIndoor(indoor);
+        analysis.setFtpUsed(ftp);
+        Double np = analysis.getNormalizedPowerWatts();
+        if (np != null && np > 0) {
+            setIntensityAndTss(analysis, np, ftp);
+        }
+    }
 
-            Integer durationSec = analysis.getDurationSeconds();
-            if (durationSec != null && durationSec > 0) {
-                double tss = (durationSec * np * intensityFactor) / (ftp * 3600.0) * 100.0;
-                analysis.setTrainingLoad((double) Math.round(tss));
-            }
+    private static void setIntensityAndTss(ActivityAnalysis analysis, double np, int ftp) {
+        if (ftp <= 0) return;
+        double intensityFactor = np / ftp;
+        analysis.setIntensityFactor(Math.round(intensityFactor * 100.0) / 100.0);
+
+        Integer durationSec = analysis.getDurationSeconds();
+        if (durationSec != null && durationSec > 0) {
+            double tss = (durationSec * np * intensityFactor) / (ftp * 3600.0) * 100.0;
+            analysis.setTrainingLoad((double) Math.round(tss));
         }
     }
 

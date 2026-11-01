@@ -1,6 +1,8 @@
 export interface AthleteThresholds {
   name: string | null;
   ftp: number | null;
+  /** Indoor-FTP aus intervals.icu; null, wenn nicht eingetragen. */
+  indoorFtp: number | null;
   lthr: number | null;
   maxHr: number | null;
   weight: number | null;
@@ -53,6 +55,10 @@ export interface ActivityAnalysis {
   normalizedPowerWatts: number | null;
   intensityFactor: number | null;
   trainingLoad: number | null;
+  /** Indoor-Fahrt; null bei Analysen, die noch nicht nachgetragen wurden. */
+  indoor: boolean | null;
+  /** FTP in Watt, mit der IF/TSS berechnet wurden. */
+  ftpUsed: number | null;
   avgHeartRate: number | null;
   maxHeartRate: number | null;
   avgSpeedKmh: number | null;

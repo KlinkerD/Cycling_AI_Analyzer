@@ -4,7 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
- * Liefert die FTP- und Max-HR-Defaultwerte, falls intervals.icu keine Schwellenwerte liefert.
+ * Liefert den Max-HR-Defaultwert, falls intervals.icu keine Schwellenwerte liefert.
+ * Der FTP-Default ({@code cycling.ftp}) liegt in {@link FtpResolver}.
  * <p>
  * Die Zonen-Verteilung einer Aktivitaet wird NICHT mehr hier berechnet, sondern direkt aus den
  * von intervals.icu vorberechneten Zonen-Zeiten uebernommen
@@ -14,12 +15,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class ZoneCalculatorService {
 
-    @Value("${cycling.ftp:250}")
-    private int defaultFtp;
-
     @Value("${cycling.max-hr:190}")
     private int defaultMaxHr;
 
-    public int getFtp() { return defaultFtp; }
     public int getMaxHr() { return defaultMaxHr; }
 }

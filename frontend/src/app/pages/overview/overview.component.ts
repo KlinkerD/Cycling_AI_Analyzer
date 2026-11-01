@@ -266,6 +266,13 @@ export class OverviewComponent implements OnInit {
     return `${lo} – ${hi} ${unit}`;
   }
 
+  /** Zonengrenzen in Watt fuer eine andere FTP (z. B. Indoor), gerundet wie im Backend. */
+  formatScaledRange(zone: Zone, ftp: number, unit: string): string {
+    const lo = zone.lowerPct != null ? Math.round(zone.lowerPct * ftp) : '–';
+    const hi = zone.upperPct != null ? Math.round(zone.upperPct * ftp) : '∞';
+    return `${lo} – ${hi} ${unit}`;
+  }
+
   hrReferenceLabel(): string {
     if (!this.zones) return '';
     return this.zones.hrReference === 'max_hr' ? 'HFmax' : 'LTHR';

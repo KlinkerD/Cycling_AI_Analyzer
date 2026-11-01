@@ -36,6 +36,11 @@ public class ActivityAnalysis {
     /** Training Stress Score (1h an der FTP = 100). */
     private Double trainingLoad;
 
+    /** Indoor-Fahrt (VirtualRide oder Trainer-Flag); null bei Analysen aus alter Version. */
+    private Boolean indoor;
+    /** FTP in Watt, mit der IF/TSS berechnet wurden; null bei Analysen aus alter Version. */
+    private Integer ftpUsed;
+
     private Integer overallScore;
 
     @Column(columnDefinition = "TEXT")
@@ -191,6 +196,22 @@ public class ActivityAnalysis {
 
     public void setTrainingLoad(Double trainingLoad) {
         this.trainingLoad = trainingLoad;
+    }
+
+    public Boolean getIndoor() {
+        return indoor;
+    }
+
+    public void setIndoor(Boolean indoor) {
+        this.indoor = indoor;
+    }
+
+    public Integer getFtpUsed() {
+        return ftpUsed;
+    }
+
+    public void setFtpUsed(Integer ftpUsed) {
+        this.ftpUsed = ftpUsed;
     }
 
     public Integer getOverallScore() {

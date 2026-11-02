@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -55,6 +56,7 @@ export class ActivityListComponent implements OnInit {
   analyzedIds = new Set<string>();
   loading = false;
   analyzingId: string | null = null;
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private fb: FormBuilder,
@@ -134,11 +136,16 @@ export class ActivityListComponent implements OnInit {
 
   analyzeActivity(activity: Activity): void {
     this.analyzingId = activity.id;
-    this.activityService.analyzeActivity(activity).subscribe({
-      next: () => {
+    // Die Analyse laeuft asynchron im Backend weiter, auch wenn die Seite verlassen wird.
+    this.activityService.analyzeActivity(activity).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (job) => {
         this.analyzingId = null;
-        this.analyzedIds.add(activity.id);
-        this.router.navigate(['/report', activity.id]);
+        if (job.status === 'DONE') {
+          this.analyzedIds.add(activity.id);
+          this.router.navigate(['/report', activity.id]);
+        } else {
+          this.snackBar.open('Analyse fehlgeschlagen: ' + (job.error || 'unbekannter Fehler'), 'OK', { duration: 6000 });
+        }
       },
       error: (err) => {
         this.analyzingId = null;

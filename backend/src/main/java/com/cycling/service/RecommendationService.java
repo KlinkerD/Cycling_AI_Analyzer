@@ -2,6 +2,10 @@ package com.cycling.service;
 
 import com.cycling.dto.DailyRecommendationDto;
 import com.cycling.dto.WellnessPointDto;
+import com.cycling.messaging.MessagePublisher;
+import com.cycling.messaging.Topics;
+import com.cycling.messaging.contract.RecommendationTextRequest;
+import com.cycling.messaging.contract.RecommendationTextResult;
 import com.cycling.model.ActivityAnalysis;
 import com.cycling.model.DailyRecommendation;
 import com.cycling.model.RecommendationCategory;
@@ -17,15 +21,16 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Berechnet die taegliche Trainingsempfehlung (Overview-Karte).
  *
  * <p>Deterministischer Kern: Die Kategorie kommt aus der Form (TSB) des juengsten Wellness-Punkts.
  * Der Ramp-Rate-Waechter (CTL-Aufbau &gt; {@value #RAMP_THRESHOLD} CTL/Woche) stuft die Kategorie um
- * eine Stufe Richtung Erholung herunter. Gemini formuliert nur den Begleittext; faellt der Call aus,
- * wird ein statischer Text pro Kategorie verwendet. Persistiert wird bewusst nur eine Zeile (Upsert).
+ * eine Stufe Richtung Erholung herunter. Gespeichert wird sofort ein statischer Text pro Kategorie;
+ * den formulierten Begleittext liefert der ai-service per MQTT nach ({@link #applyText}).
+ * Persistiert wird bewusst nur eine Zeile (Upsert).
  */
 @Service
 public class RecommendationService {
@@ -38,16 +43,16 @@ public class RecommendationService {
     private static final double RAMP_THRESHOLD = 6.0;
 
     private final IntervalsService intervalsService;
-    private final GeminiService geminiService;
+    private final MessagePublisher publisher;
     private final DailyRecommendationRepository recommendationRepository;
     private final ActivityAnalysisRepository activityRepository;
 
     public RecommendationService(IntervalsService intervalsService,
-                                 GeminiService geminiService,
+                                 MessagePublisher publisher,
                                  DailyRecommendationRepository recommendationRepository,
                                  ActivityAnalysisRepository activityRepository) {
         this.intervalsService = intervalsService;
-        this.geminiService = geminiService;
+        this.publisher = publisher;
         this.recommendationRepository = recommendationRepository;
         this.activityRepository = activityRepository;
     }
@@ -63,7 +68,8 @@ public class RecommendationService {
     }
 
     /**
-     * Berechnet die Empfehlung neu (Regeln + Gemini) und ueberschreibt die gespeicherte Zeile.
+     * Berechnet die Empfehlung neu (Regeln + Fallback-Text), ueberschreibt die gespeicherte Zeile
+     * und beauftragt den ai-service mit dem Begleittext.
      * Wird vom Scheduler und vom manuellen Refresh-Button genutzt – ein einziger Code-Pfad.
      */
     public DailyRecommendationDto computeAndStore() {
@@ -86,6 +92,7 @@ public class RecommendationService {
             rec.setRampCapped(false);
             rec.setFallbackUsed(false);
             rec.setRefDate(null);
+            rec.setPendingTextRequestId(null);
             return DailyRecommendationDto.from(recommendationRepository.save(rec));
         }
 
@@ -97,29 +104,51 @@ public class RecommendationService {
         boolean rampCapped = rampRate != null && rampRate > RAMP_THRESHOLD && base.getLevel() > 0;
         RecommendationCategory category = rampCapped ? base.softer() : base;
 
-        String last7 = buildLast7DaysSummary();
-        String text;
-        boolean fallbackUsed = false;
-        try {
-            text = geminiService.phraseRecommendation(
-                    category.getLabel(), form, rampRate != null ? rampRate : 0.0, rampCapped, last7);
-        } catch (Exception e) {
-            log.warn("Gemini-Text nicht verfuegbar, nutze Fallback: {}", e.getMessage());
-            text = fallbackText(category, rampCapped);
-            fallbackUsed = true;
-        }
-
         rec.setCategory(category);
-        rec.setText(text);
+        rec.setText(fallbackText(category, rampCapped));
         rec.setForm(round(form, 0));
         rec.setRampRate(rampRate != null ? round(rampRate, 1) : null);
         rec.setRampCapped(rampCapped);
-        rec.setFallbackUsed(fallbackUsed);
+        rec.setFallbackUsed(true);
         rec.setRefDate(refDate);
+        String requestId = UUID.randomUUID().toString();
+        rec.setPendingTextRequestId(requestId);
+        // Erst speichern, dann senden: eine schnelle Antwort muss die Request-ID schon vorfinden.
+        rec = recommendationRepository.save(rec);
 
         log.info("Empfehlung: {} (Form {}, Ramp {}, capped={})",
                 category, rec.getForm(), rec.getRampRate(), rampCapped);
-        return DailyRecommendationDto.from(recommendationRepository.save(rec));
+        try {
+            publisher.publish(Topics.AI_RECOMMENDATION_REQUEST, new RecommendationTextRequest(
+                    requestId, category.getLabel(), form, rampRate != null ? rampRate : 0.0, rampCapped,
+                    buildLast7DaysSummary()));
+        } catch (RuntimeException e) {
+            log.warn("KI-Text nicht angefragt, Fallback bleibt: {}", e.getMessage());
+            rec.setPendingTextRequestId(null);
+            rec = recommendationRepository.save(rec);
+        }
+        // Nicht erneut speichern: der KI-Text kann inzwischen schon eingetroffen sein.
+        return DailyRecommendationDto.from(rec);
+    }
+
+    /**
+     * Uebernimmt den KI-Text, sofern er zur aktuell gespeicherten Empfehlung gehoert. Antworten auf
+     * aeltere Berechnungen werden ignoriert; bei Fehler bleibt der Fallback-Text stehen.
+     */
+    public void applyText(RecommendationTextResult result) {
+        DailyRecommendation rec = recommendationRepository.findTopByOrderByIdAsc().orElse(null);
+        if (rec == null || !result.requestId().equals(rec.getPendingTextRequestId())) {
+            log.debug("Veralteter Empfehlungstext {} ignoriert", result.requestId());
+            return;
+        }
+        if (result.success() && result.text() != null && !result.text().isBlank()) {
+            rec.setText(result.text());
+            rec.setFallbackUsed(false);
+        } else {
+            log.warn("KI-Text nicht verfuegbar, Fallback bleibt: {}", result.error());
+        }
+        rec.setPendingTextRequestId(null);
+        recommendationRepository.save(rec);
     }
 
     // ---- Helfer --------------------------------------------------------------

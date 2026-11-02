@@ -18,7 +18,8 @@
   <description>Aggregator for the Cycling Workout Analysis project</description>
 
   <modules>
+    <module>cycling-messaging</module>
     <module>backend</module>
+    <module>ai-service</module>
   </modules>
 </project>
-

@@ -1,0 +1,10 @@
+# Build-Kontext fuer die Java-Services ist das Repo-Root (wegen des gemeinsamen Moduls cycling-messaging).
+.git
+.github
+.idea
+.env
+data
+frontend
+mosquitto
+**/target
+**/*.iml

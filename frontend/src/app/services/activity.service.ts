@@ -1,7 +1,10 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { Activity, AthleteThresholds, Report } from '../models/activity.model';
+import { Observable, first, of, switchMap, timer } from 'rxjs';
+import { Activity, AnalysisJob, AthleteThresholds, Report } from '../models/activity.model';
+
+/** Abfrage-Takt fuer laufende Analysen. */
+const POLL_INTERVAL_MS = 3000;
 
 @Injectable({ providedIn: 'root' })
 export class ActivityService {
@@ -25,8 +28,28 @@ export class ActivityService {
     return this.http.get<Activity[]>(this.baseUrl, { params });
   }
 
-  analyzeActivity(activity: Activity): Observable<Report> {
-    return this.http.post<Report>(`${this.baseUrl}/${activity.id}/analyze`, activity);
+  /** Startet die KI-Analyse (202 + Job). Laeuft schon eine, kommt deren Job zurueck. */
+  startAnalysis(activity: Activity): Observable<AnalysisJob> {
+    return this.http.post<AnalysisJob>(`${this.baseUrl}/${activity.id}/analyze`, activity);
+  }
+
+  getAnalysisJob(jobId: string): Observable<AnalysisJob> {
+    return this.http.get<AnalysisJob>(`${this.baseUrl}/analysis-jobs/${jobId}`);
+  }
+
+  /**
+   * Startet die Analyse und fragt den Job ab, bis er fertig ist. Liefert genau einen Job
+   * mit Status DONE oder FAILED (Timeout erledigt das Backend).
+   */
+  analyzeActivity(activity: Activity): Observable<AnalysisJob> {
+    return this.startAnalysis(activity).pipe(
+      switchMap(job => job.status !== 'PENDING'
+        ? of(job)
+        : timer(POLL_INTERVAL_MS, POLL_INTERVAL_MS).pipe(
+            switchMap(() => this.getAnalysisJob(job.jobId)),
+            first(current => current.status !== 'PENDING')
+          ))
+    );
   }
 
   getReport(activityId: string): Observable<Report> {

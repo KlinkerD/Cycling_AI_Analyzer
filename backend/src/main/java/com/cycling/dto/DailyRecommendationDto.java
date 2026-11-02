@@ -17,9 +17,16 @@ public record DailyRecommendationDto(
         Double rampRate,
         boolean rampCapped,
         LocalDate refDate,
-        LocalDateTime computedAt
+        LocalDateTime computedAt,
+        boolean textPending
 ) {
+    /** So lange wartet das Frontend hoechstens auf den KI-Text, danach bleibt der Fallback stehen. */
+    public static final java.time.Duration TEXT_WAIT = java.time.Duration.ofMinutes(2);
+
     public static DailyRecommendationDto from(DailyRecommendation r) {
+        boolean textPending = r.getPendingTextRequestId() != null
+                && r.getComputedAt() != null
+                && r.getComputedAt().isAfter(LocalDateTime.now().minus(TEXT_WAIT));
         return new DailyRecommendationDto(
                 r.getCategory().name(),
                 r.getCategory().getLabel(),
@@ -29,7 +36,8 @@ public record DailyRecommendationDto(
                 r.getRampRate(),
                 r.isRampCapped(),
                 r.getRefDate(),
-                r.getComputedAt()
+                r.getComputedAt(),
+                textPending
         );
     }
 }

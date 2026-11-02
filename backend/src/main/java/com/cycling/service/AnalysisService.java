@@ -1,6 +1,7 @@
 package com.cycling.service;
 
 import com.cycling.dto.*;
+import com.cycling.messaging.contract.AnalysisResult;
 import com.cycling.model.ActivityAnalysis;
 import com.cycling.repository.ActivityAnalysisRepository;
 import org.slf4j.Logger;
@@ -19,35 +20,29 @@ public class AnalysisService {
     private static final Logger log = LoggerFactory.getLogger(AnalysisService.class);
 
     private final IntervalsService intervalsService;
-    private final GeminiService geminiService;
     private final ZoneCalculatorService zoneCalculator;
     private final ActivityAnalysisRepository repository;
     private final PowerCurveService powerCurveService;
     private final FtpResolver ftpResolver;
 
     public AnalysisService(IntervalsService intervalsService,
-                           GeminiService geminiService,
                            ZoneCalculatorService zoneCalculator,
                            ActivityAnalysisRepository repository,
                            PowerCurveService powerCurveService,
                            FtpResolver ftpResolver) {
         this.ftpResolver = ftpResolver;
         this.intervalsService = intervalsService;
-        this.geminiService = geminiService;
         this.zoneCalculator = zoneCalculator;
         this.repository = repository;
         this.powerCurveService = powerCurveService;
     }
 
     /**
-     * Analysiert eine Aktivität vollständig:
-     * 1. Streams laden
-     * 2. Zonen berechnen
-     * 3. Gemini-Analyse
-     * 4. Ergebnis speichern
+     * Sammelt alles, was fuer die KI-Bewertung gebraucht wird (Streams, Zonen, FTP, Vergleichsfahrten)
+     * und baut die Analyse ohne KI-Felder. Speichert noch nichts.
      */
-    public ReportDto analyzeActivity(String activityId, ActivityDto activityDto) {
-        log.info("Starte Analyse für Aktivität: {} ({})", activityDto.name(), activityId);
+    public PreparedAnalysis prepare(String activityId, ActivityDto activityDto) {
+        log.info("Bereite Analyse vor für Aktivität: {} ({})", activityDto.name(), activityId);
 
         // Athleten-Schwellenwerte laden
         AthleteThresholdsDto thresholds = intervalsService.getAthleteThresholds();
@@ -77,7 +72,7 @@ public class AnalysisService {
         double maxHrStream = max(streams.heartrate().stream().mapToDouble(h -> h != null ? h : 0).toArray());
         double avgCadence = average(streams.cadence().stream().mapToDouble(c -> c != null ? c : 0).toArray());
 
-        // ActivityAnalysis Entity erstellen (noch ohne Gemini-Felder)
+        // ActivityAnalysis Entity erstellen (noch ohne KI-Felder)
         ActivityAnalysis analysis = new ActivityAnalysis();
         analysis.setActivityId(activityId);
         analysis.setActivityName(activityDto.name());
@@ -91,7 +86,6 @@ public class AnalysisService {
         analysis.setAvgSpeedKmh(activityDto.averageSpeed() != null ? activityDto.averageSpeed() * 3.6 : null);
         analysis.setElevationGainM(activityDto.totalElevationGain());
         analysis.setAvgCadenceRpm(avgCadence > 0 ? avgCadence : null);
-        analysis.setAnalyzedAt(LocalDateTime.now());
 
         // NP aus intervals.icu bzw. Stream, IF / TSS mit der FTP der Fahrt
         enrichNormalizedPower(analysis, activityDto, streams);
@@ -104,15 +98,23 @@ public class AnalysisService {
                 .limit(3)
                 .collect(Collectors.toList());
 
-        // Gemini Analyse
-        GeminiService.AnalysisResult geminiResult = geminiService.analyzeWorkout(
-                analysis, powerZones, hrZones, lastThree, ftp, maxHr);
+        return new PreparedAnalysis(analysis, streams, powerZones, hrZones, lastThree, ftp, maxHr);
+    }
 
-        analysis.setOverallScore(geminiResult.score());
-        analysis.setStrengths(geminiResult.strengths());
-        analysis.setAnomalies(geminiResult.anomalies());
-        analysis.setProgress(geminiResult.progress());
-        analysis.setSummary(geminiResult.summary());
+    /**
+     * Uebernimmt die KI-Bewertung, laedt die Power-Curve und speichert die Analyse (Upsert).
+     * Liefert den fertigen Report.
+     */
+    public ReportDto complete(PreparedAnalysis prepared, AnalysisResult aiResult) {
+        ActivityAnalysis analysis = prepared.analysis();
+        String activityId = analysis.getActivityId();
+
+        analysis.setAnalyzedAt(LocalDateTime.now());
+        analysis.setOverallScore(aiResult.score());
+        analysis.setStrengths(aiResult.strengths());
+        analysis.setAnomalies(aiResult.anomalies());
+        analysis.setProgress(aiResult.progress());
+        analysis.setSummary(aiResult.summary());
 
         // Power-Curve fuer aktuelle Aktivitaet laden + an Entity haengen (Cascade speichert Punkte mit)
         try {
@@ -126,17 +128,15 @@ public class AnalysisService {
         ActivityAnalysis saved = repository.save(analysis);
 
         // Lazy Backfill: fuer die 3 vorherigen Aktivitaeten Power-Curve nachladen, falls noch nicht vorhanden
-        powerCurveService.ensurePowerCurves(lastThree);
+        powerCurveService.ensurePowerCurves(prepared.lastThree());
 
-        // Trend-Daten
         List<TrendDataDto> trend = buildTrend();
 
         // Power-Curve-Set fuer Report (aktuell + vorherige + FTP-Reflinie)
-        PowerCurveSetDto powerCurveSet = powerCurveService.buildReportSet(saved, lastThree, ftp);
+        PowerCurveSetDto powerCurveSet = powerCurveService.buildReportSet(saved, prepared.lastThree(), prepared.ftp());
 
-        log.info("Analyse für {} abgeschlossen. Score: {}/10", activityDto.name(), geminiResult.score());
-        // Versand (Mail/Discord) stoesst der Aufrufer ueber den ReportDispatcher an.
-        return new ReportDto(saved, streams, powerZones, hrZones, trend, powerCurveSet);
+        log.info("Analyse für {} abgeschlossen. Score: {}/10", analysis.getActivityName(), aiResult.score());
+        return new ReportDto(saved, prepared.streams(), prepared.powerZones(), prepared.hrZones(), trend, powerCurveSet);
     }
 
     public List<String> getAnalyzedIds() {

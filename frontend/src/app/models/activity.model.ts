@@ -131,6 +131,17 @@ export interface DailyRecommendation {
   rampCapped: boolean;
   refDate: string | null;      // YYYY-MM-DD
   computedAt: string | null;   // ISO datetime
+  textPending: boolean;        // KI-Text wird noch nachgeliefert, solange Fallback-Text anzeigen
+}
+
+/** Asynchroner KI-Analyseauftrag (POST /analyze liefert ihn, danach Polling bis DONE/FAILED). */
+export interface AnalysisJob {
+  jobId: string;
+  activityId: string;
+  status: 'PENDING' | 'DONE' | 'FAILED';
+  error: string | null;
+  createdAt: string;
+  finishedAt: string | null;
 }
 
 export interface Zone {

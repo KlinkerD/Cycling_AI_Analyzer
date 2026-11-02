@@ -58,7 +58,7 @@ public class ActivityDto {
 
     @JsonProperty("average_watts") @JsonAlias("averageWatts") public void setAverageWattsRaw(Double v) { this.averageWattsRaw = v; }
     @JsonProperty("icu_average_watts") public void setIcuAverageWatts(Double v) { this.icuAverageWatts = v; }
-    @JsonProperty("icu_weighted_avg_watts") public void setIcuWeightedAvgWatts(Double v) { this.icuWeightedAvgWatts = v; }
+    @JsonProperty("icu_weighted_avg_watts") @JsonAlias("normalizedPower") public void setIcuWeightedAvgWatts(Double v) { this.icuWeightedAvgWatts = v; }
     @JsonProperty("max_watts") @JsonAlias("maxWatts") public void setMaxWattsRaw(Double v) { this.maxWattsRaw = v; }
     @JsonProperty("icu_max_watts") public void setIcuMaxWatts(Double v) { this.icuMaxWatts = v; }
 

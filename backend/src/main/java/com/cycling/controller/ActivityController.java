@@ -3,12 +3,12 @@ package com.cycling.controller;
 import com.cycling.delivery.DeliveryChannel;
 import com.cycling.delivery.ReportDispatcher;
 import com.cycling.dto.ActivityDto;
+import com.cycling.dto.AnalysisJobDto;
 import com.cycling.dto.AthleteThresholdsDto;
 import com.cycling.dto.ReportDto;
+import com.cycling.service.AnalysisJobService;
 import com.cycling.service.AnalysisService;
 import com.cycling.service.IntervalsService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,17 +23,18 @@ import java.util.Map;
 @RequestMapping("/api/activities")
 public class ActivityController {
 
-    private static final Logger log = LoggerFactory.getLogger(ActivityController.class);
-
     private final IntervalsService intervalsService;
     private final AnalysisService analysisService;
+    private final AnalysisJobService jobService;
     private final ReportDispatcher reportDispatcher;
 
     public ActivityController(IntervalsService intervalsService,
                               AnalysisService analysisService,
+                              AnalysisJobService jobService,
                               ReportDispatcher reportDispatcher) {
         this.intervalsService = intervalsService;
         this.analysisService = analysisService;
+        this.jobService = jobService;
         this.reportDispatcher = reportDispatcher;
     }
 
@@ -54,22 +55,32 @@ public class ActivityController {
 
     /**
      * POST /api/activities/{id}/analyze
-     * Startet die KI-Analyse für eine Aktivität. Gibt den vollständigen Report zurück.
-     * Body: ActivityDto (Metadaten der Aktivität)
+     * Startet die KI-Analyse asynchron (Body: ActivityDto). Antwortet sofort mit 202 und dem Job;
+     * den Fortschritt fragt das Frontend ueber GET /analysis-jobs/{jobId} ab. Laeuft schon eine
+     * Analyse fuer die Aktivitaet, kommt deren Job zurueck. Versand stoesst die Fertigstellung an.
      */
     @PostMapping("/{id}/analyze")
-    public ResponseEntity<ReportDto> analyzeActivity(
+    public ResponseEntity<AnalysisJobDto> analyzeActivity(
             @PathVariable String id,
             @RequestBody ActivityDto activityDto
     ) {
-        ReportDto report = analysisService.analyzeActivity(id, activityDto);
-        try {
-            reportDispatcher.dispatch(report);
-        } catch (RuntimeException e) {
-            // Versand ist fail-soft: die Analyse ist gespeichert und wird trotzdem zurueckgegeben.
-            log.warn("Report-Versand fuer {} konnte nicht angestossen werden: {}", id, e.getMessage());
-        }
-        return ResponseEntity.ok(report);
+        return ResponseEntity.accepted().body(AnalysisJobDto.from(jobService.start(id, activityDto)));
+    }
+
+    /** GET /api/activities/analysis-jobs/{jobId} – Status eines Analyseauftrags. */
+    @GetMapping("/analysis-jobs/{jobId}")
+    public ResponseEntity<AnalysisJobDto> getAnalysisJob(@PathVariable String jobId) {
+        return jobService.find(jobId)
+                .map(job -> ResponseEntity.ok(AnalysisJobDto.from(job)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** GET /api/activities/{id}/analysis-job – juengster Analyseauftrag einer Aktivitaet (z. B. nach Reload). */
+    @GetMapping("/{id}/analysis-job")
+    public ResponseEntity<AnalysisJobDto> getLatestAnalysisJob(@PathVariable String id) {
+        return jobService.latestFor(id)
+                .map(job -> ResponseEntity.ok(AnalysisJobDto.from(job)))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**

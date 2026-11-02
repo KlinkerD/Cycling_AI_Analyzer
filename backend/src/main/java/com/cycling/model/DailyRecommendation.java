@@ -40,6 +40,9 @@ public class DailyRecommendation {
     /** Zeitpunkt der Berechnung ("Stand"). */
     private LocalDateTime computedAt;
 
+    /** Korrelations-ID des offenen KI-Text-Auftrags; null = kein Text mehr erwartet. */
+    private String pendingTextRequestId;
+
     public DailyRecommendation() {
     }
 
@@ -113,5 +116,13 @@ public class DailyRecommendation {
 
     public void setComputedAt(LocalDateTime computedAt) {
         this.computedAt = computedAt;
+    }
+
+    public String getPendingTextRequestId() {
+        return pendingTextRequestId;
+    }
+
+    public void setPendingTextRequestId(String pendingTextRequestId) {
+        this.pendingTextRequestId = pendingTextRequestId;
     }
 }

@@ -1,4 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription, switchMap, take, takeWhile, timer } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -15,6 +17,10 @@ import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartData } from 'chart.js';
 import { OverviewService } from '../../services/overview.service';
 import { AthleteZones, DailyRecommendation, WellnessPoint, Zone } from '../../models/activity.model';
+
+/** Nachfrage-Takt fuer den asynchron nachgelieferten KI-Empfehlungstext (5 s x 24 = 2 Min.). */
+const RECOMMENDATION_POLL_MS = 5000;
+const RECOMMENDATION_POLL_MAX = 24;
 
 type RangeKey = '7d' | '1m' | '3m' | '6m' | '1y' | 'custom';
 
@@ -57,6 +63,8 @@ export class OverviewComponent implements OnInit {
   wellness: WellnessPoint[] = [];
   zones: AthleteZones | null = null;
   recommendation: DailyRecommendation | null = null;
+  private textPollSub?: Subscription;
+  private readonly destroyRef = inject(DestroyRef);
   sortedPowerZonesForBar: Zone[] = []; // für Stacked-Bar Visualisierung
 
   // ---- Chart-Konfiguration -------------------------------------------------
@@ -116,10 +124,11 @@ export class OverviewComponent implements OnInit {
 
   /**
    * Laedt die Tagesempfehlung. Bei {@code refresh=true} (Button) wird serverseitig neu berechnet
-   * (POST, ~Gemini-Latenz), sonst nur der gespeicherte Stand geholt (GET).
+   * (POST; den KI-Text liefert der ai-service nach), sonst nur der gespeicherte Stand geholt (GET).
    */
   private loadRecommendation(refresh = false): void {
     this.loadingRecommendation = true;
+    this.textPollSub?.unsubscribe();
     const req = refresh
       ? this.overviewService.refreshRecommendation()
       : this.overviewService.getRecommendation();
@@ -127,12 +136,31 @@ export class OverviewComponent implements OnInit {
       next: (data) => {
         this.recommendation = data;
         this.loadingRecommendation = false;
+        if (data.textPending) {
+          this.pollRecommendationText();
+        }
       },
       error: (err) => {
         this.loadingRecommendation = false;
         this.snackBar.open('Fehler beim Laden der Empfehlung: ' + (err.error?.message || err.message), 'OK', { duration: 5000 });
       }
     });
+  }
+
+  /**
+   * Der KI-Text kommt asynchron aus dem ai-service. Bis dahin steht der Fallback-Text da;
+   * wir fragen einige Male nach, bis das Backend nicht mehr "textPending" meldet (max. ~2 Min.).
+   */
+  private pollRecommendationText(): void {
+    this.textPollSub = timer(RECOMMENDATION_POLL_MS, RECOMMENDATION_POLL_MS).pipe(
+      take(RECOMMENDATION_POLL_MAX),
+      switchMap(() => this.overviewService.getRecommendation()),
+      takeWhile(data => {
+        this.recommendation = data;
+        return data.textPending;
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({ error: () => {} });
   }
 
   private loadWellness(refresh = false): void {

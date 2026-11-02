@@ -34,7 +34,7 @@ class AnalysisServiceAnalyzeTest {
     void setUp() {
         service = new AnalysisService(
                 intervals, gemini, mock(ZoneCalculatorService.class), repository,
-                mock(ReportMailService.class), powerCurves, new FtpResolver(200));
+                powerCurves, new FtpResolver(200));
 
         when(intervals.getAthleteThresholds())
                 .thenReturn(new AthleteThresholdsDto("Test", 250, 235, null, null, null));

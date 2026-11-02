@@ -1,12 +1,16 @@
 package com.cycling.controller;
 
+import com.cycling.delivery.DeliveryChannel;
+import com.cycling.delivery.ReportDispatcher;
 import com.cycling.dto.ActivityDto;
 import com.cycling.dto.AthleteThresholdsDto;
 import com.cycling.dto.ReportDto;
 import com.cycling.service.AnalysisService;
 import com.cycling.service.IntervalsService;
-import com.cycling.service.ReportMailService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,16 +23,18 @@ import java.util.Map;
 @RequestMapping("/api/activities")
 public class ActivityController {
 
+    private static final Logger log = LoggerFactory.getLogger(ActivityController.class);
+
     private final IntervalsService intervalsService;
     private final AnalysisService analysisService;
-    private final ReportMailService reportMailService;
+    private final ReportDispatcher reportDispatcher;
 
     public ActivityController(IntervalsService intervalsService,
                               AnalysisService analysisService,
-                              ReportMailService reportMailService) {
+                              ReportDispatcher reportDispatcher) {
         this.intervalsService = intervalsService;
         this.analysisService = analysisService;
-        this.reportMailService = reportMailService;
+        this.reportDispatcher = reportDispatcher;
     }
 
     /**
@@ -57,6 +63,12 @@ public class ActivityController {
             @RequestBody ActivityDto activityDto
     ) {
         ReportDto report = analysisService.analyzeActivity(id, activityDto);
+        try {
+            reportDispatcher.dispatch(report);
+        } catch (RuntimeException e) {
+            // Versand ist fail-soft: die Analyse ist gespeichert und wird trotzdem zurueckgegeben.
+            log.warn("Report-Versand fuer {} konnte nicht angestossen werden: {}", id, e.getMessage());
+        }
         return ResponseEntity.ok(report);
     }
 
@@ -93,22 +105,26 @@ public class ActivityController {
     }
 
     /**
-     * POST /api/activities/{id}/resend-mail
-     * Sendet den bereits gespeicherten Report erneut per E-Mail.
-     * Versand erfolgt asynchron - Antwort heisst nur "angestossen", nicht "zugestellt".
+     * POST /api/activities/{id}/resend
+     * Sendet den gespeicherten Report an alle aktiven Kanaele (Mail, Discord).
+     * Versand laeuft im Hintergrund - 202 heisst "angestossen", nicht "zugestellt".
      */
-    @PostMapping("/{id}/resend-mail")
-    public ResponseEntity<Map<String, String>> resendReportMail(@PathVariable String id) {
+    @PostMapping("/{id}/resend")
+    public ResponseEntity<Map<String, Object>> resendReport(@PathVariable String id) {
+        List<DeliveryChannel> channels;
         try {
-            ReportDto report = analysisService.getReport(id);
-            reportMailService.sendReportEmail(report);
-            return ResponseEntity.accepted().body(Map.of(
-                    "status", "queued",
-                    "message", "Mailversand wurde angestossen."
-            ));
+            channels = reportDispatcher.resend(id);
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
+        if (channels.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("status", "disabled", "message", "Kein Versandkanal aktiv."));
+        }
+        return ResponseEntity.accepted().body(Map.of(
+                "status", "queued",
+                "channels", channels.stream().map(Enum::name).toList()
+        ));
     }
 }
 

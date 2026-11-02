@@ -1,4 +1,4 @@
-package com.cycling.service;
+package com.cycling.delivery;
 
 import com.cycling.dto.ReportDto;
 import com.cycling.dto.ZoneDistributionDto;
@@ -6,164 +6,123 @@ import com.cycling.model.ActivityAnalysis;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.mail.MailAuthenticationException;
+import org.springframework.mail.MailException;
+import org.springframework.mail.MailParseException;
+import org.springframework.mail.MailPreparationException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * Versendet einen HTML-Report per E-Mail. Charts werden via QuickChart als PNG
- * gerendert und inline (CID) eingebettet.
- *
- * Async + fail-soft: Fehler werden nur geloggt und beeinflussen die Analyse nicht.
+ * Versendet einen HTML-Report per E-Mail. Die Charts kommen fertig gerendert als
+ * {@link ReportCharts} und werden inline (CID) eingebettet.
  */
-@Service
-public class ReportMailService {
+public class MailReportSender implements ReportSender {
 
-    private static final Logger log = LoggerFactory.getLogger(ReportMailService.class);
+    private static final Logger log = LoggerFactory.getLogger(MailReportSender.class);
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
 
+    private final MailSettings settings;
     private final JavaMailSender mailSender;
-    private final QuickChartService quickChart;
+    private final String from;
+    private final String to;
 
-    @Value("${cycling.report.mail.enabled:false}")
-    private boolean enabled;
-
-    @Value("${cycling.report.mail.from:}")
-    private String fromRaw;
-
-    /** Fallback, falls cycling.report.mail.from leer ist. */
-    @Value("${spring.mail.username:}")
-    private String mailUsername;
-
-    @Value("${cycling.report.mail.from-name:Cycling Report}")
-    private String fromName;
-
-    @Value("${cycling.report.mail.to:}")
-    private String toRaw;
-
-    @Value("${cycling.report.mail.subject-prefix:[Cycling Report]}")
-    private String subjectPrefix;
-
-    public ReportMailService(JavaMailSender mailSender, QuickChartService quickChart) {
+    public MailReportSender(MailSettings settings, JavaMailSender mailSender) {
+        this.settings = settings;
         this.mailSender = mailSender;
-        this.quickChart = quickChart;
+        this.to = clean(settings.to());
+        String configuredFrom = clean(settings.from());
+        this.from = configuredFrom.isEmpty() ? clean(settings.fallbackUsername()) : configuredFrom;
+
+        if (settings.enabled()) {
+            if (!isValidEmail(to)) {
+                throw new IllegalStateException(
+                        "Mail-Versand aktiv, aber cycling.report.mail.to ist leer oder keine gueltige Adresse: '" + to + "'.");
+            }
+            if (!isValidEmail(from)) {
+                throw new IllegalStateException(
+                        "Mail-Versand aktiv, aber weder cycling.report.mail.from noch spring.mail.username "
+                                + "ist eine gueltige Absenderadresse: '" + from + "'.");
+            }
+        }
     }
 
-    @Async
-    public void sendReportEmail(ReportDto report) {
-        if (!enabled) {
-            log.debug("Mailversand deaktiviert (cycling.report.mail.enabled=false), ueberspringe.");
-            return;
-        }
+    @Override
+    public DeliveryChannel channel() {
+        return DeliveryChannel.MAIL;
+    }
 
-        // Werte saeubern (kein Whitespace / Zeilenumbruch in SMTP-Adressen!)
-        String to = clean(toRaw);
-        String from = clean(fromRaw);
-        if (from.isEmpty()) {
-            from = clean(mailUsername); // Fallback auf SMTP-Username
-        }
-        String fromNameClean = clean(fromName);
+    @Override
+    public boolean isEnabled() {
+        return settings.enabled();
+    }
 
-        if (to.isEmpty()) {
-            log.warn("Mailversand aktiv, aber cycling.report.mail.to ist leer - keine Mail gesendet.");
-            return;
-        }
-        if (from.isEmpty()) {
-            log.warn("Mailversand aktiv, aber cycling.report.mail.from / spring.mail.username sind leer - keine Mail gesendet.");
-            return;
-        }
-        if (!isValidEmail(from)) {
-            log.warn("Ungueltige Absenderadresse '{}' (cycling.report.mail.from) - keine Mail gesendet.", from);
-            return;
-        }
-        if (!isValidEmail(to)) {
-            log.warn("Ungueltige Empfaengeradresse '{}' (cycling.report.mail.to) - keine Mail gesendet.", to);
-            return;
-        }
-
+    @Override
+    public void send(ReportDto report, ReportCharts charts, ReportDelivery delivery) throws DeliveryException {
         ActivityAnalysis a = report.analysis();
-        String subject = subjectPrefix + " " + safe(a.getActivityName())
+        String subject = settings.subjectPrefix() + " " + safe(a.getActivityName())
                 + (a.getActivityDate() != null ? " (" + a.getActivityDate().format(DATE_FMT) + ")" : "");
 
         try {
-            // Charts rendern (jeweils null falls keine Daten / Fehler)
-            byte[] speedAltPng = quickChart.renderSpeedAndAltitude(report.streams());
-            byte[] powerHrPng = quickChart.renderPowerAndHr(report.streams());
-            byte[] cadencePng = report.streams().cadence() != null && !report.streams().cadence().isEmpty()
-                    ? quickChart.renderCadenceOverDistance(report.streams()) : null;
-            byte[] powerZonesPng = quickChart.renderZoneDoughnut("Leistungszonen (FTP-basiert)", report.powerZones());
-            byte[] hrZonesPng = quickChart.renderZoneDoughnut("Herzfrequenzzonen", report.hrZones());
-            byte[] trendPng = quickChart.renderTrend(report.trend());
-            byte[] powerCurvePng = quickChart.renderPowerCurve(report.powerCurveSet());
-
-            // CIDs vergeben
-            List<InlineImage> images = new ArrayList<>();
-            String cidSpeedAlt = addIfPresent(images, "speedAltChart", speedAltPng);
-            String cidPowerHr = addIfPresent(images, "powerHrChart", powerHrPng);
-            String cidCadence = addIfPresent(images, "cadenceChart", cadencePng);
-            String cidPowerZones = addIfPresent(images, "powerZonesChart", powerZonesPng);
-            String cidHrZones = addIfPresent(images, "hrZonesChart", hrZonesPng);
-            String cidTrend = addIfPresent(images, "trendChart", trendPng);
-            String cidPowerCurve = addIfPresent(images, "powerCurveChart", powerCurvePng);
-
-            String html = buildHtml(report, cidSpeedAlt, cidPowerHr, cidCadence, cidPowerZones, cidHrZones, cidTrend, cidPowerCurve);
+            String html = buildHtml(report,
+                    cid(charts, ReportCharts.SPEED_ALT), cid(charts, ReportCharts.POWER_HR),
+                    cid(charts, ReportCharts.CADENCE), cid(charts, ReportCharts.POWER_ZONES),
+                    cid(charts, ReportCharts.HR_ZONES), cid(charts, ReportCharts.TREND),
+                    cid(charts, ReportCharts.POWER_CURVE));
 
             MimeMessage mime = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mime, true, StandardCharsets.UTF_8.name());
             try {
-                helper.setFrom(from, fromNameClean);
+                helper.setFrom(from, clean(settings.fromName()));
             } catch (java.io.UnsupportedEncodingException ex) {
                 helper.setFrom(from);
             }
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(html, true);
-            for (InlineImage img : images) {
-                helper.addInline(img.cid, new ByteArrayResource(img.data), "image/png");
+            for (ReportCharts.Chart chart : charts.all()) {
+                helper.addInline(chart.key(), new ByteArrayResource(chart.png()), "image/png");
             }
 
             log.info("Sende Report-Mail von '{}' an '{}' (Aktivitaet: {})", from, to, a.getActivityName());
             mailSender.send(mime);
-            log.info("Report-Mail an {} versendet ({}).", to, a.getActivityName());
-        } catch (Exception e) {
-            log.error("Versand der Report-Mail fuer '{}' fehlgeschlagen: {}",
-                    a.getActivityName(), e.getMessage(), e);
+        } catch (MailAuthenticationException | MailParseException | MailPreparationException e) {
+            throw DeliveryException.permanent("Mail-Konfiguration/Login fehlerhaft: " + e.getMessage(), e);
+        } catch (MailException e) {
+            throw DeliveryException.temporary("Mail-Versand fehlgeschlagen: " + e.getMessage(), e);
+        } catch (jakarta.mail.MessagingException e) {
+            throw DeliveryException.permanent("Mail konnte nicht aufgebaut werden: " + e.getMessage(), e);
         }
     }
 
+    private static String cid(ReportCharts charts, String key) {
+        return charts.get(key) != null ? key : null;
+    }
+
     /** Entfernt Whitespace, Newlines und das umschliessende '<...>' (kommt manchmal aus ENV-Variablen). */
-    private static String clean(String s) {
+    static String clean(String s) {
         if (s == null) return "";
-        String t = s.trim().replaceAll("[\\r\\n\\t]", "");
+        String t = s.trim().replaceAll("[\r\n\t]", "");
         if (t.startsWith("<") && t.endsWith(">") && t.length() >= 2) {
             t = t.substring(1, t.length() - 1).trim();
         }
         return t;
     }
 
-    private static boolean isValidEmail(String s) {
+    /** Minimal-Check: genau ein '@', kein Whitespace, mind. ein '.' im Domain-Teil. */
+    static boolean isValidEmail(String s) {
         if (s == null) return false;
-        // Minimal-Check: genau ein '@', kein Whitespace, mind. ein '.' im Domain-Teil
         int at = s.indexOf('@');
         if (at <= 0 || at != s.lastIndexOf('@') || at == s.length() - 1) return false;
         if (s.chars().anyMatch(Character::isWhitespace)) return false;
         return s.substring(at + 1).contains(".");
-    }
-
-    private static String addIfPresent(List<InlineImage> list, String cid, byte[] data) {
-        if (data == null || data.length == 0) return null;
-        list.add(new InlineImage(cid, data));
-        return cid;
     }
 
     // ---------- HTML-Aufbau ----------
@@ -334,6 +293,4 @@ public class ReportMailService {
                 .replace("\"", "&quot;");
     }
 
-    private record InlineImage(String cid, byte[] data) {}
 }
-

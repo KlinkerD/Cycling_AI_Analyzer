@@ -16,6 +16,16 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - CYCLING_FTP=${CYCLING_FTP:-250}
       - CYCLING_MAX_HR=${CYCLING_MAX_HR:-190}
+      # Report-Versand (beide Kanaele unabhaengig, Default aus)
+      - REPORT_MAIL_ENABLED=${REPORT_MAIL_ENABLED:-false}
+      - REPORT_MAIL_TO=${REPORT_MAIL_TO:-}
+      - REPORT_MAIL_FROM=${REPORT_MAIL_FROM:-}
+      - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-}
+      - SPRING_MAIL_USERNAME=${SPRING_MAIL_USERNAME:-}
+      - SPRING_MAIL_PASSWORD=${SPRING_MAIL_PASSWORD:-}
+      - REPORT_DISCORD_ENABLED=${REPORT_DISCORD_ENABLED:-false}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
       # Spring-Properties via Env-Vars überschreiben
       - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/cycling-analysis;AUTO_SERVER=TRUE
     restart: unless-stopped

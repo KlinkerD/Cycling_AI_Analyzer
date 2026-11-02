@@ -687,17 +687,21 @@ export class ReportComponent implements OnInit {
     this.router.navigate(['/']);
   }
 
-  resendReportMail(): void {
+  resendReport(): void {
     if (this.resending) return;
     this.resending = true;
-    this.activityService.resendReportMail(this.activityId).subscribe({
-      next: () => {
+    this.activityService.resendReport(this.activityId).subscribe({
+      next: (res) => {
         this.resending = false;
-        this.snackBar.open('Report wurde per E-Mail verschickt.', 'OK', { duration: 4000 });
+        const labels = res.channels.map(c => c === 'MAIL' ? 'E-Mail' : 'Discord').join(' und ');
+        this.snackBar.open(`Report-Versand an ${labels} angestoßen.`, 'OK', { duration: 4000 });
       },
-      error: () => {
+      error: (err) => {
         this.resending = false;
-        this.snackBar.open('Versand fehlgeschlagen. Bitte Logs prüfen.', 'OK', { duration: 5000 });
+        const message = err?.status === 409
+          ? 'Kein Versandkanal aktiv (E-Mail und Discord sind ausgeschaltet).'
+          : 'Versand fehlgeschlagen. Bitte Logs prüfen.';
+        this.snackBar.open(message, 'OK', { duration: 5000 });
       }
     });
   }

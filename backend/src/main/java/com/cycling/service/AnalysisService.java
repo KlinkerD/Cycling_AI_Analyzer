@@ -1,7 +1,8 @@
 package com.cycling.service;
 
 import com.cycling.dto.*;
-import com.cycling.model.ActivityAnalysis;import com.cycling.repository.ActivityAnalysisRepository;
+import com.cycling.model.ActivityAnalysis;
+import com.cycling.repository.ActivityAnalysisRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -21,7 +22,6 @@ public class AnalysisService {
     private final GeminiService geminiService;
     private final ZoneCalculatorService zoneCalculator;
     private final ActivityAnalysisRepository repository;
-    private final ReportMailService reportMailService;
     private final PowerCurveService powerCurveService;
     private final FtpResolver ftpResolver;
 
@@ -29,7 +29,6 @@ public class AnalysisService {
                            GeminiService geminiService,
                            ZoneCalculatorService zoneCalculator,
                            ActivityAnalysisRepository repository,
-                           ReportMailService reportMailService,
                            PowerCurveService powerCurveService,
                            FtpResolver ftpResolver) {
         this.ftpResolver = ftpResolver;
@@ -37,7 +36,6 @@ public class AnalysisService {
         this.geminiService = geminiService;
         this.zoneCalculator = zoneCalculator;
         this.repository = repository;
-        this.reportMailService = reportMailService;
         this.powerCurveService = powerCurveService;
     }
 
@@ -137,16 +135,8 @@ public class AnalysisService {
         PowerCurveSetDto powerCurveSet = powerCurveService.buildReportSet(saved, lastThree, ftp);
 
         log.info("Analyse für {} abgeschlossen. Score: {}/10", activityDto.name(), geminiResult.score());
-        ReportDto report = new ReportDto(saved, streams, powerZones, hrZones, trend, powerCurveSet);
-
-        // Async Mail-Versand (fail-soft, blockt nicht).
-        try {
-            reportMailService.sendReportEmail(report);
-        } catch (Exception mailEx) {
-            log.warn("Mail-Trigger fehlgeschlagen: {}", mailEx.getMessage());
-        }
-
-        return report;
+        // Versand (Mail/Discord) stoesst der Aufrufer ueber den ReportDispatcher an.
+        return new ReportDto(saved, streams, powerZones, hrZones, trend, powerCurveSet);
     }
 
     public List<String> getAnalyzedIds() {

@@ -34,7 +34,6 @@ class AnalysisServiceReportTest {
                 mock(GeminiService.class),
                 mock(ZoneCalculatorService.class),
                 repository,
-                mock(ReportMailService.class),
                 powerCurves,
                 new FtpResolver(200));
         when(intervals.getAthleteThresholds())

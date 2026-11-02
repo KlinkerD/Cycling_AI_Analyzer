@@ -33,9 +33,10 @@ export class ActivityService {
     return this.http.get<Report>(`${this.baseUrl}/${activityId}/report`);
   }
 
-  resendReportMail(activityId: string): Observable<{ status: string; message: string }> {
-    return this.http.post<{ status: string; message: string }>(
-      `${this.baseUrl}/${activityId}/resend-mail`, {}
+  /** Sendet den Report an alle aktiven Kanaele (Mail, Discord). 409 = kein Kanal aktiv. */
+  resendReport(activityId: string): Observable<{ status: string; channels: ('MAIL' | 'DISCORD')[] }> {
+    return this.http.post<{ status: string; channels: ('MAIL' | 'DISCORD')[] }>(
+      `${this.baseUrl}/${activityId}/resend`, {}
     );
   }
 

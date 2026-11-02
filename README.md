@@ -6,10 +6,12 @@ Analysiere deine Radtrainings aus **intervals.icu** mit **Google Gemini AI** und
 
 | Schicht | Technologie |
 |---|---|
-| Backend | Spring Boot 3.4 + Java 25 Runtime (kompiliert auf Java-21-Bytecode) |
+| Backend | Spring Boot 4 + Java 25, aufgeteilt in analysis-service, ai-service, report-delivery-service |
+| Messaging | MQTT (Eclipse Mosquitto, Paho-v5-Client) |
+| API-Vertrag | OpenAPI (springdoc) → OpenAPI Generator (typescript-angular) |
 | Frontend | Angular 17 + Angular Material |
-| KI | Google Gemini 1.5 Flash |
-| Datenbank | H2 (persistent, File-basiert) |
+| KI | Google Gemini (Standard: gemini-2.5-flash) |
+| Datenbank | H2 (persistent, File-basiert), je eine für backend und report-delivery-service |
 | Deployment | Docker Compose |
 
 ---
@@ -53,22 +55,26 @@ nano .env
 
 ### Lokal (Entwicklung)
 
-**Backend:**
+**MQTT-Broker** (die Services sprechen über Mosquitto miteinander):
 ```bash
-cd backend
-mvn spring-boot:run
-# Läuft auf http://localhost:8080
-# H2 Console: http://localhost:8080/h2-console
+docker compose up -d mosquitto
+# Ist Port 1883 schon belegt, in docker-compose.yml einen anderen Host-Port eintragen
+# und MQTT_BROKER_URL=tcp://localhost:<port> für die Services setzen.
 ```
 
-> Hinweis: Das Backend läuft problemlos mit einer Java-25-Runtime, wird aber absichtlich auf Java-21-Bytecode kompiliert, weil Spring Boot 3.4 / Spring Framework 6.2 Java-25-Klassen beim Scannen noch nicht vollständig unterstützen.
+**Backend, ai-service, report-delivery-service** (jeweils in eigenem Terminal):
+```bash
+mvn install -DskipTests                       # einmalig, baut auch cycling-messaging
+mvn -pl backend spring-boot:run               # http://localhost:8080, Swagger-UI: /swagger-ui.html
+mvn -pl ai-service spring-boot:run            # braucht GEMINI_API_KEY
+mvn -pl report-delivery-service spring-boot:run
+```
 
 **Frontend:**
 ```bash
 cd frontend
 npm install
-npm start
-# Öffnet http://localhost:4200
+npm start          # erzeugt vorher den API-Client, öffnet http://localhost:4200
 ```
 
 ### Docker (Produktion / Raspberry Pi)
@@ -79,7 +85,7 @@ cp .env.example .env
 nano .env  # Werte eintragen
 
 # Starten
-docker-compose up -d --build
+docker compose up -d --build
 
 # App öffnen
 open http://localhost
@@ -161,24 +167,41 @@ Falls nötig, die Methode `parseStreams()` in `IntervalsService.java` anpassen.
 
 ---
 
+## 🔌 API-Client (OpenAPI)
+
+Die Angular-Models und -Services für die REST-API werden generiert, nicht von Hand geschrieben:
+
+```
+Backend (springdoc)  →  frontend/openapi/cycling-api.yaml  →  OpenAPI Generator  →  frontend/src/app/api/
+```
+
+- Die Spec ist eingecheckt. Der Test `OpenApiSpecTest` im Backend schlägt fehl, sobald sie nicht mehr zur API passt.
+  Nach einer API-Änderung aktualisieren mit:
+  ```bash
+  mvn -pl backend test -Dtest=OpenApiSpecTest -Dopenapi.update=true
+  ```
+- `npm start` / `npm run build` erzeugen `src/app/api/` automatisch (`npm run generate:api`). Der Ordner ist nicht eingecheckt.
+  Der Generator braucht Java (lokal vorhanden, im Docker-Build wird eine JRE installiert).
+- Felder sind in der Spec immer vorhanden; Objekt-Typen sind `T | null`. Felder, die nie null sind, tragen im Backend `@ApiNonNull`.
+- Die Services in `frontend/src/app/services/` sind dünne Fassaden über `ActivitiesApi` / `OverviewApi` (Datumsformat, Polling).
+
+---
+
 ## Projektstruktur
 
 ```
 cycling/
-├── backend/                    # Spring Boot Backend
-│   ├── src/main/java/com/cycling/
-│   │   ├── controller/         # REST API Endpoints
-│   │   ├── service/            # Business Logic + AI
-│   │   ├── model/              # JPA Entities
-│   │   ├── repository/         # H2 Datenbank
-│   │   └── dto/                # Data Transfer Objects
-│   └── src/main/resources/
-│       └── application.properties
-├── frontend/                   # Angular 17 Frontend
+├── cycling-messaging/          # MQTT-Topics, Nachrichten-Verträge, MQTT-Client (geteilt)
+├── backend/                    # analysis-service: REST-API, intervals.icu, Analysen, H2
+├── ai-service/                 # Gemini: beantwortet Analyse-/Empfehlungs-Aufträge über MQTT
+├── report-delivery-service/    # Mail + Discord, eigene H2 für den Versandstatus
+├── mosquitto/config/           # Broker-Konfiguration
+├── frontend/                   # Angular 17
+│   ├── openapi/                # OpenAPI-Spec des Backends (Quelle für den API-Client)
 │   └── src/app/
-│       ├── pages/              # Activity List + Report
-│       ├── services/           # API Service
-│       └── models/             # TypeScript Interfaces
+│       ├── api/                # generiert (OpenAPI Generator), nicht eingecheckt
+│       ├── pages/              # Aktivitäten, Report, Übersicht
+│       └── services/           # Fassaden über den generierten Client
 ├── docker-compose.yml
 └── .env.example
 ```

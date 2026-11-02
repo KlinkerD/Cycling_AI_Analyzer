@@ -16,7 +16,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartData } from 'chart.js';
 import { OverviewService } from '../../services/overview.service';
-import { AthleteZones, DailyRecommendation, WellnessPoint, Zone } from '../../models/activity.model';
+import { AthleteZonesDto, DailyRecommendationDto, WellnessPointDto, ZoneDto } from '../../api';
 
 /** Nachfrage-Takt fuer den asynchron nachgelieferten KI-Empfehlungstext (5 s x 24 = 2 Min.). */
 const RECOMMENDATION_POLL_MS = 5000;
@@ -60,12 +60,12 @@ export class OverviewComponent implements OnInit {
   loadingWellness = false;
   loadingZones = false;
   loadingRecommendation = false;
-  wellness: WellnessPoint[] = [];
-  zones: AthleteZones | null = null;
-  recommendation: DailyRecommendation | null = null;
+  wellness: WellnessPointDto[] = [];
+  zones: AthleteZonesDto | null = null;
+  recommendation: DailyRecommendationDto | null = null;
   private textPollSub?: Subscription;
   private readonly destroyRef = inject(DestroyRef);
-  sortedPowerZonesForBar: Zone[] = []; // für Stacked-Bar Visualisierung
+  sortedPowerZonesForBar: ZoneDto[] = []; // für Stacked-Bar Visualisierung
 
   // ---- Chart-Konfiguration -------------------------------------------------
   fitnessChartData: ChartData<'line'> = { labels: [], datasets: [] };
@@ -237,7 +237,7 @@ export class OverviewComponent implements OnInit {
    * Sortiert Power-Zonen für Stacked-Bar: Sweet Spot (SS, Index 8) wird zwischen Z3 und Z4
    * eingeordnet, damit die Bar visuell dem Leistungsbereich entspricht.
    */
-  sortedZonesForBar(zones: Zone[]): Zone[] {
+  sortedZonesForBar(zones: ZoneDto[]): ZoneDto[] {
     if (!zones || zones.length === 0) return [];
     const regular = zones.filter(z => z.index <= 7);
     const ss = zones.find(z => z.index === 8);
@@ -255,10 +255,10 @@ export class OverviewComponent implements OnInit {
 
   /**
    * Berechnet die Breite (in %) eines Segments fuer den Stacked-Bar.
-   * Die Skala laeuft von 0 bis upperOfLastZoneWithBound; die letzte (open-ended) Zone
+   * Die Skala laeuft von 0 bis upperOfLastZoneWithBound; die letzte (open-ended) ZoneDto
    * bekommt eine sinnvolle visuelle Breite (proportional zur vorletzten).
    */
-  zoneSegmentWidth(zones: Zone[], zone: Zone): number {
+  zoneSegmentWidth(zones: ZoneDto[], zone: ZoneDto): number {
     const total = this.scaleMax(zones);
     if (total <= 0) return 0;
     const upper = zone.upperValue ?? this.openEndedUpper(zones);
@@ -266,14 +266,14 @@ export class OverviewComponent implements OnInit {
     return Math.max(0, ((upper - lower) / total) * 100);
   }
 
-  private scaleMax(zones: Zone[]): number {
+  private scaleMax(zones: ZoneDto[]): number {
     if (!zones.length) return 0;
     const last = zones[zones.length - 1];
     return last.upperValue ?? this.openEndedUpper(zones);
   }
 
-  /** Heuristik fuer die Breite der open-ended Top-Zone: 1.3x der vorletzten Obergrenze. */
-  private openEndedUpper(zones: Zone[]): number {
+  /** Heuristik fuer die Breite der open-ended Top-ZoneDto: 1.3x der vorletzten Obergrenze. */
+  private openEndedUpper(zones: ZoneDto[]): number {
     for (let i = zones.length - 1; i >= 0; i--) {
       if (zones[i].upperValue != null) return Math.round(zones[i].upperValue! * 1.3);
     }
@@ -287,14 +287,14 @@ export class OverviewComponent implements OnInit {
     return Math.round(p * 100) + ' %';
   }
 
-  formatRange(zone: Zone, unit: string): string {
+  formatRange(zone: ZoneDto, unit: string): string {
     const lo = zone.lowerValue != null ? zone.lowerValue : '–';
     const hi = zone.upperValue != null ? zone.upperValue : '∞';
     return `${lo} – ${hi} ${unit}`;
   }
 
   /** Zonengrenzen in Watt fuer eine andere FTP (z. B. Indoor), gerundet wie im Backend. */
-  formatScaledRange(zone: Zone, ftp: number, unit: string): string {
+  formatScaledRange(zone: ZoneDto, ftp: number, unit: string): string {
     const lo = zone.lowerPct != null ? Math.round(zone.lowerPct * ftp) : '–';
     const hi = zone.upperPct != null ? Math.round(zone.upperPct * ftp) : '∞';
     return `${lo} – ${hi} ${unit}`;

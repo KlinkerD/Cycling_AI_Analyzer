@@ -52,27 +52,27 @@ class ActivityControllerDeliveryTest {
     void resendAnswersAcceptedWithAllActiveChannels() {
         when(resend.resend("i1")).thenReturn(new Outcome(Result.QUEUED, List.of("MAIL", "DISCORD")));
 
-        ResponseEntity<Map<String, Object>> response = controller.resendReport("i1");
+        ResponseEntity<com.cycling.dto.ResendResultDto> response = controller.resendReport("i1");
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
-        assertThat(response.getBody()).containsEntry("channels", List.of("MAIL", "DISCORD"));
+        assertThat(response.getBody().channels()).containsExactly("MAIL", "DISCORD");
     }
 
     @Test
     void resendAnswersConflictWhenNoChannelIsActive() {
         when(resend.resend("i1")).thenReturn(new Outcome(Result.DISABLED, List.of()));
 
-        ResponseEntity<Map<String, Object>> response = controller.resendReport("i1");
+        ResponseEntity<com.cycling.dto.ResendResultDto> response = controller.resendReport("i1");
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(response.getBody()).containsEntry("message", "Kein Versandkanal aktiv.");
+        assertThat(response.getBody().message()).isEqualTo("Kein Versandkanal aktiv.");
     }
 
     @Test
     void resendAnswersNotFoundForUnknownReport() {
         when(resend.resend("nope")).thenReturn(new Outcome(Result.NOT_FOUND, List.of()));
 
-        ResponseEntity<Map<String, Object>> response = controller.resendReport("nope");
+        ResponseEntity<com.cycling.dto.ResendResultDto> response = controller.resendReport("nope");
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }

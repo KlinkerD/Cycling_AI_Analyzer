@@ -1,10 +1,11 @@
 package com.cycling.dto;
 
+import com.cycling.config.ApiNonNull;
 public record ZoneDistributionDto(
-        String zoneName,
-        String zoneLabel,
+        @ApiNonNull String zoneName,
+        @ApiNonNull String zoneLabel,
         int seconds,
         double percentage,
-        String color
+        @ApiNonNull String color
 ) {}
 

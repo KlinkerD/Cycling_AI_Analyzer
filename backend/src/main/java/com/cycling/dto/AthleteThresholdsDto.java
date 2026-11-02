@@ -14,7 +14,7 @@ public record AthleteThresholdsDto(
         /** Indoor-FTP aus intervals.icu ({@code indoor_ftp}); null, wenn nicht eingetragen. */
         @JsonProperty("indoorFtp") Integer indoorFtp,
         @JsonProperty("lthr") Integer lthr,
-        @JsonProperty("max_hr") Integer maxHr,
+        @JsonProperty("maxHr") Integer maxHr,
         @JsonProperty("weight") Double weight
 ) {
     public int maxHrOrDefault(int defaultMaxHr) {

@@ -1,5 +1,6 @@
 package com.cycling.dto;
 
+import com.cycling.config.ApiNonNull;
 /**
  * Eine einzelne Trainingszone (Power oder HF).
  *
@@ -13,11 +14,11 @@ package com.cycling.dto;
  */
 public record ZoneDto(
         int index,
-        String name,
+        @ApiNonNull String name,
         Double lowerPct,
         Double upperPct,
         Integer lowerValue,
         Integer upperValue,
-        String color
+        @ApiNonNull String color
 ) {}
 

@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/@openapitools/openapi-generator-cli/config.schema.json",
+  "spaces": 2,
+  "generator-cli": {
+    "version": "7.26.0",
+    "generators": {
+      "cycling-api": {
+        "generatorName": "typescript-angular",
+        "inputSpec": "#{cwd}/openapi/cycling-api.yaml",
+        "output": "#{cwd}/src/app/api",
+        "additionalProperties": {
+          "ngVersion": "17.3.0",
+          "providedIn": "root",
+          "serviceSuffix": "Api",
+          "serviceFileSuffix": ".api",
+          "enumPropertyNaming": "UPPERCASE",
+          "supportsES6": true
+        }
+      }
+    }
+  }
+}

@@ -6,7 +6,6 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
@@ -19,6 +18,12 @@ import { MatBadgeModule } from '@angular/material/badge';
 import { ActivityService } from '../../services/activity.service';
 import { Activity } from '../../models/activity.model';
 
+interface MonthGroup {
+  key: string;
+  label: string;
+  activities: Activity[];
+}
+
 @Component({
   selector: 'app-activity-list',
   standalone: true,
@@ -29,7 +34,6 @@ import { Activity } from '../../models/activity.model';
     MatFormFieldModule,
     MatInputModule,
     MatDatepickerModule,
-    MatNativeDateModule,
     MatButtonModule,
     MatIconModule,
     MatListModule,
@@ -47,6 +51,7 @@ export class ActivityListComponent implements OnInit {
 
   filterForm: FormGroup;
   activities: Activity[] = [];
+  monthGroups: MonthGroup[] = [];
   analyzedIds = new Set<string>();
   loading = false;
   analyzingId: string | null = null;
@@ -75,11 +80,13 @@ export class ActivityListComponent implements OnInit {
     if (this.filterForm.invalid) return;
     this.loading = true;
     this.activities = [];
+    this.monthGroups = [];
 
     const { from, to } = this.filterForm.value;
     this.activityService.getActivities(from, to).subscribe({
       next: (data) => {
         this.activities = data;
+        this.monthGroups = this.groupByMonth(data);
         this.loading = false;
         this.loadAnalyzedIds();
       },
@@ -88,6 +95,30 @@ export class ActivityListComponent implements OnInit {
         this.snackBar.open('Fehler beim Laden: ' + (err.error?.message || err.message), 'OK', { duration: 5000 });
       }
     });
+  }
+
+  /** Gruppiert nach Kalendermonat (lokales Startdatum), neueste Monate und Aktivitäten zuerst. */
+  private groupByMonth(activities: Activity[]): MonthGroup[] {
+    const sorted = [...activities].sort((a, b) =>
+      (b.startDateLocal ?? '').localeCompare(a.startDateLocal ?? ''));
+    const groups = new Map<string, MonthGroup>();
+    for (const activity of sorted) {
+      const key = (activity.startDateLocal ?? '').substring(0, 7); // "JJJJ-MM"
+      let group = groups.get(key);
+      if (!group) {
+        group = { key, label: this.formatMonth(key), activities: [] };
+        groups.set(key, group);
+      }
+      group.activities.push(activity);
+    }
+    return [...groups.values()];
+  }
+
+  private formatMonth(key: string): string {
+    const match = /^(\d{4})-(\d{2})$/.exec(key);
+    if (!match) return 'Ohne Datum';
+    const d = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+    return d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
   }
 
   private loadAnalyzedIds(): void {

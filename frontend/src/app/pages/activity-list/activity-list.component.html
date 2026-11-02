@@ -45,8 +45,14 @@
       <h2>{{ activities.length }} Aktivitäten gefunden</h2>
     </div>
 
+    @for (group of monthGroups; track group.key) {
+    <section class="month-group">
+    <h3 class="month-heading">
+      {{ group.label }}
+      <span class="month-count">{{ group.activities.length }} {{ group.activities.length === 1 ? 'Aktivität' : 'Aktivitäten' }}</span>
+    </h3>
     <div class="activity-grid">
-      @for (activity of activities; track activity.id) {
+      @for (activity of group.activities; track activity.id) {
         <mat-card class="activity-card" [class.analyzed]="isAnalyzed(activity.id)">
           <mat-card-header>
             <mat-icon mat-card-avatar color="primary">directions_bike</mat-icon>
@@ -115,6 +121,8 @@
         </mat-card>
       }
     </div>
+    </section>
+    }
   }
 
   @if (!loading && activities.length === 0) {

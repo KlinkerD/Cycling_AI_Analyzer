@@ -9,7 +9,6 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { BaseChartDirective } from 'ng2-charts';
@@ -32,7 +31,7 @@ interface RangeOption {
     CommonModule, FormsModule,
     MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule,
     MatTooltipModule, MatFormFieldModule, MatInputModule, MatDatepickerModule,
-    MatNativeDateModule, MatSnackBarModule, MatDividerModule,
+    MatSnackBarModule, MatDividerModule,
     BaseChartDirective
   ],
   templateUrl: './overview.component.html',

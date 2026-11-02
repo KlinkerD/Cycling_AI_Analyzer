@@ -38,6 +38,28 @@
   gap: 16px;
 }
 
+.month-group {
+  margin-bottom: 32px;
+}
+
+.month-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #333;
+
+  .month-count {
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: #888;
+  }
+}
+
 .activity-card {
   transition: box-shadow 0.2s;
   &:hover {
@@ -107,6 +129,11 @@
 :host-context(.dark-theme) {
   .loading-container { color: #aaa; }
   .list-header h2 { color: #bbb; }
+  .month-heading {
+    color: #ddd;
+    border-bottom-color: rgba(255, 255, 255, 0.15);
+    .month-count { color: #999; }
+  }
   .activity-card.analyzed {
     background-color: rgba(76, 175, 80, 0.12);
   }

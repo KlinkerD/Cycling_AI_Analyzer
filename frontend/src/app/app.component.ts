@@ -7,7 +7,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
 import { ActivityService } from './services/activity.service';
-import { AthleteThresholds } from './models/activity.model';
+import { AthleteThresholdsDto } from './api';
 
 @Component({
   selector: 'app-root',
@@ -150,7 +150,7 @@ import { AthleteThresholds } from './models/activity.model';
   `]
 })
 export class AppComponent implements OnInit {
-  thresholds: AthleteThresholds | null = null;
+  thresholds: AthleteThresholdsDto | null = null;
   darkMode = false;
 
   private static readonly THEME_KEY = 'cycling-theme';

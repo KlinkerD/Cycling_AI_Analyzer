@@ -31,7 +31,6 @@ class AnalysisServiceReportTest {
     void setUp() {
         service = new AnalysisService(
                 intervals,
-                mock(GeminiService.class),
                 mock(ZoneCalculatorService.class),
                 repository,
                 powerCurves,

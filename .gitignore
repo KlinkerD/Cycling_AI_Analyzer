@@ -40,4 +40,6 @@ build/
 /frontend/.angular/
 /frontend/dist/
 /frontend/node_modules/
+# Vom OpenAPI Generator erzeugt (npm run generate:api), Quelle: frontend/openapi/cycling-api.yaml
+/frontend/src/app/api/
 /data/

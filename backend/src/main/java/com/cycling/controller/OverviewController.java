@@ -29,6 +29,7 @@ import java.util.List;
  * und für den entsprechenden Schluessel neu befuellt.
  */
 @RestController
+@io.swagger.v3.oas.annotations.tags.Tag(name = "Overview")
 @RequestMapping("/api/overview")
 public class OverviewController {
 

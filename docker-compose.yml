@@ -1,10 +1,28 @@
 
 services:
 
+  # MQTT-Broker: verbindet backend, ai-service und report-delivery-service.
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    container_name: cycling-mosquitto
+    ports:
+      # Nur lokal freigeben (fuer Entwicklung aus der IDE), nicht ins LAN.
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/broker/uptime", "-C", "1", "-W", "3", "-i", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # analysis-service: REST-API, intervals.icu, Analysen, Tagesempfehlung
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: cycling-backend
     ports:
       - "8080:8080"
@@ -13,10 +31,44 @@ services:
     environment:
       - INTERVALS_API_KEY=${INTERVALS_API_KEY}
       - INTERVALS_ATHLETE_ID=${INTERVALS_ATHLETE_ID}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - CYCLING_FTP=${CYCLING_FTP:-250}
       - CYCLING_MAX_HR=${CYCLING_MAX_HR:-190}
-      # Report-Versand (beide Kanaele unabhaengig, Default aus)
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      # Spring-Properties via Env-Vars überschreiben
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/cycling-analysis;AUTO_SERVER=TRUE
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ai-service: beantwortet Analyse- und Empfehlungs-Auftraege mit Gemini
+  ai-service:
+    build:
+      context: .
+      dockerfile: ai-service/Dockerfile
+    container_name: cycling-ai-service
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # report-delivery-service: versendet Reports per Mail/Discord, holt sie per REST beim backend
+  report-delivery-service:
+    build:
+      context: .
+      dockerfile: report-delivery-service/Dockerfile
+    container_name: cycling-report-delivery
+    volumes:
+      - delivery-data:/app/data
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - ANALYSIS_SERVICE_URL=http://backend:8080
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/report-delivery;AUTO_SERVER=TRUE
+      # Beide Kanaele unabhaengig, Default aus
       - REPORT_MAIL_ENABLED=${REPORT_MAIL_ENABLED:-false}
       - REPORT_MAIL_TO=${REPORT_MAIL_TO:-}
       - REPORT_MAIL_FROM=${REPORT_MAIL_FROM:-}
@@ -26,8 +78,10 @@ services:
       - REPORT_DISCORD_ENABLED=${REPORT_DISCORD_ENABLED:-false}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
       - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
-      # Spring-Properties via Env-Vars überschreiben
-      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/cycling-analysis;AUTO_SERVER=TRUE
+      - QUICKCHART_BASE_URL=${QUICKCHART_BASE_URL:-https://quickchart.io}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -44,4 +98,7 @@ services:
 volumes:
   cycling-data:
     driver: local
-
+  mosquitto-data:
+    driver: local
+  delivery-data:
+    driver: local

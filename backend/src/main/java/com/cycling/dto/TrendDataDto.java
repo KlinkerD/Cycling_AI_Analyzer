@@ -1,9 +1,10 @@
 package com.cycling.dto;
 
+import com.cycling.config.ApiNonNull;
 import java.time.LocalDateTime;
 
 public record TrendDataDto(
-        String activityId,
+        @ApiNonNull String activityId,
         String activityName,
         LocalDateTime activityDate,
         Double avgPowerWatts,

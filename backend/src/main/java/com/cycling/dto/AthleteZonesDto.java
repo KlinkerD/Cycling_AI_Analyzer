@@ -1,5 +1,6 @@
 package com.cycling.dto;
 
+import com.cycling.config.ApiNonNull;
 import java.util.List;
 
 /**
@@ -11,9 +12,9 @@ import java.util.List;
  * @param hrReference "lthr" oder "max_hr" - Referenzwert der HF-Zonen
  */
 public record AthleteZonesDto(
-        AthleteThresholdsDto thresholds,
+        @ApiNonNull AthleteThresholdsDto thresholds,
         List<ZoneDto> powerZones,
         List<ZoneDto> hrZones,
-        String hrReference
+        @ApiNonNull @io.swagger.v3.oas.annotations.media.Schema(allowableValues = {"lthr", "max_hr"}) String hrReference
 ) {}
 

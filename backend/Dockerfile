@@ -1,17 +1,21 @@
-# Multi-Stage Build für Spring Boot Backend
+# Multi-Stage Build für den analysis-service (Spring Boot Backend)
 # ARM64-kompatibel (Raspberry Pi 4/5)
+# Build-Kontext: Repo-Root (docker compose setzt das), weil cycling-messaging mitgebaut wird.
 
 FROM eclipse-temurin:25-jdk AS builder
 WORKDIR /app
 
-# Maven Wrapper oder Maven installieren
 RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
 
 COPY pom.xml .
-RUN mvn dependency:go-offline -q
+COPY cycling-messaging ./cycling-messaging
+COPY backend ./backend
+COPY ai-service/pom.xml ./ai-service/pom.xml
+COPY report-delivery-service/pom.xml ./report-delivery-service/pom.xml
 
-COPY src ./src
-RUN mvn package -DskipTests -q
+# -am baut cycling-messaging mit; der Cache-Mount spart das erneute Laden der Dependencies.
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn -q -B -pl backend -am package -DskipTests
 
 # Runtime Image
 FROM eclipse-temurin:25-jre
@@ -19,9 +23,8 @@ WORKDIR /app
 
 RUN mkdir -p /app/data
 
-COPY --from=builder /app/target/*.jar app.jar
+COPY --from=builder /app/backend/target/cycling-analysis-*.jar app.jar
 
 EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
-

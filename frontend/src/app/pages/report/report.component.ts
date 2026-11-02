@@ -12,7 +12,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ActivityService } from '../../services/activity.service';
-import { Report, ZoneDistribution, PowerCurveSet } from '../../models/activity.model';
+import { ReportDto, ZoneDistributionDto, PowerCurveSetDto } from '../../api';
 
 @Component({
   selector: 'app-report',
@@ -34,7 +34,7 @@ import { Report, ZoneDistribution, PowerCurveSet } from '../../models/activity.m
 })
 export class ReportComponent implements OnInit {
 
-  report: Report | null = null;
+  report: ReportDto | null = null;
   loading = true;
   resending = false;
   activityId!: string;
@@ -174,13 +174,13 @@ export class ReportComponent implements OnInit {
       },
       error: () => {
         this.loading = false;
-        this.snackBar.open('Report nicht gefunden. Bitte zuerst analysieren.', 'OK', { duration: 4000 });
+        this.snackBar.open('ReportDto nicht gefunden. Bitte zuerst analysieren.', 'OK', { duration: 4000 });
         this.router.navigate(['/']);
       }
     });
   }
 
-  private buildCharts(report: Report): void {
+  private buildCharts(report: ReportDto): void {
     const streams = report.streams;
     const distKm = (streams.distance || []).map(d => +(d / 1000).toFixed(2));
 
@@ -301,7 +301,9 @@ export class ReportComponent implements OnInit {
     // Trend Chart
     const trend = [...(report.trend || [])].reverse();
     this.trendChartData = {
-      labels: trend.map(t => new Date(t.activityDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })),
+      labels: trend.map(t => t.activityDate
+        ? new Date(t.activityDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
+        : '?'),
       datasets: [
         {
           label: 'Score (1-10)',
@@ -354,7 +356,7 @@ export class ReportComponent implements OnInit {
     this.powerCurveChartData = this.buildPowerCurveData(report.powerCurveSet);
   }
 
-  private buildPowerCurveData(set: PowerCurveSet | null | undefined): ChartData<'line'> | null {
+  private buildPowerCurveData(set: PowerCurveSetDto | null | undefined): ChartData<'line'> | null {
     if (!set || !set.current || !set.current.points || set.current.points.length === 0) {
       return null;
     }
@@ -439,7 +441,7 @@ export class ReportComponent implements OnInit {
     return (h % 1 === 0 ? h.toFixed(0) : h.toFixed(1)) + 'h';
   }
 
-  private normalizeReportText(report: Report): Report {
+  private normalizeReportText(report: ReportDto): ReportDto {
     return {
       ...report,
       analysis: {
@@ -494,7 +496,7 @@ export class ReportComponent implements OnInit {
     return out;
   }
 
-  private buildZoneChartData(zones: ZoneDistribution[]): ChartData<'doughnut'> {
+  private buildZoneChartData(zones: ZoneDistributionDto[]): ChartData<'doughnut'> {
     return {
       labels: zones.map(z => `${z.zoneName} – ${z.zoneLabel}`),
       datasets: [{
@@ -664,7 +666,8 @@ export class ReportComponent implements OnInit {
     };
   }
 
-  getScoreColor(score: number): string {
+  getScoreColor(score: number | null): string {
+    if (score == null) return '#9E9E9E';
     if (score >= 8) return '#4CAF50';
     if (score >= 6) return '#FF9800';
     return '#F44336';
@@ -677,7 +680,8 @@ export class ReportComponent implements OnInit {
     return `${h}:${String(m).padStart(2, '0')} h`;
   }
 
-  formatDate(dateStr: string): string {
+  formatDate(dateStr: string | null): string {
+    if (!dateStr) return '–';
     return new Date(dateStr).toLocaleDateString('de-DE', {
       weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
     });
@@ -694,13 +698,15 @@ export class ReportComponent implements OnInit {
       next: (res) => {
         this.resending = false;
         const labels = res.channels.map(c => c === 'MAIL' ? 'E-Mail' : 'Discord').join(' und ');
-        this.snackBar.open(`Report-Versand an ${labels} angestoßen.`, 'OK', { duration: 4000 });
+        this.snackBar.open(`ReportDto-Versand an ${labels} angestoßen.`, 'OK', { duration: 4000 });
       },
       error: (err) => {
         this.resending = false;
         const message = err?.status === 409
           ? 'Kein Versandkanal aktiv (E-Mail und Discord sind ausgeschaltet).'
-          : 'Versand fehlgeschlagen. Bitte Logs prüfen.';
+          : err?.status === 503
+            ? 'Versand-Service nicht erreichbar. Bitte später erneut versuchen.'
+            : 'Versand fehlgeschlagen. Bitte Logs prüfen.';
         this.snackBar.open(message, 'OK', { duration: 5000 });
       }
     });

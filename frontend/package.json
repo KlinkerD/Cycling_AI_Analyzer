@@ -3,9 +3,12 @@
   "version": "0.0.1",
   "scripts": {
     "ng": "ng",
+    "generate:api": "openapi-generator-cli generate --generator-key cycling-api",
+    "prestart": "npm run generate:api",
     "start": "ng serve",
+    "prebuild": "npm run generate:api",
     "build": "ng build",
-    "build:prod": "ng build --configuration production"
+    "build:prod": "npm run generate:api && ng build --configuration production"
   },
   "private": true,
   "dependencies": {
@@ -29,7 +32,7 @@
     "@angular-devkit/build-angular": "^17.3.0",
     "@angular/cli": "^17.3.0",
     "@angular/compiler-cli": "^17.3.0",
+    "@openapitools/openapi-generator-cli": "2.29.0",
     "typescript": "~5.4.0"
   }
 }
-

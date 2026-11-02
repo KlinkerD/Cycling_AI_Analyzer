@@ -1,47 +1,69 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { Activity, AthleteThresholds, Report } from '../models/activity.model';
+import { Observable, first, of, switchMap, timer } from 'rxjs';
+import {
+  ActivitiesApi,
+  ActivityDto,
+  AnalysisJobDto,
+  AthleteThresholdsDto,
+  ReportDto,
+  ResendResultDto
+} from '../api';
+import { toIsoDate } from './date-params';
 
+/** Abfrage-Takt fuer laufende Analysen. */
+const POLL_INTERVAL_MS = 3000;
+
+/**
+ * Duenne Fassade ueber den generierten {@link ActivitiesApi}-Client (OpenAPI Generator):
+ * wandelt Datumswerte um und kapselt das Polling der asynchronen Analyse.
+ */
 @Injectable({ providedIn: 'root' })
 export class ActivityService {
 
-  private readonly baseUrl = '/api/activities';
+  constructor(private api: ActivitiesApi) {}
 
-  constructor(private http: HttpClient) {}
-
-  getAthleteThresholds(): Observable<AthleteThresholds> {
-    return this.http.get<AthleteThresholds>(`${this.baseUrl}/athlete-thresholds`);
+  getAthleteThresholds(): Observable<AthleteThresholdsDto> {
+    return this.api.getAthleteThresholds();
   }
 
   getAnalyzedIds(): Observable<string[]> {
-    return this.http.get<string[]>(`${this.baseUrl}/analyzed-ids`);
+    return this.api.getAnalyzedIds();
   }
 
-  getActivities(from: Date, to: Date): Observable<Activity[]> {
-    const params = new HttpParams()
-      .set('from', this.formatDate(from))
-      .set('to', this.formatDate(to));
-    return this.http.get<Activity[]>(this.baseUrl, { params });
+  getActivities(from: Date, to: Date): Observable<ActivityDto[]> {
+    return this.api.getActivities(toIsoDate(from), toIsoDate(to));
   }
 
-  analyzeActivity(activity: Activity): Observable<Report> {
-    return this.http.post<Report>(`${this.baseUrl}/${activity.id}/analyze`, activity);
+  /** Startet die KI-Analyse (202 + Job). Laeuft schon eine, kommt deren Job zurueck. */
+  startAnalysis(activity: ActivityDto): Observable<AnalysisJobDto> {
+    return this.api.analyzeActivity(activity.id, activity);
   }
 
-  getReport(activityId: string): Observable<Report> {
-    return this.http.get<Report>(`${this.baseUrl}/${activityId}/report`);
+  getAnalysisJob(jobId: string): Observable<AnalysisJobDto> {
+    return this.api.getAnalysisJob(jobId);
   }
 
-  /** Sendet den Report an alle aktiven Kanaele (Mail, Discord). 409 = kein Kanal aktiv. */
-  resendReport(activityId: string): Observable<{ status: string; channels: ('MAIL' | 'DISCORD')[] }> {
-    return this.http.post<{ status: string; channels: ('MAIL' | 'DISCORD')[] }>(
-      `${this.baseUrl}/${activityId}/resend`, {}
+  /**
+   * Startet die Analyse und fragt den Job ab, bis er fertig ist. Liefert genau einen Job
+   * mit Status DONE oder FAILED (Timeout erledigt das Backend).
+   */
+  analyzeActivity(activity: ActivityDto): Observable<AnalysisJobDto> {
+    return this.startAnalysis(activity).pipe(
+      switchMap(job => job.status !== AnalysisJobDto.StatusEnum.PENDING
+        ? of(job)
+        : timer(POLL_INTERVAL_MS, POLL_INTERVAL_MS).pipe(
+            switchMap(() => this.getAnalysisJob(job.jobId)),
+            first(current => current.status !== AnalysisJobDto.StatusEnum.PENDING)
+          ))
     );
   }
 
-  private formatDate(date: Date): string {
-    return date.toISOString().split('T')[0];
+  getReport(activityId: string): Observable<ReportDto> {
+    return this.api.getReport(activityId);
+  }
+
+  /** Sendet den Report an alle aktiven Kanaele (Mail, Discord). 409 = kein Kanal aktiv, 503 = Service weg. */
+  resendReport(activityId: string): Observable<ResendResultDto> {
+    return this.api.resendReport(activityId);
   }
 }
-

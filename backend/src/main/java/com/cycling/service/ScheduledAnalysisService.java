@@ -1,25 +1,24 @@
 package com.cycling.service;
 
-import com.cycling.delivery.ReportDispatcher;
-import com.cycling.delivery.Sleeper;
 import com.cycling.dto.ActivityDto;
-import com.cycling.dto.ReportDto;
+import com.cycling.model.AnalysisJob;
+import com.cycling.model.AnalysisJobStatus;
 import com.cycling.repository.ActivityAnalysisRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 /**
- * Prüft alle 15 Minuten auf neue Aktivitäten der letzten 2 Tage.
- * Nur Aktivitäten OHNE vorhandenen Report werden analysiert.
- * Alte Aktivitäten ohne Report werden bewusst ignoriert.
+ * Prüft alle 15 Minuten auf neue Aktivitäten der letzten 2 Tage und startet fuer jede ohne Report
+ * (und ohne laufende Analyse) einen KI-Auftrag. Alte Aktivitäten ohne Report werden bewusst ignoriert.
+ * Das Rate-Limit fuer Gemini haelt der ai-service ein, hier wird nur verschickt.
  */
 @Service
 public class ScheduledAnalysisService {
@@ -28,25 +27,18 @@ public class ScheduledAnalysisService {
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final IntervalsService intervalsService;
-    private final AnalysisService analysisService;
+    private final AnalysisJobService jobService;
     private final ActivityAnalysisRepository repository;
-    private final ReportDispatcher reportDispatcher;
-    private final Sleeper sleeper;
 
     public ScheduledAnalysisService(IntervalsService intervalsService,
-                                    AnalysisService analysisService,
-                                    ActivityAnalysisRepository repository,
-                                    ReportDispatcher reportDispatcher,
-                                    Sleeper sleeper) {
+                                    AnalysisJobService jobService,
+                                    ActivityAnalysisRepository repository) {
         this.intervalsService = intervalsService;
-        this.analysisService = analysisService;
+        this.jobService = jobService;
         this.repository = repository;
-        this.reportDispatcher = reportDispatcher;
-        this.sleeper = sleeper;
     }
 
     /**
-     * Läuft alle 15 Minuten.
      * fixedDelay = Wartezeit nach Ende des letzten Laufs (verhindert Überlappungen).
      * initialDelay = 60 Sekunden Wartezeit nach App-Start (Backend erst hochfahren lassen).
      */
@@ -64,41 +56,37 @@ public class ScheduledAnalysisService {
                 return;
             }
 
-            // Bereits analysierte IDs aus der DB
-            Set<String> analyzedIds = Set.copyOf(repository.findAllActivityIds());
+            Set<String> skip = new HashSet<>(repository.findAllActivityIds());
+            skip.addAll(jobService.runningActivityIds());
 
             List<ActivityDto> toAnalyze = recent.stream()
-                    .filter(a -> !analyzedIds.contains(a.id()))
+                    .filter(a -> !skip.contains(a.id()))
                     .toList();
 
             if (toAnalyze.isEmpty()) {
-                log.info("Alle {} aktuellen Aktivitäten bereits analysiert.", recent.size());
+                log.info("Alle {} aktuellen Aktivitäten bereits analysiert oder in Arbeit.", recent.size());
                 return;
             }
 
-            log.info("{} neue Aktivität(en) gefunden – starte KI-Analyse.", toAnalyze.size());
+            log.info("{} neue Aktivität(en) gefunden – sende KI-Aufträge.", toAnalyze.size());
             for (ActivityDto activity : toAnalyze) {
-                try {
-                    log.info("Analysiere: {} ({})", activity.name(), activity.id());
-                    ReportDto report = analysisService.analyzeActivity(activity.id(), activity);
-                    log.info("Analyse für '{}' erfolgreich abgeschlossen.", activity.name());
-                    try {
-                        reportDispatcher.dispatch(report);
-                    } catch (RuntimeException e) {
-                        log.warn("Report-Versand für '{}' konnte nicht angestossen werden: {}",
-                                activity.name(), e.getMessage());
-                    }
-                    // Kurze Pause zwischen Analysen, um Gemini-Rate-Limits zu schonen
-                    sleeper.sleep(Duration.ofSeconds(5));
-                } catch (Exception e) {
-                    log.error("Fehler bei der Analyse von '{}' ({}): {}", activity.name(), activity.id(), e.getMessage());
-                    // Weitermachen mit nächster Aktivität
+                AnalysisJob job = jobService.start(activity.id(), activity);
+                if (job.getStatus() == AnalysisJobStatus.FAILED) {
+                    log.error("Analyse von '{}' ({}) nicht gestartet: {}", activity.name(), activity.id(), job.getError());
                 }
             }
-            log.info("=== Scheduled: Fertig. {} neue Report(s) erstellt ===", toAnalyze.size());
-
         } catch (Exception e) {
             log.error("Scheduler-Fehler beim Prüfen auf neue Aktivitäten: {}", e.getMessage(), e);
+        }
+    }
+
+    /** Jobs ohne Antwort abbrechen, damit der naechste Lauf sie neu startet. */
+    @Scheduled(fixedDelay = 60 * 1000, initialDelay = 60 * 1000)
+    public void expireStaleJobs() {
+        try {
+            jobService.expireStaleJobs();
+        } catch (RuntimeException e) {
+            log.error("Fehler beim Aufraeumen haengender Analyse-Jobs: {}", e.getMessage(), e);
         }
     }
 }

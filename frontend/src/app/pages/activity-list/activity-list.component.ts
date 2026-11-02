@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -16,12 +17,12 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatBadgeModule } from '@angular/material/badge';
 import { ActivityService } from '../../services/activity.service';
-import { Activity } from '../../models/activity.model';
+import { ActivityDto } from '../../api';
 
 interface MonthGroup {
   key: string;
   label: string;
-  activities: Activity[];
+  activities: ActivityDto[];
 }
 
 @Component({
@@ -50,11 +51,12 @@ interface MonthGroup {
 export class ActivityListComponent implements OnInit {
 
   filterForm: FormGroup;
-  activities: Activity[] = [];
+  activities: ActivityDto[] = [];
   monthGroups: MonthGroup[] = [];
   analyzedIds = new Set<string>();
   loading = false;
   analyzingId: string | null = null;
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private fb: FormBuilder,
@@ -98,7 +100,7 @@ export class ActivityListComponent implements OnInit {
   }
 
   /** Gruppiert nach Kalendermonat (lokales Startdatum), neueste Monate und Aktivitäten zuerst. */
-  private groupByMonth(activities: Activity[]): MonthGroup[] {
+  private groupByMonth(activities: ActivityDto[]): MonthGroup[] {
     const sorted = [...activities].sort((a, b) =>
       (b.startDateLocal ?? '').localeCompare(a.startDateLocal ?? ''));
     const groups = new Map<string, MonthGroup>();
@@ -132,13 +134,18 @@ export class ActivityListComponent implements OnInit {
     return this.analyzedIds.has(activityId);
   }
 
-  analyzeActivity(activity: Activity): void {
+  analyzeActivity(activity: ActivityDto): void {
     this.analyzingId = activity.id;
-    this.activityService.analyzeActivity(activity).subscribe({
-      next: () => {
+    // Die Analyse laeuft asynchron im Backend weiter, auch wenn die Seite verlassen wird.
+    this.activityService.analyzeActivity(activity).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (job) => {
         this.analyzingId = null;
-        this.analyzedIds.add(activity.id);
-        this.router.navigate(['/report', activity.id]);
+        if (job.status === 'DONE') {
+          this.analyzedIds.add(activity.id);
+          this.router.navigate(['/report', activity.id]);
+        } else {
+          this.snackBar.open('Analyse fehlgeschlagen: ' + (job.error || 'unbekannter Fehler'), 'OK', { duration: 6000 });
+        }
       },
       error: (err) => {
         this.analyzingId = null;
@@ -147,11 +154,12 @@ export class ActivityListComponent implements OnInit {
     });
   }
 
-  viewReport(activity: Activity): void {
+  viewReport(activity: ActivityDto): void {
     this.router.navigate(['/report', activity.id]);
   }
 
-  formatDistance(meters: number): string {
+  formatDistance(meters: number | null): string {
+    if (meters == null) return '–';
     return (meters / 1000).toFixed(1) + ' km';
   }
 
@@ -159,7 +167,7 @@ export class ActivityListComponent implements OnInit {
     return (ms * 3.6).toFixed(1) + ' km/h';
   }
 
-  formatDate(dateStr: string): string {
+  formatDate(dateStr: string | null): string {
     if (!dateStr) return '–';
     // Normalize: replace space with T for ISO 8601 compatibility
     const normalized = dateStr.replace(' ', 'T');
@@ -170,7 +178,7 @@ export class ActivityListComponent implements OnInit {
     });
   }
 
-  formatDuration(seconds: number): string {
+  formatDuration(seconds: number | null): string {
     if (seconds == null || isNaN(seconds)) return '–';
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);

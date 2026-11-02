@@ -1,0 +1,5 @@
+node_modules
+dist
+.angular
+# wird im Build aus openapi/cycling-api.yaml neu erzeugt
+src/app/api

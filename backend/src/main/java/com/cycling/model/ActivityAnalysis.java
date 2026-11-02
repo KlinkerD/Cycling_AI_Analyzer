@@ -1,5 +1,6 @@
 package com.cycling.model;
 
+import com.cycling.config.ApiNonNull;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
@@ -15,6 +16,7 @@ public class ActivityAnalysis {
     private Long id;
 
     @Column(unique = true, nullable = false)
+    @ApiNonNull
     private String activityId;
 
     private String activityName;

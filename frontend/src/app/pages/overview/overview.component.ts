@@ -1,4 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription, switchMap, take, takeWhile, timer } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -14,7 +16,11 @@ import { MatDividerModule } from '@angular/material/divider';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartData } from 'chart.js';
 import { OverviewService } from '../../services/overview.service';
-import { AthleteZones, DailyRecommendation, WellnessPoint, Zone } from '../../models/activity.model';
+import { AthleteZonesDto, DailyRecommendationDto, WellnessPointDto, ZoneDto } from '../../api';
+
+/** Nachfrage-Takt fuer den asynchron nachgelieferten KI-Empfehlungstext (5 s x 24 = 2 Min.). */
+const RECOMMENDATION_POLL_MS = 5000;
+const RECOMMENDATION_POLL_MAX = 24;
 
 type RangeKey = '7d' | '1m' | '3m' | '6m' | '1y' | 'custom';
 
@@ -54,10 +60,12 @@ export class OverviewComponent implements OnInit {
   loadingWellness = false;
   loadingZones = false;
   loadingRecommendation = false;
-  wellness: WellnessPoint[] = [];
-  zones: AthleteZones | null = null;
-  recommendation: DailyRecommendation | null = null;
-  sortedPowerZonesForBar: Zone[] = []; // für Stacked-Bar Visualisierung
+  wellness: WellnessPointDto[] = [];
+  zones: AthleteZonesDto | null = null;
+  recommendation: DailyRecommendationDto | null = null;
+  private textPollSub?: Subscription;
+  private readonly destroyRef = inject(DestroyRef);
+  sortedPowerZonesForBar: ZoneDto[] = []; // für Stacked-Bar Visualisierung
 
   // ---- Chart-Konfiguration -------------------------------------------------
   fitnessChartData: ChartData<'line'> = { labels: [], datasets: [] };
@@ -116,10 +124,11 @@ export class OverviewComponent implements OnInit {
 
   /**
    * Laedt die Tagesempfehlung. Bei {@code refresh=true} (Button) wird serverseitig neu berechnet
-   * (POST, ~Gemini-Latenz), sonst nur der gespeicherte Stand geholt (GET).
+   * (POST; den KI-Text liefert der ai-service nach), sonst nur der gespeicherte Stand geholt (GET).
    */
   private loadRecommendation(refresh = false): void {
     this.loadingRecommendation = true;
+    this.textPollSub?.unsubscribe();
     const req = refresh
       ? this.overviewService.refreshRecommendation()
       : this.overviewService.getRecommendation();
@@ -127,12 +136,31 @@ export class OverviewComponent implements OnInit {
       next: (data) => {
         this.recommendation = data;
         this.loadingRecommendation = false;
+        if (data.textPending) {
+          this.pollRecommendationText();
+        }
       },
       error: (err) => {
         this.loadingRecommendation = false;
         this.snackBar.open('Fehler beim Laden der Empfehlung: ' + (err.error?.message || err.message), 'OK', { duration: 5000 });
       }
     });
+  }
+
+  /**
+   * Der KI-Text kommt asynchron aus dem ai-service. Bis dahin steht der Fallback-Text da;
+   * wir fragen einige Male nach, bis das Backend nicht mehr "textPending" meldet (max. ~2 Min.).
+   */
+  private pollRecommendationText(): void {
+    this.textPollSub = timer(RECOMMENDATION_POLL_MS, RECOMMENDATION_POLL_MS).pipe(
+      take(RECOMMENDATION_POLL_MAX),
+      switchMap(() => this.overviewService.getRecommendation()),
+      takeWhile(data => {
+        this.recommendation = data;
+        return data.textPending;
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({ error: () => {} });
   }
 
   private loadWellness(refresh = false): void {
@@ -209,7 +237,7 @@ export class OverviewComponent implements OnInit {
    * Sortiert Power-Zonen für Stacked-Bar: Sweet Spot (SS, Index 8) wird zwischen Z3 und Z4
    * eingeordnet, damit die Bar visuell dem Leistungsbereich entspricht.
    */
-  sortedZonesForBar(zones: Zone[]): Zone[] {
+  sortedZonesForBar(zones: ZoneDto[]): ZoneDto[] {
     if (!zones || zones.length === 0) return [];
     const regular = zones.filter(z => z.index <= 7);
     const ss = zones.find(z => z.index === 8);
@@ -227,10 +255,10 @@ export class OverviewComponent implements OnInit {
 
   /**
    * Berechnet die Breite (in %) eines Segments fuer den Stacked-Bar.
-   * Die Skala laeuft von 0 bis upperOfLastZoneWithBound; die letzte (open-ended) Zone
+   * Die Skala laeuft von 0 bis upperOfLastZoneWithBound; die letzte (open-ended) ZoneDto
    * bekommt eine sinnvolle visuelle Breite (proportional zur vorletzten).
    */
-  zoneSegmentWidth(zones: Zone[], zone: Zone): number {
+  zoneSegmentWidth(zones: ZoneDto[], zone: ZoneDto): number {
     const total = this.scaleMax(zones);
     if (total <= 0) return 0;
     const upper = zone.upperValue ?? this.openEndedUpper(zones);
@@ -238,14 +266,14 @@ export class OverviewComponent implements OnInit {
     return Math.max(0, ((upper - lower) / total) * 100);
   }
 
-  private scaleMax(zones: Zone[]): number {
+  private scaleMax(zones: ZoneDto[]): number {
     if (!zones.length) return 0;
     const last = zones[zones.length - 1];
     return last.upperValue ?? this.openEndedUpper(zones);
   }
 
-  /** Heuristik fuer die Breite der open-ended Top-Zone: 1.3x der vorletzten Obergrenze. */
-  private openEndedUpper(zones: Zone[]): number {
+  /** Heuristik fuer die Breite der open-ended Top-ZoneDto: 1.3x der vorletzten Obergrenze. */
+  private openEndedUpper(zones: ZoneDto[]): number {
     for (let i = zones.length - 1; i >= 0; i--) {
       if (zones[i].upperValue != null) return Math.round(zones[i].upperValue! * 1.3);
     }
@@ -259,14 +287,14 @@ export class OverviewComponent implements OnInit {
     return Math.round(p * 100) + ' %';
   }
 
-  formatRange(zone: Zone, unit: string): string {
+  formatRange(zone: ZoneDto, unit: string): string {
     const lo = zone.lowerValue != null ? zone.lowerValue : '–';
     const hi = zone.upperValue != null ? zone.upperValue : '∞';
     return `${lo} – ${hi} ${unit}`;
   }
 
   /** Zonengrenzen in Watt fuer eine andere FTP (z. B. Indoor), gerundet wie im Backend. */
-  formatScaledRange(zone: Zone, ftp: number, unit: string): string {
+  formatScaledRange(zone: ZoneDto, ftp: number, unit: string): string {
     const lo = zone.lowerPct != null ? Math.round(zone.lowerPct * ftp) : '–';
     const hi = zone.upperPct != null ? Math.round(zone.upperPct * ftp) : '∞';
     return `${lo} – ${hi} ${unit}`;

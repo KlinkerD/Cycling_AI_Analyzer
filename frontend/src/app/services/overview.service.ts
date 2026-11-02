@@ -1,39 +1,27 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { AthleteZones, DailyRecommendation, WellnessPoint } from '../models/activity.model';
+import { AthleteZonesDto, DailyRecommendationDto, OverviewApi, WellnessPointDto } from '../api';
+import { toIsoDate } from './date-params';
 
+/** Duenne Fassade ueber den generierten {@link OverviewApi}-Client (OpenAPI Generator). */
 @Injectable({ providedIn: 'root' })
 export class OverviewService {
 
-  private readonly baseUrl = '/api/overview';
+  constructor(private api: OverviewApi) {}
 
-  constructor(private http: HttpClient) {}
-
-  getWellness(from: Date, to: Date, refresh = false): Observable<WellnessPoint[]> {
-    let params = new HttpParams()
-      .set('from', this.formatDate(from))
-      .set('to', this.formatDate(to));
-    if (refresh) params = params.set('refresh', 'true');
-    return this.http.get<WellnessPoint[]>(`${this.baseUrl}/wellness`, { params });
+  getWellness(from: Date, to: Date, refresh = false): Observable<WellnessPointDto[]> {
+    return this.api.getWellness(toIsoDate(from), toIsoDate(to), refresh || undefined);
   }
 
-  getZones(refresh = false): Observable<AthleteZones> {
-    let params = new HttpParams();
-    if (refresh) params = params.set('refresh', 'true');
-    return this.http.get<AthleteZones>(`${this.baseUrl}/zones`, { params });
+  getZones(refresh = false): Observable<AthleteZonesDto> {
+    return this.api.getZones(refresh || undefined);
   }
 
-  getRecommendation(): Observable<DailyRecommendation> {
-    return this.http.get<DailyRecommendation>(`${this.baseUrl}/recommendation`);
+  getRecommendation(): Observable<DailyRecommendationDto> {
+    return this.api.getRecommendation();
   }
 
-  refreshRecommendation(): Observable<DailyRecommendation> {
-    return this.http.post<DailyRecommendation>(`${this.baseUrl}/recommendation/refresh`, {});
-  }
-
-  private formatDate(date: Date): string {
-    return date.toISOString().split('T')[0];
+  refreshRecommendation(): Observable<DailyRecommendationDto> {
+    return this.api.refreshRecommendation();
   }
 }
-

@@ -1,9 +1,11 @@
 package com.cycling.dto;
 
+import com.cycling.config.ApiNonNull;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * DTO für Aktivitäten aus der intervals.icu API.
@@ -50,31 +52,31 @@ public class ActivityDto {
     // sonst landet beim Analyse-POST z.B. movingTime=null in der DB -> Dauer = 0:00 im Report.
     @JsonProperty("id") public void setId(String v) { this.id = v; }
     @JsonProperty("name") public void setName(String v) { this.name = v; }
-    @JsonProperty("start_date_local") @JsonAlias("startDateLocal") public void setStartDateLocal(String v) { this.startDateLocal = v; }
+    @JsonProperty("start_date_local") @JsonAlias("startDateLocal") @Schema(hidden = true) public void setStartDateLocal(String v) { this.startDateLocal = v; }
     @JsonProperty("distance") public void setDistance(Double v) { this.distance = v; }
-    @JsonProperty("moving_time") @JsonAlias("movingTime") public void setMovingTime(Integer v) { this.movingTime = v; }
-    @JsonProperty("elapsed_time") @JsonAlias("elapsedTime") public void setElapsedTime(Integer v) { this.elapsedTime = v; }
+    @JsonProperty("moving_time") @JsonAlias("movingTime") @Schema(hidden = true) public void setMovingTime(Integer v) { this.movingTime = v; }
+    @JsonProperty("elapsed_time") @JsonAlias("elapsedTime") @Schema(hidden = true) public void setElapsedTime(Integer v) { this.elapsedTime = v; }
     @JsonProperty("type") public void setType(String v) { this.type = v; }
 
-    @JsonProperty("average_watts") @JsonAlias("averageWatts") public void setAverageWattsRaw(Double v) { this.averageWattsRaw = v; }
-    @JsonProperty("icu_average_watts") public void setIcuAverageWatts(Double v) { this.icuAverageWatts = v; }
-    @JsonProperty("icu_weighted_avg_watts") public void setIcuWeightedAvgWatts(Double v) { this.icuWeightedAvgWatts = v; }
-    @JsonProperty("max_watts") @JsonAlias("maxWatts") public void setMaxWattsRaw(Double v) { this.maxWattsRaw = v; }
-    @JsonProperty("icu_max_watts") public void setIcuMaxWatts(Double v) { this.icuMaxWatts = v; }
+    @JsonProperty("average_watts") @JsonAlias("averageWatts") @Schema(hidden = true) public void setAverageWattsRaw(Double v) { this.averageWattsRaw = v; }
+    @JsonProperty("icu_average_watts") @Schema(hidden = true) public void setIcuAverageWatts(Double v) { this.icuAverageWatts = v; }
+    @JsonProperty("icu_weighted_avg_watts") @JsonAlias("normalizedPower") @Schema(hidden = true) public void setIcuWeightedAvgWatts(Double v) { this.icuWeightedAvgWatts = v; }
+    @JsonProperty("max_watts") @JsonAlias("maxWatts") @Schema(hidden = true) public void setMaxWattsRaw(Double v) { this.maxWattsRaw = v; }
+    @JsonProperty("icu_max_watts") @Schema(hidden = true) public void setIcuMaxWatts(Double v) { this.icuMaxWatts = v; }
 
-    @JsonProperty("average_heartrate") @JsonAlias("averageHeartrate") public void setAverageHeartrateRaw(Double v) { this.averageHeartrateRaw = v; }
-    @JsonProperty("icu_average_heartrate") public void setIcuAverageHeartrate(Double v) { this.icuAverageHeartrate = v; }
-    @JsonProperty("max_heartrate") @JsonAlias("maxHeartrate") public void setMaxHeartrateRaw(Double v) { this.maxHeartrateRaw = v; }
-    @JsonProperty("icu_max_heartrate") public void setIcuMaxHeartrate(Double v) { this.icuMaxHeartrate = v; }
+    @JsonProperty("average_heartrate") @JsonAlias("averageHeartrate") @Schema(hidden = true) public void setAverageHeartrateRaw(Double v) { this.averageHeartrateRaw = v; }
+    @JsonProperty("icu_average_heartrate") @Schema(hidden = true) public void setIcuAverageHeartrate(Double v) { this.icuAverageHeartrate = v; }
+    @JsonProperty("max_heartrate") @JsonAlias("maxHeartrate") @Schema(hidden = true) public void setMaxHeartrateRaw(Double v) { this.maxHeartrateRaw = v; }
+    @JsonProperty("icu_max_heartrate") @Schema(hidden = true) public void setIcuMaxHeartrate(Double v) { this.icuMaxHeartrate = v; }
 
-    @JsonProperty("average_speed") @JsonAlias("averageSpeed") public void setAverageSpeedRaw(Double v) { this.averageSpeedRaw = v; }
-    @JsonProperty("icu_average_speed") public void setIcuAverageSpeed(Double v) { this.icuAverageSpeed = v; }
+    @JsonProperty("average_speed") @JsonAlias("averageSpeed") @Schema(hidden = true) public void setAverageSpeedRaw(Double v) { this.averageSpeedRaw = v; }
+    @JsonProperty("icu_average_speed") @Schema(hidden = true) public void setIcuAverageSpeed(Double v) { this.icuAverageSpeed = v; }
 
-    @JsonProperty("total_elevation_gain") @JsonAlias("totalElevationGain") public void setTotalElevationGainRaw(Double v) { this.totalElevationGainRaw = v; }
-    @JsonProperty("icu_elevation_gain") public void setIcuElevationGain(Double v) { this.icuElevationGain = v; }
+    @JsonProperty("total_elevation_gain") @JsonAlias("totalElevationGain") @Schema(hidden = true) public void setTotalElevationGainRaw(Double v) { this.totalElevationGainRaw = v; }
+    @JsonProperty("icu_elevation_gain") @Schema(hidden = true) public void setIcuElevationGain(Double v) { this.icuElevationGain = v; }
 
     // ---- Accessoren (auch fuer Serialisierung Richtung Frontend) ----
-    @JsonProperty("id") public String id() { return id; }
+    @ApiNonNull @JsonProperty("id") public String id() { return id; }
     @JsonProperty("name") public String name() { return name; }
     @JsonProperty("startDateLocal") public String startDateLocal() { return startDateLocal; }
     @JsonProperty("distance") public Double distance() { return distance; }

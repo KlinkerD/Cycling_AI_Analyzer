@@ -1,6 +1,6 @@
 package com.cycling.delivery;
 
-import com.cycling.dto.ReportDto;
+import com.cycling.delivery.report.ReportDto;
 
 /** Ein Versandkanal (Mail, Discord, ...). */
 public interface ReportSender {

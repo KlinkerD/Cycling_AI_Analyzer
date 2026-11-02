@@ -1,7 +1,7 @@
 package com.cycling.delivery;
 
-import com.cycling.dto.ReportDto;
-import com.cycling.service.QuickChartService;
+import com.cycling.delivery.report.ReportDto;
+
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

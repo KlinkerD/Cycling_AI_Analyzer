@@ -700,7 +700,9 @@ export class ReportComponent implements OnInit {
         this.resending = false;
         const message = err?.status === 409
           ? 'Kein Versandkanal aktiv (E-Mail und Discord sind ausgeschaltet).'
-          : 'Versand fehlgeschlagen. Bitte Logs prüfen.';
+          : err?.status === 503
+            ? 'Versand-Service nicht erreichbar. Bitte später erneut versuchen.'
+            : 'Versand fehlgeschlagen. Bitte Logs prüfen.';
         this.snackBar.open(message, 'OK', { duration: 5000 });
       }
     });

@@ -1,9 +1,9 @@
 package com.cycling.delivery;
 
-import com.cycling.dto.PowerCurveSetDto;
-import com.cycling.dto.ReportDto;
-import com.cycling.dto.StreamDataDto;
-import com.cycling.model.ActivityAnalysis;
+import com.cycling.delivery.report.PowerCurveSetDto;
+import com.cycling.delivery.report.ReportDto;
+import com.cycling.delivery.report.StreamDataDto;
+import com.cycling.delivery.report.ActivityAnalysis;
 
 import java.time.LocalDateTime;
 import java.util.List;

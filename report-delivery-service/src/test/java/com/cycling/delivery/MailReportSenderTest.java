@@ -1,6 +1,6 @@
 package com.cycling.delivery;
 
-import com.cycling.dto.ReportDto;
+import com.cycling.delivery.report.ReportDto;
 import jakarta.mail.BodyPart;
 import jakarta.mail.Multipart;
 import jakarta.mail.Part;

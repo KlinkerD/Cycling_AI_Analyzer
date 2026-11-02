@@ -1,7 +1,7 @@
 
 services:
 
-  # MQTT-Broker: verbindet analysis-service (backend) und ai-service.
+  # MQTT-Broker: verbindet backend, ai-service und report-delivery-service.
   mosquitto:
     image: eclipse-mosquitto:2.0.20
     container_name: cycling-mosquitto
@@ -18,7 +18,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # analysis-service: REST-API, intervals.icu, Analysen + Report-Versand (Mail/Discord)
+  # analysis-service: REST-API, intervals.icu, Analysen, Tagesempfehlung
   backend:
     build:
       context: .
@@ -34,16 +34,6 @@ services:
       - CYCLING_FTP=${CYCLING_FTP:-250}
       - CYCLING_MAX_HR=${CYCLING_MAX_HR:-190}
       - MQTT_BROKER_URL=tcp://mosquitto:1883
-      # Report-Versand (beide Kanaele unabhaengig, Default aus)
-      - REPORT_MAIL_ENABLED=${REPORT_MAIL_ENABLED:-false}
-      - REPORT_MAIL_TO=${REPORT_MAIL_TO:-}
-      - REPORT_MAIL_FROM=${REPORT_MAIL_FROM:-}
-      - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-}
-      - SPRING_MAIL_USERNAME=${SPRING_MAIL_USERNAME:-}
-      - SPRING_MAIL_PASSWORD=${SPRING_MAIL_PASSWORD:-}
-      - REPORT_DISCORD_ENABLED=${REPORT_DISCORD_ENABLED:-false}
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
-      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
       # Spring-Properties via Env-Vars überschreiben
       - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/cycling-analysis;AUTO_SERVER=TRUE
     depends_on:
@@ -66,6 +56,34 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # report-delivery-service: versendet Reports per Mail/Discord, holt sie per REST beim backend
+  report-delivery-service:
+    build:
+      context: .
+      dockerfile: report-delivery-service/Dockerfile
+    container_name: cycling-report-delivery
+    volumes:
+      - delivery-data:/app/data
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - ANALYSIS_SERVICE_URL=http://backend:8080
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/report-delivery;AUTO_SERVER=TRUE
+      # Beide Kanaele unabhaengig, Default aus
+      - REPORT_MAIL_ENABLED=${REPORT_MAIL_ENABLED:-false}
+      - REPORT_MAIL_TO=${REPORT_MAIL_TO:-}
+      - REPORT_MAIL_FROM=${REPORT_MAIL_FROM:-}
+      - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-}
+      - SPRING_MAIL_USERNAME=${SPRING_MAIL_USERNAME:-}
+      - SPRING_MAIL_PASSWORD=${SPRING_MAIL_PASSWORD:-}
+      - REPORT_DISCORD_ENABLED=${REPORT_DISCORD_ENABLED:-false}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
+      - QUICKCHART_BASE_URL=${QUICKCHART_BASE_URL:-https://quickchart.io}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
@@ -81,4 +99,6 @@ volumes:
   cycling-data:
     driver: local
   mosquitto-data:
+    driver: local
+  delivery-data:
     driver: local

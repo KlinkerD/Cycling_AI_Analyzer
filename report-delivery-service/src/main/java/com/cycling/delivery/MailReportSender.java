@@ -1,8 +1,8 @@
 package com.cycling.delivery;
 
-import com.cycling.dto.ReportDto;
-import com.cycling.dto.ZoneDistributionDto;
-import com.cycling.model.ActivityAnalysis;
+import com.cycling.delivery.report.ReportDto;
+import com.cycling.delivery.report.ZoneDistributionDto;
+import com.cycling.delivery.report.ActivityAnalysis;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

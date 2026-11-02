@@ -1,6 +1,6 @@
 package com.cycling.delivery;
 
-import com.cycling.dto.ReportDto;
+import com.cycling.delivery.report.ReportDto;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;

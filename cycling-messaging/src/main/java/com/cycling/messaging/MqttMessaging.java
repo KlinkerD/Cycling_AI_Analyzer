@@ -54,6 +54,11 @@ public class MqttMessaging implements MessagePublisher, AutoCloseable {
     private final ScheduledExecutorService connector =
             Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().name("mqtt-connect").daemon().factory());
     private volatile boolean closed;
+    private volatile Runnable onConnect = () -> { };
+    private volatile WillMessage will;
+
+    private record WillMessage(String topic, byte[] payload) {
+    }
 
     public MqttMessaging(MqttSettings settings) {
         this.settings = settings;
@@ -76,6 +81,31 @@ public class MqttMessaging implements MessagePublisher, AutoCloseable {
     /** Registriert einen Handler fuer genau dieses Topic (keine Wildcards). */
     public <T> void subscribe(String topic, Class<T> type, Consumer<T> handler) {
         handlers.put(topic, payload -> handler.accept(codec.decode(payload, type)));
+    }
+
+    /**
+     * Letzter Wille: der Broker veroeffentlicht diese Nachricht (retained), wenn die Verbindung
+     * ohne sauberes Disconnect abreisst. Vor {@link #start()} setzen.
+     */
+    public void setWill(String topic, Object message) {
+        this.will = new WillMessage(topic, codec.encode(message));
+    }
+
+    /** Wird nach jedem (Re-)Connect ausgefuehrt, z. B. um einen Status retained zu veroeffentlichen. */
+    public void onConnect(Runnable action) {
+        this.onConnect = action;
+    }
+
+    /** Wie {@link #publish}, aber retained: neue Subscriber bekommen die letzte Nachricht sofort. */
+    public void publishRetained(String topic, Object message) {
+        MqttMessage mqttMessage = new MqttMessage(codec.encode(message));
+        mqttMessage.setQos(QOS);
+        mqttMessage.setRetained(true);
+        try {
+            client.publish(topic, mqttMessage);
+        } catch (MqttException e) {
+            throw new MessagingException("Publish auf " + topic + " fehlgeschlagen: " + e.getMessage(), e);
+        }
     }
 
     /** Startet den (asynchronen) Verbindungsaufbau. */
@@ -104,6 +134,14 @@ public class MqttMessaging implements MessagePublisher, AutoCloseable {
         connector.shutdownNow();
         try {
             if (client.isConnected()) {
+                // Bei sauberem Disconnect schickt der Broker den Last Will nicht - also selbst melden.
+                WillMessage currentWill = will;
+                if (currentWill != null) {
+                    MqttMessage offline = new MqttMessage(currentWill.payload());
+                    offline.setQos(QOS);
+                    offline.setRetained(true);
+                    client.publish(currentWill.topic(), offline).waitForCompletion(2_000);
+                }
                 client.disconnect().waitForCompletion(5_000);
             }
             client.close();
@@ -149,6 +187,13 @@ public class MqttMessaging implements MessagePublisher, AutoCloseable {
         options.setConnectionTimeout(10);
         // Broker schickt hoechstens so viele unbestaetigte Nachrichten gleichzeitig.
         options.setReceiveMaximum(10);
+        WillMessage currentWill = will;
+        if (currentWill != null) {
+            MqttMessage willMessage = new MqttMessage(currentWill.payload());
+            willMessage.setQos(QOS);
+            willMessage.setRetained(true);
+            options.setWill(currentWill.topic(), willMessage);
+        }
         if (settings.username() != null && !settings.username().isBlank()) {
             options.setUserName(settings.username());
             if (settings.password() != null) {
@@ -202,6 +247,11 @@ public class MqttMessaging implements MessagePublisher, AutoCloseable {
         public void connectComplete(boolean reconnect, String serverURI) {
             log.info("MQTT {} mit {} als {}", reconnect ? "wieder verbunden" : "verbunden", serverURI, settings.clientId());
             subscribeAll();
+            try {
+                onConnect.run();
+            } catch (RuntimeException e) {
+                log.error("onConnect-Aktion fehlgeschlagen: {}", e.getMessage(), e);
+            }
         }
 
         @Override

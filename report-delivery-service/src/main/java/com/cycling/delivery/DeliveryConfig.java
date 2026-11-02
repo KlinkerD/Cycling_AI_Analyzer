@@ -1,6 +1,5 @@
 package com.cycling.delivery;
 
-import com.cycling.service.AnalysisService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -64,10 +63,19 @@ public class DeliveryConfig {
         return new ReportDeliveryService(senders, repository, renderer, clock);
     }
 
+    /** Laedt Reports beim analysis-service; grosszuegiger Timeout, weil dort Streams von intervals.icu geholt werden. */
+    @Bean
+    public ReportClient reportClient(@Value("${analysis-service.base-url}") String baseUrl) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        requestFactory.setReadTimeout(Duration.ofSeconds(90));
+        return new ReportClient(RestClient.builder().baseUrl(baseUrl).requestFactory(requestFactory).build());
+    }
+
     /** Eigener Single-Thread-Executor: Versand, Retry und manuelles Senden laufen nie parallel. */
     @Bean
-    public ReportDispatcher reportDispatcher(ReportDeliveryService deliveryService, AnalysisService analysisService) {
-        return new ReportDispatcher(deliveryService, analysisService,
+    public ReportDispatcher reportDispatcher(ReportDeliveryService deliveryService, ReportClient reportClient) {
+        return new ReportDispatcher(deliveryService, reportClient::fetch,
                 Executors.newSingleThreadExecutor(Thread.ofPlatform().name("report-delivery").daemon().factory()));
     }
 }

@@ -1,6 +1,6 @@
 package com.cycling.delivery;
 
-import com.cycling.dto.ReportDto;
+import com.cycling.delivery.report.ReportDto;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -41,7 +41,7 @@ class ReportDeliveryServiceTest {
     void enqueueCreatesPendingRowsOnlyForEnabledChannels() {
         ReportSender disabledDiscord = sender(DeliveryChannel.DISCORD, false);
 
-        List<DeliveryChannel> channels = service(mail, disabledDiscord).enqueue("i1");
+        List<DeliveryChannel> channels = service(mail, disabledDiscord).enqueue("i1", "r1");
 
         assertThat(channels).containsExactly(DeliveryChannel.MAIL);
         assertThat(deliveries.rows).singleElement().satisfies(d -> {
@@ -65,7 +65,7 @@ class ReportDeliveryServiceTest {
         old.setCompletedParts(1);
         old.setLastError("boom");
 
-        service(discord).enqueue("i1");
+        service(discord).enqueue("i1", "r1");
 
         assertThat(deliveries.rows).singleElement().satisfies(d -> {
             assertThat(d.getStatus()).isEqualTo(DeliveryStatus.PENDING);
@@ -201,5 +201,47 @@ class ReportDeliveryServiceTest {
         assertThat(broken.getAttempts()).isEqualTo(1);
         assertThat(broken.getLastError()).contains("intervals.icu nicht erreichbar");
         assertThat(fine.getStatus()).isEqualTo(DeliveryStatus.SENT);
+    }
+
+    @Test
+    void sameRequestDeliveredTwiceDoesNotRequeueSentRow() {
+        service(mail).enqueue("i1", "r1");
+        deliveries.rows.getFirst().setStatus(DeliveryStatus.SENT);
+
+        List<DeliveryChannel> channels = service(mail).enqueue("i1", "r1");
+
+        assertThat(channels).isEmpty();
+        assertThat(deliveries.rows.getFirst().getStatus()).isEqualTo(DeliveryStatus.SENT);
+    }
+
+    @Test
+    void newRequestRequeuesSentRow() {
+        service(mail).enqueue("i1", "r1");
+        deliveries.rows.getFirst().setStatus(DeliveryStatus.SENT);
+
+        assertThat(service(mail).enqueue("i1", "r2")).containsExactly(DeliveryChannel.MAIL);
+        assertThat(deliveries.rows.getFirst().getStatus()).isEqualTo(DeliveryStatus.PENDING);
+    }
+
+    @Test
+    void deliverPendingDoesNotLoadReportWhenNothingIsOpen() {
+        java.util.concurrent.atomic.AtomicInteger loads = new java.util.concurrent.atomic.AtomicInteger();
+
+        service(mail).deliverPending("i1", id -> {
+            loads.incrementAndGet();
+            return report;
+        });
+
+        assertThat(loads).hasValue(0);
+    }
+
+    @Test
+    void deliverPendingLoadsAndSendsOpenRows() throws Exception {
+        when(renderer.render(any())).thenReturn(new ReportCharts(List.of()));
+        ReportDelivery row = deliveries.add("i1", DeliveryChannel.MAIL, NOW);
+
+        service(mail).deliverPending("i1", id -> report);
+
+        assertThat(row.getStatus()).isEqualTo(DeliveryStatus.SENT);
     }
 }

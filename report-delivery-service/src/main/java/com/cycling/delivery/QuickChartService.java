@@ -1,11 +1,11 @@
-package com.cycling.service;
+package com.cycling.delivery;
 
-import com.cycling.dto.StreamDataDto;
-import com.cycling.dto.TrendDataDto;
-import com.cycling.dto.ZoneDistributionDto;
-import com.cycling.dto.PowerCurveDto;
-import com.cycling.dto.PowerCurvePointDto;
-import com.cycling.dto.PowerCurveSetDto;
+import com.cycling.delivery.report.StreamDataDto;
+import com.cycling.delivery.report.TrendDataDto;
+import com.cycling.delivery.report.ZoneDistributionDto;
+import com.cycling.delivery.report.PowerCurveDto;
+import com.cycling.delivery.report.PowerCurvePointDto;
+import com.cycling.delivery.report.PowerCurveSetDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

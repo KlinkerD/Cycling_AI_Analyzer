@@ -11,6 +11,7 @@ COPY pom.xml .
 COPY cycling-messaging ./cycling-messaging
 COPY ai-service ./ai-service
 COPY backend/pom.xml ./backend/pom.xml
+COPY report-delivery-service/pom.xml ./report-delivery-service/pom.xml
 
 RUN --mount=type=cache,target=/root/.m2 \
     mvn -q -B -pl ai-service -am package -DskipTests

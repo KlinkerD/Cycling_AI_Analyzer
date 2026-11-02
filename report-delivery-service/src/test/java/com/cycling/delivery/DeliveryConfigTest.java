@@ -1,6 +1,5 @@
 package com.cycling.delivery;
 
-import com.cycling.service.AnalysisService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -16,7 +15,7 @@ class DeliveryConfigTest {
             .withBean(ReportDeliveryRepository.class, () -> mock(ReportDeliveryRepository.class))
             .withBean(ReportChartRenderer.class, () -> mock(ReportChartRenderer.class))
             .withBean(JavaMailSender.class, () -> mock(JavaMailSender.class))
-            .withBean(AnalysisService.class, () -> mock(AnalysisService.class));
+            .withPropertyValues("analysis-service.base-url=http://localhost:8080");
 
     @Test
     void bothChannelsAreOffByDefault() {

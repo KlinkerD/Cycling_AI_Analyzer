@@ -21,5 +21,6 @@
     <module>cycling-messaging</module>
     <module>backend</module>
     <module>ai-service</module>
+    <module>report-delivery-service</module>
   </modules>
 </project>

@@ -8,6 +8,7 @@ import com.cycling.messaging.MessagingException;
 import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.AnalysisRequest;
 import com.cycling.messaging.contract.AnalysisResult;
+import com.cycling.messaging.contract.ReportDeliveryRequest;
 import com.cycling.model.ActivityAnalysis;
 import com.cycling.model.AnalysisJob;
 import com.cycling.model.AnalysisJobStatus;
@@ -16,7 +17,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -45,9 +45,8 @@ class AnalysisJobServiceTest {
     private final AnalysisService analysis = mock(AnalysisService.class);
     private final AnalysisJobRepository repository = mock(AnalysisJobRepository.class);
     private final MessagePublisher publisher = mock(MessagePublisher.class);
-    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final Map<String, AnalysisJob> stored = new HashMap<>();
-    private final AnalysisJobService service = new AnalysisJobService(analysis, repository, publisher, events,
+    private final AnalysisJobService service = new AnalysisJobService(analysis, repository, publisher,
             new ObjectMapper(), CLOCK, Duration.ofMinutes(15));
 
     @BeforeEach
@@ -127,7 +126,7 @@ class AnalysisJobServiceTest {
     }
 
     @Test
-    void successfulResultStoresAnalysisAndAnnouncesReport() {
+    void successfulResultStoresAnalysisAndRequestsDelivery() {
         when(analysis.prepare(eq("i1"), any())).thenReturn(prepared());
         AnalysisJob job = service.start("i1", activity());
         ReportDto report = mock(ReportDto.class);
@@ -136,7 +135,7 @@ class AnalysisJobServiceTest {
         service.complete(success(job.getId()));
 
         assertThat(stored.get(job.getId()).getStatus()).isEqualTo(AnalysisJobStatus.DONE);
-        verify(events).publishEvent(new ReportReadyEvent(report));
+        verify(publisher).publish(Topics.REPORT_READY, new ReportDeliveryRequest(job.getId(), "i1"));
     }
 
     @Test
@@ -164,7 +163,18 @@ class AnalysisJobServiceTest {
         service.complete(success("j1"));
 
         verify(analysis, never()).complete(any(), any());
-        verify(events, never()).publishEvent(any());
+        verify(publisher, never()).publish(eq(Topics.REPORT_READY), any());
+    }
+
+    @Test
+    void brokerOutageOnDeliveryRequestStillMarksJobDone() {
+        stored.put("j1", new AnalysisJob("j1", "i1", "{\"id\":\"i1\"}", NOW));
+        when(analysis.complete(any(), any())).thenReturn(mock(ReportDto.class));
+        doThrow(new MessagingException("weg", null)).when(publisher).publish(eq(Topics.REPORT_READY), any());
+
+        service.complete(success("j1"));
+
+        assertThat(stored.get("j1").getStatus()).isEqualTo(AnalysisJobStatus.DONE);
     }
 
     @Test

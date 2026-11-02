@@ -1,12 +1,13 @@
 package com.cycling.controller;
 
-import com.cycling.delivery.DeliveryChannel;
-import com.cycling.delivery.ReportDispatcher;
 import com.cycling.dto.AnalysisJobDto;
 import com.cycling.model.AnalysisJob;
 import com.cycling.service.AnalysisJobService;
 import com.cycling.service.AnalysisService;
 import com.cycling.service.IntervalsService;
+import com.cycling.service.ReportResendService;
+import com.cycling.service.ReportResendService.Outcome;
+import com.cycling.service.ReportResendService.Result;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,11 +23,11 @@ import static org.mockito.Mockito.when;
 
 class ActivityControllerDeliveryTest {
 
-    private final ReportDispatcher dispatcher = mock(ReportDispatcher.class);
+    private final ReportResendService resend = mock(ReportResendService.class);
     private final AnalysisService analysisService = mock(AnalysisService.class);
     private final AnalysisJobService jobService = mock(AnalysisJobService.class);
     private final ActivityController controller = new ActivityController(
-            mock(IntervalsService.class), analysisService, jobService, dispatcher);
+            mock(IntervalsService.class), analysisService, jobService, resend);
 
     @Test
     void analyzeAnswersAcceptedWithJob() {
@@ -49,7 +50,7 @@ class ActivityControllerDeliveryTest {
 
     @Test
     void resendAnswersAcceptedWithAllActiveChannels() {
-        when(dispatcher.resend("i1")).thenReturn(List.of(DeliveryChannel.MAIL, DeliveryChannel.DISCORD));
+        when(resend.resend("i1")).thenReturn(new Outcome(Result.QUEUED, List.of("MAIL", "DISCORD")));
 
         ResponseEntity<Map<String, Object>> response = controller.resendReport("i1");
 
@@ -59,7 +60,7 @@ class ActivityControllerDeliveryTest {
 
     @Test
     void resendAnswersConflictWhenNoChannelIsActive() {
-        when(dispatcher.resend("i1")).thenReturn(List.of());
+        when(resend.resend("i1")).thenReturn(new Outcome(Result.DISABLED, List.of()));
 
         ResponseEntity<Map<String, Object>> response = controller.resendReport("i1");
 
@@ -69,10 +70,17 @@ class ActivityControllerDeliveryTest {
 
     @Test
     void resendAnswersNotFoundForUnknownReport() {
-        when(dispatcher.resend("nope")).thenThrow(new RuntimeException("Kein Report für Aktivität nope gefunden."));
+        when(resend.resend("nope")).thenReturn(new Outcome(Result.NOT_FOUND, List.of()));
 
         ResponseEntity<Map<String, Object>> response = controller.resendReport("nope");
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void resendAnswersServiceUnavailableWhenDeliveryServiceIsUnknown() {
+        when(resend.resend("i1")).thenReturn(new Outcome(Result.UNAVAILABLE, List.of()));
+
+        assertThat(controller.resendReport("i1").getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
     }
 }

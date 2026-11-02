@@ -1,7 +1,7 @@
 package com.cycling.delivery;
 
-import com.cycling.dto.ReportDto;
-import com.cycling.model.ActivityAnalysis;
+import com.cycling.delivery.report.ReportDto;
+import com.cycling.delivery.report.ActivityAnalysis;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

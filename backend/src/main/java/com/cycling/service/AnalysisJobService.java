@@ -1,12 +1,12 @@
 package com.cycling.service;
 
 import com.cycling.dto.ActivityDto;
-import com.cycling.dto.ReportDto;
 import com.cycling.dto.ZoneDistributionDto;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.AnalysisRequest;
 import com.cycling.messaging.contract.AnalysisResult;
+import com.cycling.messaging.contract.ReportDeliveryRequest;
 import com.cycling.messaging.contract.WorkoutData;
 import com.cycling.messaging.contract.ZoneShare;
 import com.cycling.model.ActivityAnalysis;
@@ -17,7 +17,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -30,7 +29,9 @@ import java.util.stream.Collectors;
 
 /**
  * Steuert die asynchrone KI-Analyse: legt einen Job an, schickt den Auftrag per MQTT an den
- * ai-service und speichert die Analyse, sobald das Ergebnis zurueckkommt.
+ * ai-service und speichert die Analyse, sobald das Ergebnis zurueckkommt. Danach geht ein
+ * Versandauftrag an den report-delivery-service (Job-ID = Request-ID, damit eine doppelte
+ * Zustellung keinen zweiten Versand ausloest).
  *
  * <p>Beim Ergebnis werden Streams/Zonen erneut geladen (statt sie im Speicher zu halten). Das kostet
  * ein paar zusaetzliche intervals.icu-Aufrufe, dafuer uebersteht ein Job einen Neustart des Backends.
@@ -42,18 +43,16 @@ public class AnalysisJobService {
     private final AnalysisService analysisService;
     private final AnalysisJobRepository jobRepository;
     private final MessagePublisher publisher;
-    private final ApplicationEventPublisher events;
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final Duration timeout;
 
     public AnalysisJobService(AnalysisService analysisService, AnalysisJobRepository jobRepository,
-                              MessagePublisher publisher, ApplicationEventPublisher events,
+                              MessagePublisher publisher,
                               ObjectMapper objectMapper, Clock clock, Duration timeout) {
         this.analysisService = analysisService;
         this.jobRepository = jobRepository;
         this.publisher = publisher;
-        this.events = events;
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.timeout = timeout;
@@ -106,10 +105,9 @@ public class AnalysisJobService {
             return;
         }
 
-        ReportDto report;
         try {
             ActivityDto activity = objectMapper.readValue(job.getActivityJson(), ActivityDto.class);
-            report = analysisService.complete(analysisService.prepare(job.getActivityId(), activity), result);
+            analysisService.complete(analysisService.prepare(job.getActivityId(), activity), result);
         } catch (JsonProcessingException | RuntimeException e) {
             log.error("Ergebnis fuer Job {} konnte nicht gespeichert werden: {}", job.getId(), e.getMessage(), e);
             job.markFailed("Analyse konnte nicht gespeichert werden: " + e.getMessage(), now());
@@ -118,7 +116,16 @@ public class AnalysisJobService {
         }
         job.markDone(now());
         jobRepository.save(job);
-        events.publishEvent(new ReportReadyEvent(report));
+        requestDelivery(job);
+    }
+
+    /** Fail-soft: die Analyse ist gespeichert; der Versand kann per Button nachgeholt werden. */
+    private void requestDelivery(AnalysisJob job) {
+        try {
+            publisher.publish(Topics.REPORT_READY, new ReportDeliveryRequest(job.getId(), job.getActivityId()));
+        } catch (RuntimeException e) {
+            log.warn("Versand fuer {} konnte nicht angestossen werden: {}", job.getActivityId(), e.getMessage());
+        }
     }
 
     public Optional<AnalysisJob> find(String jobId) {

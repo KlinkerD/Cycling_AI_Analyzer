@@ -1,6 +1,6 @@
 package com.cycling.delivery;
 
-import com.cycling.dto.ReportDto;
+import com.cycling.delivery.report.ReportDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,14 +41,22 @@ public class ReportDeliveryService {
         return senders.stream().filter(ReportSender::isEnabled).map(ReportSender::channel).toList();
     }
 
-    /** Reiht den Report fuer alle aktiven Kanaele (neu) ein. Liefert die Kanaele. */
-    public List<DeliveryChannel> enqueue(String activityId) {
+    /**
+     * Reiht den Report fuer alle aktiven Kanaele (neu) ein. Kanaele, die derselbe Auftrag schon
+     * eingereiht hat (MQTT-Neuzustellung), bleiben unveraendert. Liefert die neu eingereihten Kanaele.
+     */
+    public List<DeliveryChannel> enqueue(String activityId, String requestId) {
         List<DeliveryChannel> channels = new ArrayList<>();
         for (ReportSender sender : senders) {
             if (!sender.isEnabled()) continue;
             ReportDelivery delivery = repository.findByActivityIdAndChannel(activityId, sender.channel())
                     .orElseGet(() -> new ReportDelivery(activityId, sender.channel()));
-            delivery.requeue(LocalDateTime.now(clock));
+            if (requestId != null && requestId.equals(delivery.getRequestId())) {
+                log.info("Versandauftrag {} fuer {} per {} bereits bekannt - kein zweiter Versand",
+                        requestId, activityId, sender.channel());
+                continue;
+            }
+            delivery.requeue(LocalDateTime.now(clock), requestId);
             repository.save(delivery);
             channels.add(sender.channel());
         }
@@ -76,15 +84,24 @@ public class ReportDeliveryService {
                 .distinct()
                 .toList();
         for (String activityId : activityIds) {
-            ReportDto report;
-            try {
-                report = reportLoader.apply(activityId);
-            } catch (RuntimeException e) {
-                markLoadFailure(activityId, "Report konnte nicht geladen werden: " + e.getMessage());
-                continue;
-            }
-            deliver(report);
+            deliverPending(activityId, reportLoader);
         }
+    }
+
+    /**
+     * Laedt den Report nur, wenn fuer die Aktivitaet noch etwas offen ist, und sendet ihn.
+     * Ist der Report nicht ladbar, zaehlt das fuer jede offene Zeile als voruebergehender Fehlversuch.
+     */
+    public void deliverPending(String activityId, Function<String, ReportDto> reportLoader) {
+        if (pendingForEnabledChannels(activityId).isEmpty()) return;
+        ReportDto report;
+        try {
+            report = reportLoader.apply(activityId);
+        } catch (RuntimeException e) {
+            markLoadFailure(activityId, "Report konnte nicht geladen werden: " + e.getMessage());
+            return;
+        }
+        deliver(report);
     }
 
     /** Report nicht ladbar: zaehlt fuer jede offene Zeile (aktiver Kanaele) als voruebergehender Fehlversuch. */

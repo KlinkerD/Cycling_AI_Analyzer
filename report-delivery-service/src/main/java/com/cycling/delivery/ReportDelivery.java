@@ -38,6 +38,9 @@ public class ReportDelivery {
 
     private LocalDateTime lastAttemptAt;
 
+    /** Versandauftrag (MQTT), der diese Zeile zuletzt eingereiht hat; erkennt doppelte Zustellungen. */
+    private String requestId;
+
     protected ReportDelivery() {
     }
 
@@ -48,7 +51,8 @@ public class ReportDelivery {
     }
 
     /** Setzt die Zeile fuer einen kompletten Neuversand zurueck. */
-    public void requeue(LocalDateTime now) {
+    public void requeue(LocalDateTime now, String requestId) {
+        this.requestId = requestId;
         status = DeliveryStatus.PENDING;
         attempts = 0;
         completedParts = 0;
@@ -73,6 +77,7 @@ public class ReportDelivery {
     public void setLastError(String lastError) { this.lastError = lastError; }
     public LocalDateTime getQueuedAt() { return queuedAt; }
     public void setQueuedAt(LocalDateTime queuedAt) { this.queuedAt = queuedAt; }
+    public String getRequestId() { return requestId; }
     public LocalDateTime getLastAttemptAt() { return lastAttemptAt; }
     public void setLastAttemptAt(LocalDateTime lastAttemptAt) { this.lastAttemptAt = lastAttemptAt; }
 }

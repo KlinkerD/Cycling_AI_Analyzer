@@ -1,7 +1,5 @@
 package com.cycling.controller;
 
-import com.cycling.delivery.DeliveryChannel;
-import com.cycling.delivery.ReportDispatcher;
 import com.cycling.dto.ActivityDto;
 import com.cycling.dto.AnalysisJobDto;
 import com.cycling.dto.AthleteThresholdsDto;
@@ -9,6 +7,7 @@ import com.cycling.dto.ReportDto;
 import com.cycling.service.AnalysisJobService;
 import com.cycling.service.AnalysisService;
 import com.cycling.service.IntervalsService;
+import com.cycling.service.ReportResendService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,16 +25,16 @@ public class ActivityController {
     private final IntervalsService intervalsService;
     private final AnalysisService analysisService;
     private final AnalysisJobService jobService;
-    private final ReportDispatcher reportDispatcher;
+    private final ReportResendService resendService;
 
     public ActivityController(IntervalsService intervalsService,
                               AnalysisService analysisService,
                               AnalysisJobService jobService,
-                              ReportDispatcher reportDispatcher) {
+                              ReportResendService resendService) {
         this.intervalsService = intervalsService;
         this.analysisService = analysisService;
         this.jobService = jobService;
-        this.reportDispatcher = reportDispatcher;
+        this.resendService = resendService;
     }
 
     /**
@@ -117,25 +116,21 @@ public class ActivityController {
 
     /**
      * POST /api/activities/{id}/resend
-     * Sendet den gespeicherten Report an alle aktiven Kanaele (Mail, Discord).
-     * Versand laeuft im Hintergrund - 202 heisst "angestossen", nicht "zugestellt".
+     * Beauftragt den report-delivery-service, den gespeicherten Report an alle aktiven Kanaele
+     * (Mail, Discord) zu senden. 202 heisst "angestossen", nicht "zugestellt".
      */
     @PostMapping("/{id}/resend")
     public ResponseEntity<Map<String, Object>> resendReport(@PathVariable String id) {
-        List<DeliveryChannel> channels;
-        try {
-            channels = reportDispatcher.resend(id);
-        } catch (RuntimeException e) {
-            return ResponseEntity.notFound().build();
-        }
-        if (channels.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
+        ReportResendService.Outcome outcome = resendService.resend(id);
+        return switch (outcome.result()) {
+            case QUEUED -> ResponseEntity.accepted().body(Map.of(
+                    "status", "queued",
+                    "channels", outcome.channels()));
+            case DISABLED -> ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("status", "disabled", "message", "Kein Versandkanal aktiv."));
-        }
-        return ResponseEntity.accepted().body(Map.of(
-                "status", "queued",
-                "channels", channels.stream().map(Enum::name).toList()
-        ));
+            case UNAVAILABLE -> ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(Map.of("status", "unavailable", "message", "Versand-Service nicht erreichbar."));
+            case NOT_FOUND -> ResponseEntity.notFound().build();
+        };
     }
 }
-

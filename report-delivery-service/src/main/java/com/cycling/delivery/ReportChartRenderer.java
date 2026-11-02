@@ -1,7 +1,7 @@
 package com.cycling.delivery;
 
-import com.cycling.dto.ReportDto;
-import com.cycling.service.QuickChartService;
+import com.cycling.delivery.report.ReportDto;
+
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;

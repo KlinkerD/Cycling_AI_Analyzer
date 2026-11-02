@@ -18,6 +18,16 @@ public final class Topics {
     /** ai-service -> analysis-service: Text der Tagesempfehlung ({@code RecommendationTextResult}). */
     public static final String AI_RECOMMENDATION_RESULT = ROOT + "ai/recommendation/result";
 
+    /** analysis-service -> report-delivery-service: Analyse fertig, Report versenden ({@code ReportDeliveryRequest}). */
+    public static final String REPORT_READY = ROOT + "report/ready";
+    /** analysis-service -> report-delivery-service: Report erneut versenden, Button im Frontend ({@code ReportDeliveryRequest}). */
+    public static final String REPORT_RESEND = ROOT + "report/resend";
+    /**
+     * report-delivery-service -> alle: aktive Kanaele und online/offline ({@code DeliveryServiceStatus}).
+     * Retained; "offline" setzt der Broker per Last Will, wenn der Service unerwartet wegfaellt.
+     */
+    public static final String DELIVERY_STATUS = ROOT + "report/delivery/status";
+
     private Topics() {
     }
 }

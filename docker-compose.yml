@@ -1,7 +1,7 @@
 
 services:
 
-  # MQTT-Broker: verbindet backend, intervals-service, ai-service, report-service und delivery-service.
+  # MQTT-Broker: verbindet backend, intervals-service, ai-service, report-service, fitness-service und delivery-service.
   mosquitto:
     image: eclipse-mosquitto:2.0.20
     container_name: cycling-mosquitto
@@ -96,6 +96,24 @@ services:
       - QUICKCHART_BASE_URL=${QUICKCHART_BASE_URL:-https://quickchart.io}
       # Ziele der Reports, z. B. DISCORD:reports,MAIL:default (leer = "default" jedes aktiven Kanals)
       - REPORT_TARGETS=${REPORT_TARGETS:-}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # fitness-service: schickt abends eine Tageszusammenfassung von Fitness/Fatigue/Form/Ramp
+  # (aus cycling/intervals/wellness/updated) an den delivery-service. Kein eigener Speicher.
+  fitness-service:
+    build:
+      context: .
+      dockerfile: fitness-service/Dockerfile
+    container_name: cycling-fitness
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - FITNESS_SUMMARY_TIME=${FITNESS_SUMMARY_TIME:-21:00}
+      - FITNESS_SUMMARY_ZONE=${FITNESS_SUMMARY_ZONE:-Europe/Berlin}
+      # Ziel beim delivery-service; "fitness" braucht dort DELIVERY_DISCORD_DESTINATIONS_FITNESS
+      - FITNESS_TARGETS=${FITNESS_TARGETS:-DISCORD:fitness}
     depends_on:
       mosquitto:
         condition: service_healthy

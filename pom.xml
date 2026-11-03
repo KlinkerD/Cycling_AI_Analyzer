@@ -25,5 +25,6 @@
     <module>report-service</module>
     <module>delivery-service</module>
     <module>intervals-service</module>
+    <module>fitness-service</module>
   </modules>
 </project>

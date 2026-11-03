@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 /**
  * Steuert die asynchrone KI-Analyse: legt einen Job an, schickt den Auftrag per MQTT an den
  * ai-service und speichert die Analyse, sobald das Ergebnis zurueckkommt. Danach geht ein
- * Versandauftrag an den report-delivery-service (Job-ID = Request-ID, damit eine doppelte
+ * Versandauftrag an den report-service (Job-ID = Request-ID, damit eine doppelte
  * Zustellung keinen zweiten Versand ausloest).
  *
  * <p>Beim Ergebnis werden Streams/Zonen erneut geladen (statt sie im Speicher zu halten). Das kostet

@@ -3,7 +3,7 @@ package com.cycling.messaging.contract;
 import java.util.List;
 
 /**
- * Zustand des report-delivery-service (retained auf {@code Topics.DELIVERY_STATUS}).
+ * Zustand des delivery-service (retained auf {@code Topics.DELIVERY_STATUS}).
  *
  * @param channels aktive Versandkanaele, z. B. ["MAIL", "DISCORD"]; leer = Versand abgeschaltet
  */

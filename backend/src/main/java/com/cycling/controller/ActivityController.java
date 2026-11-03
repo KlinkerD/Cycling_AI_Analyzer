@@ -128,7 +128,7 @@ public class ActivityController {
 
     /**
      * POST /api/activities/{id}/resend
-     * Beauftragt den report-delivery-service, den gespeicherten Report an alle aktiven Kanaele
+     * Beauftragt den report-service, den gespeicherten Report an alle aktiven Kanaele
      * (Mail, Discord) zu senden. 202 heisst "angestossen", nicht "zugestellt".
      */
     @PostMapping("/{id}/resend")

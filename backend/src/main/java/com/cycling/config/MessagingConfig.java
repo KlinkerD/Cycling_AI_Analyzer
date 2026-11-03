@@ -21,7 +21,7 @@ import org.springframework.context.event.EventListener;
 import java.time.Clock;
 import java.time.Duration;
 
-/** MQTT-Anbindung an ai-service und report-delivery-service. */
+/** MQTT-Anbindung an ai-service, report-service und delivery-service. */
 @Configuration
 public class MessagingConfig {
 

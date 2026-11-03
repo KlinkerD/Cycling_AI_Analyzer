@@ -6,12 +6,12 @@ Analysiere deine Radtrainings aus **intervals.icu** mit **Google Gemini AI** und
 
 | Schicht | Technologie |
 |---|---|
-| Backend | Spring Boot 4 + Java 25, aufgeteilt in analysis-service, ai-service, report-delivery-service |
+| Backend | Spring Boot 4 + Java 25, aufgeteilt in analysis-service, ai-service, report-service, delivery-service |
 | Messaging | MQTT (Eclipse Mosquitto, Paho-v5-Client) |
 | API-Vertrag | OpenAPI (springdoc) → OpenAPI Generator (typescript-angular) |
 | Frontend | Angular 17 + Angular Material |
 | KI | Google Gemini (Standard: gemini-2.5-flash) |
-| Datenbank | H2 (persistent, File-basiert), je eine für backend und report-delivery-service |
+| Datenbank | H2 (persistent, File-basiert), je eine für backend und delivery-service |
 | Deployment | Docker Compose |
 
 ---
@@ -62,12 +62,13 @@ docker compose up -d mosquitto
 # und MQTT_BROKER_URL=tcp://localhost:<port> für die Services setzen.
 ```
 
-**Backend, ai-service, report-delivery-service** (jeweils in eigenem Terminal):
+**Backend, ai-service, report-service, delivery-service** (jeweils in eigenem Terminal):
 ```bash
 mvn install -DskipTests                       # einmalig, baut auch cycling-messaging
 mvn -pl backend spring-boot:run               # http://localhost:8080, Swagger-UI: /swagger-ui.html
 mvn -pl ai-service spring-boot:run            # braucht GEMINI_API_KEY
-mvn -pl report-delivery-service spring-boot:run
+mvn -pl report-service spring-boot:run
+mvn -pl delivery-service spring-boot:run
 ```
 
 **Frontend:**
@@ -155,6 +156,32 @@ Für private Repositories musst du auf dem Raspberry Pi per `docker login ghcr.i
 | Herzfrequenzzonen | Max-HR-basierte Zonen Z1–Z5 |
 | Trainingsfortschritt | Durchschnittsleistung & Score der letzten Trainings |
 
+### Versand (Mail / Discord)
+
+Zwei Services teilen sich den Versand:
+
+- **report-service** bekommt `cycling/report/ready` bzw. `cycling/report/resend`, holt den Report beim Backend,
+  rendert die Charts und baut daraus eine neutrale `DeliveryMessage` (Titel, Felder, Abschnitte, PNG-Anhänge).
+  Kein eigener Speicher: Fehlschläge werden nach 1, 5 und 15 Minuten wiederholt, danach hilft „Erneut senden“.
+- **delivery-service** abonniert `cycling/delivery/request/+` (letzter Teil = Quelle, z. B. `report`),
+  speichert die Nachricht und versendet sie per Mail/Discord – mit Wiederholung alle 15 Minuten (max. 5×, 2 Tage).
+  Bilder werden nach 7 Tagen gelöscht, Statuszeilen nach 90 Tagen.
+
+Neue Absender (z. B. ein späterer Fitness-Service) schicken einfach eine `DeliveryMessage` auf
+`cycling/delivery/request/<quelle>` – am delivery-service ändert sich nichts.
+
+**Ziele:** Absender nennen nur logische Ziele (`default`, `reports`, `alerts`, …). Die echten Adressen kennt nur der
+delivery-service:
+
+| Variable | Bedeutung |
+|---|---|
+| `DISCORD_CHANNEL_ID` / `REPORT_MAIL_TO` | Ziel `default` für Discord bzw. Mail |
+| `DELIVERY_DISCORD_DESTINATIONS_<NAME>` | weiteres Discord-Ziel, z. B. `..._REPORTS=1234…` |
+| `DELIVERY_MAIL_DESTINATIONS_<NAME>` | weiteres Mail-Ziel |
+| `REPORT_TARGETS` (report-service) | wohin Reports gehen, z. B. `DISCORD:reports,MAIL:default`; leer = `default` jedes aktiven Kanals |
+
+Unbekannte Ziele werden sofort als fehlgeschlagen markiert.
+
 ---
 
 ## ⚠️ Hinweis zur intervals.icu Streams API
@@ -194,7 +221,8 @@ cycling/
 ├── cycling-messaging/          # MQTT-Topics, Nachrichten-Verträge, MQTT-Client (geteilt)
 ├── backend/                    # analysis-service: REST-API, intervals.icu, Analysen, H2
 ├── ai-service/                 # Gemini: beantwortet Analyse-/Empfehlungs-Aufträge über MQTT
-├── report-delivery-service/    # Mail + Discord, eigene H2 für den Versandstatus
+├── report-service/             # Report -> DeliveryMessage (Charts via QuickChart), ohne Speicher
+├── delivery-service/           # Mail + Discord für alle Quellen, eigene H2 für Nachrichten + Versandstatus
 ├── mosquitto/config/           # Broker-Konfiguration
 ├── frontend/                   # Angular 17
 │   ├── openapi/                # OpenAPI-Spec des Backends (Quelle für den API-Client)

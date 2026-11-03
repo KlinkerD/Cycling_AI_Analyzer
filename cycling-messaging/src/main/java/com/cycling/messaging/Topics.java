@@ -18,16 +18,45 @@ public final class Topics {
     /** ai-service -> analysis-service: Text der Tagesempfehlung ({@code RecommendationTextResult}). */
     public static final String AI_RECOMMENDATION_RESULT = ROOT + "ai/recommendation/result";
 
-    /** analysis-service -> report-delivery-service: Analyse fertig, Report versenden ({@code ReportDeliveryRequest}). */
+    /** analysis-service -> report-service: Analyse fertig, Report versenden ({@code ReportDeliveryRequest}). */
     public static final String REPORT_READY = ROOT + "report/ready";
-    /** analysis-service -> report-delivery-service: Report erneut versenden, Button im Frontend ({@code ReportDeliveryRequest}). */
+    /** analysis-service -> report-service: Report erneut versenden, Button im Frontend ({@code ReportDeliveryRequest}). */
     public static final String REPORT_RESEND = ROOT + "report/resend";
+
+    /** Praefix der Versandauftraege; der letzte Teil ist die Quelle, z. B. "report" oder "fitness". */
+    private static final String DELIVERY_REQUEST_PREFIX = ROOT + "delivery/request/";
+    /** Abo des delivery-service: Versandauftraege aller Quellen ({@code DeliveryMessage}). */
+    public static final String DELIVERY_REQUEST_ALL = DELIVERY_REQUEST_PREFIX + "+";
+    /** report-service -> delivery-service: fertiger Report ({@code DeliveryMessage}). */
+    public static final String DELIVERY_REQUEST_REPORT = deliveryRequest("report");
     /**
-     * report-delivery-service -> alle: aktive Kanaele und online/offline ({@code DeliveryServiceStatus}).
+     * delivery-service -> alle: aktive Kanaele und online/offline ({@code DeliveryServiceStatus}).
      * Retained; "offline" setzt der Broker per Last Will, wenn der Service unerwartet wegfaellt.
      */
-    public static final String DELIVERY_STATUS = ROOT + "report/delivery/status";
+    public static final String DELIVERY_STATUS = ROOT + "delivery/status";
 
     private Topics() {
+    }
+
+    /** Topic, auf dem die Quelle {@code source} ihre {@code DeliveryMessage}s veroeffentlicht. */
+    public static String deliveryRequest(String source) {
+        return DELIVERY_REQUEST_PREFIX + source;
+    }
+
+    /** Quelle eines Versandauftrags = letzter Teil des Topics. */
+    public static String deliverySource(String topic) {
+        return topic.substring(topic.lastIndexOf('/') + 1);
+    }
+
+    /** MQTT-Filtervergleich: "+" passt auf genau eine Ebene, "#" (am Ende) auf alle restlichen. */
+    public static boolean matches(String filter, String topic) {
+        String[] f = filter.split("/", -1);
+        String[] t = topic.split("/", -1);
+        for (int i = 0; i < f.length; i++) {
+            if (f[i].equals("#")) return true;
+            if (i >= t.length) return false;
+            if (!f[i].equals("+") && !f[i].equals(t[i])) return false;
+        }
+        return f.length == t.length;
     }
 }

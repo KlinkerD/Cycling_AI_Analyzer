@@ -1,7 +1,7 @@
 
 services:
 
-  # MQTT-Broker: verbindet backend, ai-service und report-delivery-service.
+  # MQTT-Broker: verbindet backend, ai-service, report-service und delivery-service.
   mosquitto:
     image: eclipse-mosquitto:2.0.20
     container_name: cycling-mosquitto
@@ -56,18 +56,35 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # report-delivery-service: versendet Reports per Mail/Discord, holt sie per REST beim backend
-  report-delivery-service:
+  # report-service: holt den Report per REST beim backend, rendert die Charts und
+  # schickt eine DeliveryMessage an den delivery-service. Kein eigener Speicher.
+  report-service:
     build:
       context: .
-      dockerfile: report-delivery-service/Dockerfile
-    container_name: cycling-report-delivery
+      dockerfile: report-service/Dockerfile
+    container_name: cycling-report
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - ANALYSIS_SERVICE_URL=http://backend:8080
+      - QUICKCHART_BASE_URL=${QUICKCHART_BASE_URL:-https://quickchart.io}
+      # Ziele der Reports, z. B. DISCORD:reports,MAIL:default (leer = "default" jedes aktiven Kanals)
+      - REPORT_TARGETS=${REPORT_TARGETS:-}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # delivery-service: versendet Nachrichten aller Quellen per Mail/Discord, mit Wiederholung
+  delivery-service:
+    build:
+      context: .
+      dockerfile: delivery-service/Dockerfile
+    container_name: cycling-delivery
     volumes:
       - delivery-data:/app/data
     environment:
       - MQTT_BROKER_URL=tcp://mosquitto:1883
-      - ANALYSIS_SERVICE_URL=http://backend:8080
-      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/report-delivery;AUTO_SERVER=TRUE
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/delivery;AUTO_SERVER=TRUE
       # Beide Kanaele unabhaengig, Default aus
       - REPORT_MAIL_ENABLED=${REPORT_MAIL_ENABLED:-false}
       - REPORT_MAIL_TO=${REPORT_MAIL_TO:-}
@@ -78,7 +95,9 @@ services:
       - REPORT_DISCORD_ENABLED=${REPORT_DISCORD_ENABLED:-false}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
       - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
-      - QUICKCHART_BASE_URL=${QUICKCHART_BASE_URL:-https://quickchart.io}
+      # Weitere logische Ziele (leer = nicht konfiguriert)
+      - DELIVERY_DISCORD_DESTINATIONS_REPORTS=${DELIVERY_DISCORD_DESTINATIONS_REPORTS:-}
+      - DELIVERY_DISCORD_DESTINATIONS_FITNESS=${DELIVERY_DISCORD_DESTINATIONS_FITNESS:-}
     depends_on:
       mosquitto:
         condition: service_healthy

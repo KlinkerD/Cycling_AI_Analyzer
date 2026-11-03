@@ -11,7 +11,8 @@ COPY pom.xml .
 COPY cycling-messaging ./cycling-messaging
 COPY backend ./backend
 COPY ai-service/pom.xml ./ai-service/pom.xml
-COPY report-delivery-service/pom.xml ./report-delivery-service/pom.xml
+COPY report-service/pom.xml ./report-service/pom.xml
+COPY delivery-service/pom.xml ./delivery-service/pom.xml
 
 # -am baut cycling-messaging mit; der Cache-Mount spart das erneute Laden der Dependencies.
 RUN --mount=type=cache,target=/root/.m2 \

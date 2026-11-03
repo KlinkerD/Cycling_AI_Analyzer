@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 import java.util.List;
 
-/** REST-API fuer das backend (Pfade siehe {@link IntervalsApi}). */
+/** REST-API fuer report-, fitness- und recommendation-service (Pfade siehe {@link IntervalsApi}). */
 @RestController
 public class IntervalsController {
 

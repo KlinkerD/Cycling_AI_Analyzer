@@ -1,0 +1,576 @@
+openapi: 3.0.1
+info:
+  title: Cycling Report API
+  version: "1"
+servers:
+- url: /
+paths:
+  /api/reports/activities:
+    get:
+      operationId: getActivities
+      parameters:
+      - in: query
+        name: from
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityDto"
+          description: OK
+      tags:
+      - Reports
+  /api/reports/analysis-jobs/{jobId}:
+    get:
+      operationId: getAnalysisJob
+      parameters:
+      - in: path
+        name: jobId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisJobDto"
+          description: Job gefunden
+        "404":
+          description: Unbekannter Job
+      tags:
+      - Reports
+  /api/reports/{activityId}:
+    get:
+      operationId: getReport
+      parameters:
+      - in: path
+        name: activityId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportDto"
+          description: Gespeicherter Report
+        "404":
+          description: Kein Report vorhanden
+      tags:
+      - Reports
+  /api/reports/{activityId}/analysis:
+    post:
+      operationId: startAnalysis
+      parameters:
+      - in: path
+        name: activityId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivityDto"
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisJobDto"
+          description: Analyse gestartet (oder laeuft bereits)
+      tags:
+      - Reports
+  /api/reports/{activityId}/analysis-job:
+    get:
+      operationId: getLatestAnalysisJob
+      parameters:
+      - in: path
+        name: activityId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisJobDto"
+          description: Juengster Job
+        "404":
+          description: Noch nie analysiert
+      tags:
+      - Reports
+  /api/reports/{activityId}/resend:
+    post:
+      operationId: resendReport
+      parameters:
+      - in: path
+        name: activityId
+        required: true
+        schema:
+          type: string
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResendResultDto"
+          description: Versand angestossen
+        "404":
+          description: Kein Report vorhanden
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResendResultDto"
+          description: Kein Versandkanal aktiv
+        "503":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResendResultDto"
+          description: Versand-Service nicht erreichbar oder Report nicht ladbar
+      tags:
+      - Reports
+components:
+  schemas:
+    ActivityDto:
+      type: object
+      properties:
+        analyzed:
+          type: boolean
+        averageHeartrate:
+          type: number
+          format: double
+          nullable: true
+        averageSpeed:
+          type: number
+          format: double
+          nullable: true
+        averageWatts:
+          type: number
+          format: double
+          nullable: true
+        distance:
+          type: number
+          format: double
+          nullable: true
+        elapsedTime:
+          type: integer
+          format: int32
+          nullable: true
+        id:
+          type: string
+        maxHeartrate:
+          type: number
+          format: double
+          nullable: true
+        maxWatts:
+          type: number
+          format: double
+          nullable: true
+        movingTime:
+          type: integer
+          format: int32
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        normalizedPower:
+          type: number
+          format: double
+          nullable: true
+        startDateLocal:
+          type: string
+          nullable: true
+        totalElevationGain:
+          type: number
+          format: double
+          nullable: true
+        type:
+          type: string
+          nullable: true
+      required:
+      - analyzed
+      - averageHeartrate
+      - averageSpeed
+      - averageWatts
+      - distance
+      - elapsedTime
+      - id
+      - maxHeartrate
+      - maxWatts
+      - movingTime
+      - name
+      - normalizedPower
+      - startDateLocal
+      - totalElevationGain
+      - type
+    AnalysisDto:
+      type: object
+      properties:
+        activityDate:
+          type: string
+          format: date-time
+          nullable: true
+        activityId:
+          type: string
+        activityName:
+          type: string
+          nullable: true
+        analyzedAt:
+          type: string
+          format: date-time
+          nullable: true
+        anomalies:
+          type: string
+          nullable: true
+        avgCadenceRpm:
+          type: number
+          format: double
+          nullable: true
+        avgHeartRate:
+          type: number
+          format: double
+          nullable: true
+        avgPowerWatts:
+          type: number
+          format: double
+          nullable: true
+        avgSpeedKmh:
+          type: number
+          format: double
+          nullable: true
+        distanceKm:
+          type: number
+          format: double
+          nullable: true
+        durationSeconds:
+          type: integer
+          format: int32
+          nullable: true
+        elevationGainM:
+          type: number
+          format: double
+          nullable: true
+        ftpUsed:
+          type: integer
+          format: int32
+          nullable: true
+        indoor:
+          type: boolean
+          nullable: true
+        intensityFactor:
+          type: number
+          format: double
+          nullable: true
+        maxHeartRate:
+          type: number
+          format: double
+          nullable: true
+        maxPowerWatts:
+          type: number
+          format: double
+          nullable: true
+        normalizedPowerWatts:
+          type: number
+          format: double
+          nullable: true
+        overallScore:
+          type: integer
+          format: int32
+          nullable: true
+        progress:
+          type: string
+          nullable: true
+        strengths:
+          type: string
+          nullable: true
+        summary:
+          type: string
+          nullable: true
+        trainingLoad:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - activityDate
+      - activityId
+      - activityName
+      - analyzedAt
+      - anomalies
+      - avgCadenceRpm
+      - avgHeartRate
+      - avgPowerWatts
+      - avgSpeedKmh
+      - distanceKm
+      - durationSeconds
+      - elevationGainM
+      - ftpUsed
+      - indoor
+      - intensityFactor
+      - maxHeartRate
+      - maxPowerWatts
+      - normalizedPowerWatts
+      - overallScore
+      - progress
+      - strengths
+      - summary
+      - trainingLoad
+    AnalysisJobDto:
+      type: object
+      properties:
+        activityId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        error:
+          type: string
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        jobId:
+          type: string
+        status:
+          type: string
+          enum:
+          - PENDING
+          - DONE
+          - FAILED
+      required:
+      - activityId
+      - createdAt
+      - error
+      - finishedAt
+      - jobId
+      - status
+    PowerCurveDto:
+      type: object
+      properties:
+        activityDate:
+          type: string
+          format: date-time
+          nullable: true
+        activityId:
+          type: string
+        activityName:
+          type: string
+          nullable: true
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/PowerCurvePointDto"
+      required:
+      - activityDate
+      - activityId
+      - activityName
+      - points
+    PowerCurvePointDto:
+      type: object
+      properties:
+        durationSeconds:
+          type: integer
+          format: int32
+        watts:
+          type: integer
+          format: int32
+          nullable: true
+      required:
+      - durationSeconds
+      - watts
+    PowerCurveSetDto:
+      type: object
+      properties:
+        current:
+          allOf:
+          - $ref: "#/components/schemas/PowerCurveDto"
+          nullable: true
+        ftpWatts:
+          type: integer
+          format: int32
+          nullable: true
+        previous:
+          type: array
+          items:
+            $ref: "#/components/schemas/PowerCurveDto"
+      required:
+      - current
+      - ftpWatts
+      - previous
+    ReportDto:
+      type: object
+      properties:
+        analysis:
+          $ref: "#/components/schemas/AnalysisDto"
+        hrZones:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZoneDistributionDto"
+        powerCurveSet:
+          allOf:
+          - $ref: "#/components/schemas/PowerCurveSetDto"
+          nullable: true
+        powerZones:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZoneDistributionDto"
+        streams:
+          $ref: "#/components/schemas/StreamDataDto"
+        trend:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendDataDto"
+      required:
+      - analysis
+      - hrZones
+      - powerCurveSet
+      - powerZones
+      - streams
+      - trend
+    ResendResultDto:
+      type: object
+      properties:
+        channels:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+          - queued
+          - disabled
+          - unavailable
+      required:
+      - channels
+      - message
+      - status
+    StreamDataDto:
+      type: object
+      properties:
+        altitude:
+          type: array
+          items:
+            type: number
+            format: double
+        cadence:
+          type: array
+          items:
+            type: integer
+            format: int32
+        distance:
+          type: array
+          items:
+            type: number
+            format: double
+        heartrate:
+          type: array
+          items:
+            type: integer
+            format: int32
+        time:
+          type: array
+          items:
+            type: integer
+            format: int32
+        velocity:
+          type: array
+          items:
+            type: number
+            format: double
+        watts:
+          type: array
+          items:
+            type: integer
+            format: int32
+      required:
+      - altitude
+      - cadence
+      - distance
+      - heartrate
+      - time
+      - velocity
+      - watts
+    TrendDataDto:
+      type: object
+      properties:
+        activityDate:
+          type: string
+          format: date-time
+          nullable: true
+        activityId:
+          type: string
+        activityName:
+          type: string
+          nullable: true
+        avgHeartRate:
+          type: number
+          format: double
+          nullable: true
+        avgPowerWatts:
+          type: number
+          format: double
+          nullable: true
+        avgSpeedKmh:
+          type: number
+          format: double
+          nullable: true
+        distanceKm:
+          type: number
+          format: double
+          nullable: true
+        overallScore:
+          type: integer
+          format: int32
+          nullable: true
+      required:
+      - activityDate
+      - activityId
+      - activityName
+      - avgHeartRate
+      - avgPowerWatts
+      - avgSpeedKmh
+      - distanceKm
+      - overallScore
+    ZoneDistributionDto:
+      type: object
+      properties:
+        color:
+          type: string
+        percentage:
+          type: number
+          format: double
+        seconds:
+          type: integer
+          format: int32
+        zoneLabel:
+          type: string
+        zoneName:
+          type: string
+      required:
+      - color
+      - percentage
+      - seconds
+      - zoneLabel
+      - zoneName

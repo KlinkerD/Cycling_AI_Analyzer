@@ -7,7 +7,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE } from '@angular/material/core';
 import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 import { routes } from './app.routes';
-import { provideApi } from './api';
+import { provideApi as provideReportApi } from './api/report';
+import { provideApi as provideFitnessApi } from './api/fitness';
+import { provideApi as provideRecommendationApi } from './api/recommendation';
 import { GERMAN_DATE_FORMATS, GermanDateAdapter } from './shared/german-date-adapter';
 
 registerLocaleData(localeDe);
@@ -17,8 +19,11 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideAnimations(),
     provideHttpClient(),
-    // Generierter API-Client: relative URLs (/api/...), Proxy bzw. nginx leiten ans Backend weiter.
-    provideApi(''),
+    // Generierte API-Clients: relative URLs (/api/reports, /api/fitness, /api/recommendation);
+    // Dev-Proxy bzw. nginx leiten je nach Praefix an den zustaendigen Service weiter.
+    provideReportApi(''),
+    provideFitnessApi(''),
+    provideRecommendationApi(''),
     provideCharts(withDefaultRegisterables()),
     { provide: LOCALE_ID, useValue: 'de-DE' },
     { provide: MAT_DATE_LOCALE, useValue: 'de-DE' },

@@ -14,7 +14,7 @@
     <artifactId>recommendation-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>recommendation-service</name>
-    <description>Berechnet die Tagesempfehlung, veroeffentlicht sie per MQTT und schickt sie morgens an den delivery-service</description>
+    <description>Berechnet die Tagesempfehlung, liefert sie per REST an die Overview und schickt sie morgens an den delivery-service</description>
 
     <properties>
         <java.version>25</java.version>
@@ -31,14 +31,11 @@
             <artifactId>intervals-api</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
+        <!-- REST-API (springdoc), Fehlerbehandlung, intervals-Client -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
-        </dependency>
-        <!-- Nur der RestClient fuer den intervals-service, kein Webserver -->
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-web</artifactId>
+            <groupId>com.cycling</groupId>
+            <artifactId>cycling-web</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

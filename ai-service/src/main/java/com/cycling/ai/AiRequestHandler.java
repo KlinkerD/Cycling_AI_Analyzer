@@ -18,7 +18,7 @@ import java.time.Instant;
 
 /**
  * Beantwortet die KI-Auftraege. Jeder Auftrag bekommt genau eine Antwort (Erfolg oder Fehler),
- * damit der analysis-service nicht auf ein Timeout warten muss. Die Aufrufe laufen nacheinander
+ * damit der report-service nicht auf ein Timeout warten muss. Die Aufrufe laufen nacheinander
  * (ein MQTT-Worker-Thread) mit einem Mindestabstand fuer das Gemini-Rate-Limit.
  */
 public class AiRequestHandler {

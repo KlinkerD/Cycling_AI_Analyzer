@@ -18,7 +18,7 @@ import java.util.List;
  * Fragt intervals.icu regelmaessig ab (am Cache vorbei) und meldet per MQTT:
  * <ul>
  *   <li>bei jedem Lauf alle Rad-Aktivitaeten der letzten Tage ({@link ActivityDetected}). Der
- *       analysis-service dedupliziert (Report vorhanden, Analyse laeuft) und startet so auch
+ *       report-service dedupliziert (Report vorhanden, Analyse laeuft) und startet so auch
  *       fehlgeschlagene oder abgelaufene Analysen beim naechsten Lauf erneut.</li>
  *   <li>die heutigen Fitness-Werte, wenn sie sich (auf eine Nachkommastelle gerundet) geaendert haben
  *       ({@link WellnessUpdated}, retained).</li>

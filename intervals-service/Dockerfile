@@ -11,7 +11,7 @@ COPY pom.xml .
 COPY cycling-messaging ./cycling-messaging
 COPY intervals-api ./intervals-api
 COPY intervals-service ./intervals-service
-COPY backend/pom.xml ./backend/pom.xml
+COPY cycling-web/pom.xml ./cycling-web/pom.xml
 COPY ai-service/pom.xml ./ai-service/pom.xml
 COPY report-service/pom.xml ./report-service/pom.xml
 COPY delivery-service/pom.xml ./delivery-service/pom.xml

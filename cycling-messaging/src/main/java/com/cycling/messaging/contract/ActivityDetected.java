@@ -1,8 +1,8 @@
 package com.cycling.messaging.contract;
 
 /**
- * intervals-service -> analysis-service: neue Rad-Aktivitaet bei intervals.icu gefunden. Enthaelt die
- * Zusammenfassung, damit der analysis-service die Analyse ohne weiteren Abruf starten kann.
+ * intervals-service -> report-service: neue Rad-Aktivitaet bei intervals.icu gefunden. Enthaelt die
+ * Zusammenfassung, damit der report-service die Analyse ohne weiteren Abruf starten kann.
  * Kann mehrfach kommen (z. B. nach einem Neustart des intervals-service) - Empfaenger deduplizieren
  * ueber {@code activityId}.
  *

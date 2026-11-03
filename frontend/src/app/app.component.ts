@@ -6,8 +6,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
-import { ActivityService } from './services/activity.service';
-import { AthleteThresholdsDto } from './api';
+import { OverviewService } from './services/overview.service';
+import { AthleteThresholdsDto } from './api/fitness';
 
 @Component({
   selector: 'app-root',
@@ -155,7 +155,7 @@ export class AppComponent implements OnInit {
 
   private static readonly THEME_KEY = 'cycling-theme';
 
-  constructor(private activityService: ActivityService) {}
+  constructor(private overviewService: OverviewService) {}
 
   toggleTheme(): void {
     this.darkMode = !this.darkMode;
@@ -179,7 +179,7 @@ export class AppComponent implements OnInit {
 
   ngOnInit(): void {
     this.initTheme();
-    this.activityService.getAthleteThresholds().subscribe({
+    this.overviewService.getAthleteThresholds().subscribe({
       next: (t) => {
         console.log('Athleten-Daten:', t);
         this.thresholds = t;

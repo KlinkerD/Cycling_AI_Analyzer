@@ -3,7 +3,6 @@ package com.cycling.recommendation;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.DeliveryMessage;
-import com.cycling.messaging.contract.RecommendationUpdated;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -28,7 +27,7 @@ import java.util.function.Consumer;
  * <p>Doppelt wird nie zugestellt: die messageId haengt am Datum, der delivery-service verwirft sie beim
  * zweiten Mal. Die Engine wird nie unter dem Lock dieses Jobs aufgerufen (sie ruft {@link #accept} zurueck).
  */
-public class DailyRecommendationJob implements Consumer<RecommendationUpdated> {
+public class DailyRecommendationJob implements Consumer<Recommendation> {
 
     private static final Logger log = LoggerFactory.getLogger(DailyRecommendationJob.class);
     /** cycling/delivery/request/recommendation */
@@ -50,7 +49,7 @@ public class DailyRecommendationJob implements Consumer<RecommendationUpdated> {
     private LocalDate requestedFor;
     private Instant startedAt;
     /** Letzte Nachricht dieser Berechnung. */
-    private RecommendationUpdated latest;
+    private Recommendation latest;
 
     /** @param clock liefert Zeit und Zeitzone, in der Versandzeit und "heute" gelten */
     public DailyRecommendationJob(RecommendationEngine engine, RecommendationMessageBuilder messageBuilder,
@@ -70,7 +69,7 @@ public class DailyRecommendationJob implements Consumer<RecommendationUpdated> {
 
     /** Jede veroeffentlichte Empfehlung; relevant ist nur die eigene Berechnung. */
     @Override
-    public void accept(RecommendationUpdated update) {
+    public void accept(Recommendation update) {
         boolean done;
         synchronized (this) {
             if (requestId == null || !requestId.equals(update.requestId())) return;
@@ -121,7 +120,7 @@ public class DailyRecommendationJob implements Consumer<RecommendationUpdated> {
     }
 
     /** Nur unter dem Lock aufrufen. */
-    private void send(RecommendationUpdated update, LocalDate today) {
+    private void send(Recommendation update, LocalDate today) {
         DeliveryMessage message = messageBuilder.build(update, today);
         try {
             publisher.publish(TOPIC, message);

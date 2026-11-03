@@ -8,7 +8,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Die Records muessen JSON-Roundtrips ueberstehen, weil intervals-service und backend sie austauschen. */
+/** Die Records muessen JSON-Roundtrips ueberstehen, weil der intervals-service und seine Clients sie austauschen. */
 class IntervalsApiJsonTest {
 
     private final ObjectMapper mapper = new ObjectMapper();

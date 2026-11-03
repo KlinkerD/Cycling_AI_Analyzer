@@ -60,7 +60,7 @@ class IntervalsPollerTest {
         assertThat(sent.getValue().movingTime()).isEqualTo(3600);
     }
 
-    /** Wiederholtes Melden ist gewollt: so startet der analysis-service fehlgeschlagene Analysen neu. */
+    /** Wiederholtes Melden ist gewollt: so startet der report-service fehlgeschlagene Analysen neu. */
     @Test
     void reportsAgainOnNextRun() {
         recent(ride("i1"));

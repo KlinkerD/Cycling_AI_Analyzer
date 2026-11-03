@@ -1,5 +1,6 @@
 package com.cycling.recommendation;
 
+import com.cycling.intervals.client.IntervalsUnavailableException;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
 

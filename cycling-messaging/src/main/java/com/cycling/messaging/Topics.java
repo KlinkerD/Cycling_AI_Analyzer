@@ -8,9 +8,9 @@ public final class Topics {
 
     private static final String ROOT = "cycling/";
 
-    /** analysis-service -> ai-service: Training analysieren ({@code AnalysisRequest}). */
+    /** report-service -> ai-service: Training analysieren ({@code AnalysisRequest}). */
     public static final String AI_ANALYSIS_REQUEST = ROOT + "ai/analysis/request";
-    /** ai-service -> analysis-service: Ergebnis der Analyse ({@code AnalysisResult}). */
+    /** ai-service -> report-service: Ergebnis der Analyse ({@code AnalysisResult}). */
     public static final String AI_ANALYSIS_RESULT = ROOT + "ai/analysis/result";
 
     /** recommendation-service -> ai-service: Text fuer die Tagesempfehlung ({@code RecommendationTextRequest}). */
@@ -18,20 +18,7 @@ public final class Topics {
     /** ai-service -> recommendation-service: Text der Tagesempfehlung ({@code RecommendationTextResult}). */
     public static final String AI_RECOMMENDATION_RESULT = ROOT + "ai/recommendation/result";
 
-    /**
-     * recommendation-service -> alle: aktuelle Tagesempfehlung ({@code RecommendationUpdated}).
-     * Retained, damit das backend nach einem Neustart sofort den letzten Stand hat.
-     */
-    public static final String RECOMMENDATION_UPDATED = ROOT + "recommendation/updated";
-    /** backend -> recommendation-service: sofort neu berechnen ({@code RecommendationRefreshRequest}). */
-    public static final String RECOMMENDATION_REFRESH = ROOT + "recommendation/refresh";
-
-    /** analysis-service -> report-service: Analyse fertig, Report versenden ({@code ReportDeliveryRequest} inkl. Report). */
-    public static final String REPORT_READY = ROOT + "report/ready";
-    /** analysis-service -> report-service: Report erneut versenden, Button im Frontend ({@code ReportDeliveryRequest} inkl. Report). */
-    public static final String REPORT_RESEND = ROOT + "report/resend";
-
-    /** intervals-service -> analysis-service: neue Rad-Aktivitaet bei intervals.icu ({@code ActivityDetected}). */
+    /** intervals-service -> report-service: neue Rad-Aktivitaet bei intervals.icu ({@code ActivityDetected}). */
     public static final String INTERVALS_ACTIVITY_DETECTED = ROOT + "intervals/activity/detected";
     /**
      * intervals-service -> alle: heutige Fitness/Fatigue/Form/Ramp haben sich geaendert ({@code WellnessUpdated}).

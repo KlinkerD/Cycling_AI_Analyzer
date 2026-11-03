@@ -3,8 +3,6 @@ package com.cycling.report;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.DeliveryMessage;
-import com.cycling.messaging.contract.ReportContent;
-import com.cycling.messaging.contract.ReportDeliveryRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,12 +10,11 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * Verarbeitet Versandauftraege fuer Reports: Charts rendern, {@link DeliveryMessage} bauen und an den
- * delivery-service schicken. Der Report steckt vollstaendig im Auftrag, es gibt keinen Rueckruf beim
- * analysis-service. Die requestId wird zur messageId, dadurch verwirft der delivery-service doppelt
- * zugestellte Auftraege.
+ * Versendet Reports: Charts rendern, {@link DeliveryMessage} bauen und an den delivery-service schicken.
+ * Auftraege kommen von der Analyse (fertiger Report) und vom "Erneut senden"-Button. Die requestId wird zur
+ * messageId, dadurch verwirft der delivery-service doppelte Auftraege.
  * <p>
- * Kein eigener Speicher: schlaegt Rendern (QuickChart) oder Senden fehl, wird nur im Speicher nach den
+ * Versandauftraege werden nicht gespeichert: schlaegt Rendern (QuickChart) oder Senden fehl, wird nur im Speicher nach den
  * konfigurierten Abstaenden wiederholt. Geht der Service dabei neu an, ist der Auftrag weg ("Erneut senden"
  * im Frontend).
  */
@@ -47,10 +44,9 @@ public class ReportRequestHandler {
     }
 
     /** Nimmt den Auftrag an und arbeitet ihn im Hintergrund ab (der MQTT-Worker wartet nicht auf QuickChart). */
-    public void handle(ReportDeliveryRequest request) {
+    public void handle(ReportDelivery request) {
         ReportContent report = request.report();
         if (report == null || report.analysis() == null || report.streams() == null) {
-            // z. B. ein Auftrag im alten Format, der noch in der Broker-Session lag
             log.error("Versandauftrag {} fuer Aktivitaet {} ohne vollstaendigen Report verworfen",
                     request.requestId(), request.activityId());
             return;
@@ -59,7 +55,7 @@ public class ReportRequestHandler {
         scheduler.schedule(() -> attempt(request, 0), Duration.ZERO);
     }
 
-    private void attempt(ReportDeliveryRequest request, int failures) {
+    private void attempt(ReportDelivery request, int failures) {
         try {
             ReportCharts charts = renderer.render(request.report());
             DeliveryMessage message = messageBuilder.build(request.requestId(), request.report(), charts);

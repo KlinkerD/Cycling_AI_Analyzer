@@ -17,7 +17,7 @@ import java.util.function.BiConsumer;
 
 /**
  * MQTT-Anbindung: nimmt Versandauftraege aller Quellen ({@code cycling/delivery/request/+}) entgegen
- * und meldet die aktiven Kanaele retained, damit der analysis-service beim "Erneut senden" sofort
+ * und meldet die aktiven Kanaele retained, damit der report-service beim "Erneut senden" sofort
  * antworten kann.
  */
 @Configuration

@@ -1,12 +1,11 @@
 package com.cycling.recommendation;
 
+import com.cycling.intervals.client.IntervalsUnavailableException;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.Topics;
-import com.cycling.messaging.contract.RecommendationRefreshRequest;
 import com.cycling.messaging.contract.RecommendationTextRequest;
 import com.cycling.messaging.contract.RecommendationTextResult;
-import com.cycling.messaging.contract.RecommendationUpdated;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,19 +15,20 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 /**
- * Berechnet die Tagesempfehlung und veroeffentlicht sie retained auf {@link Topics#RECOMMENDATION_UPDATED}.
+ * Berechnet die Tagesempfehlung und haelt den letzten Stand fuer die REST-API ({@link #latest()}).
  *
- * <p>Pro Berechnung zwei Nachrichten mit derselben requestId: sofort mit Fallback-Text
+ * <p>Pro Berechnung zwei Staende mit derselben requestId: sofort mit Fallback-Text
  * ({@code textPending=true}), dann mit KI-Text. Kommt kein KI-Text (Fehler, ai-service weg,
- * {@code textTimeout} abgelaufen), geht die zweite Nachricht mit dem Fallback raus. Ohne Daten gibt es
- * nur eine Nachricht ({@code INSUFFICIENT_DATA}, nichts mehr erwartet).
+ * {@code textTimeout} abgelaufen), wird der zweite Stand mit dem Fallback gesetzt. Ohne Daten gibt es
+ * nur einen Stand ({@code INSUFFICIENT_DATA}, nichts mehr erwartet). Listener bekommen jeden Stand.
  *
- * <p>Ist der intervals-service nicht erreichbar, wird nichts veroeffentlicht: der letzte Stand bleibt.
+ * <p>Ist der intervals-service nicht erreichbar, bleibt der letzte Stand.
  *
  * <p>Locks: Berechnungen laufen nacheinander ({@code computeLock}); der Zustand des offenen KI-Auftrags
  * liegt unter {@code stateLock}. Listener werden nie unter {@code stateLock} aufgerufen.
@@ -41,12 +41,14 @@ public class RecommendationEngine {
     private final MessagePublisher publisher;
     private final Clock clock;
     private final Duration textTimeout;
-    private final List<Consumer<RecommendationUpdated>> listeners = new CopyOnWriteArrayList<>();
+    private final List<Consumer<Recommendation>> listeners = new CopyOnWriteArrayList<>();
 
     private final Object computeLock = new Object();
     private final Object stateLock = new Object();
-    /** Erste Nachricht der Berechnung, deren KI-Text noch aussteht; null = nichts offen. */
-    private RecommendationUpdated pending;
+    /** Zuletzt gesetzter Stand; null, solange seit dem Start noch nichts berechnet wurde. */
+    private volatile Recommendation latest;
+    /** Erster Stand der Berechnung, deren KI-Text noch aussteht; null = nichts offen. */
+    private Recommendation pending;
     private Instant pendingSince;
 
     /** @param textTimeout so lange wird hoechstens auf den KI-Text gewartet */
@@ -57,16 +59,14 @@ public class RecommendationEngine {
         this.textTimeout = textTimeout;
     }
 
-    /** Bekommt jede veroeffentlichte Empfehlung (beide Nachrichten), z. B. fuer den Tagesversand. */
-    public void addListener(Consumer<RecommendationUpdated> listener) {
+    /** Bekommt jeden neuen Stand (beide pro Berechnung), z. B. fuer den Tagesversand. */
+    public void addListener(Consumer<Recommendation> listener) {
         listeners.add(listener);
     }
 
-    /** Refresh-Auftrag vom backend. Fehler werden geloggt, das backend faellt nach seinem Timeout zurueck. */
-    public void onRefresh(RecommendationRefreshRequest request) {
-        String requestId = request.requestId() == null || request.requestId().isBlank()
-                ? UUID.randomUUID().toString() : request.requestId();
-        computeQuietly(requestId, "Refresh");
+    /** Letzter Stand; leer, solange seit dem Start noch nichts berechnet wurde. */
+    public Optional<Recommendation> latest() {
+        return Optional.ofNullable(latest);
     }
 
     /** Zeitplan (alle paar Stunden). */
@@ -83,12 +83,12 @@ public class RecommendationEngine {
     }
 
     /**
-     * Berechnet neu und veroeffentlicht die erste Nachricht.
+     * Berechnet neu und setzt den ersten Stand.
      *
-     * @return die erste Nachricht dieser Berechnung
+     * @return der erste Stand dieser Berechnung
      * @throws IntervalsUnavailableException wenn keine Wellness-Daten geladen werden konnten
      */
-    public RecommendationUpdated compute(String requestId) {
+    public Recommendation compute(String requestId) {
         synchronized (computeLock) {
             LocalDate today = LocalDate.now(clock);
             Assessment assessment = RecommendationCalculator.assess(
@@ -99,7 +99,7 @@ public class RecommendationEngine {
                     assessment.form(), assessment.rampRate(), assessment.rampCapped());
 
             if (assessment.category() == RecommendationCategory.INSUFFICIENT_DATA) {
-                RecommendationUpdated only = message(requestId, assessment, fallback, now, false, false);
+                Recommendation only = message(requestId, assessment, fallback, now, false, false);
                 synchronized (stateLock) {
                     pending = null;
                 }
@@ -107,7 +107,7 @@ public class RecommendationEngine {
                 return only;
             }
 
-            RecommendationUpdated first = message(requestId, assessment, fallback, now, true, true);
+            Recommendation first = message(requestId, assessment, fallback, now, true, true);
             synchronized (stateLock) {
                 pending = first;
                 pendingSince = clock.instant();
@@ -152,14 +152,14 @@ public class RecommendationEngine {
 
     /** @param text KI-Text; null = Fallback behalten */
     private void finish(String requestId, String text) {
-        RecommendationUpdated done;
+        Recommendation done;
         synchronized (stateLock) {
             if (pending == null || !pending.requestId().equals(requestId)) {
                 log.debug("Empfehlungstext {} ignoriert (nicht mehr offen)", requestId);
                 return;
             }
-            RecommendationUpdated p = pending;
-            done = new RecommendationUpdated(p.requestId(), p.category(), p.categoryLabel(), p.color(),
+            Recommendation p = pending;
+            done = new Recommendation(p.requestId(), p.category(), p.categoryLabel(), p.color(),
                     text != null ? text : p.text(), p.form(), p.rampRate(), p.rampCapped(), p.refDate(),
                     p.computedAt(), false, text == null);
             pending = null;
@@ -178,13 +178,9 @@ public class RecommendationEngine {
         }
     }
 
-    private void publish(RecommendationUpdated update) {
-        try {
-            publisher.publishRetained(Topics.RECOMMENDATION_UPDATED, update);
-        } catch (RuntimeException e) {
-            log.warn("Empfehlung {} nicht veroeffentlicht: {}", update.requestId(), e.getMessage());
-        }
-        for (Consumer<RecommendationUpdated> listener : listeners) {
+    private void publish(Recommendation update) {
+        latest = update;
+        for (Consumer<Recommendation> listener : listeners) {
             try {
                 listener.accept(update);
             } catch (RuntimeException e) {
@@ -193,9 +189,9 @@ public class RecommendationEngine {
         }
     }
 
-    private static RecommendationUpdated message(String requestId, Assessment a, String text, LocalDateTime now,
+    private static Recommendation message(String requestId, Assessment a, String text, LocalDateTime now,
                                                  boolean textPending, boolean fallbackUsed) {
-        return new RecommendationUpdated(requestId, a.category().name(), a.category().getLabel(),
+        return new Recommendation(requestId, a.category().name(), a.category().getLabel(),
                 a.category().getColor(), text, a.form(), a.rampRate(), a.rampCapped(), a.refDate(), now,
                 textPending, fallbackUsed);
     }

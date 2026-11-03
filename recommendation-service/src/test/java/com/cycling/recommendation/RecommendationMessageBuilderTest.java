@@ -2,7 +2,6 @@ package com.cycling.recommendation;
 
 import com.cycling.messaging.contract.DeliveryMessage;
 import com.cycling.messaging.contract.DeliveryMessage.Field;
-import com.cycling.messaging.contract.RecommendationUpdated;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -16,8 +15,8 @@ class RecommendationMessageBuilderTest {
 
     private final RecommendationMessageBuilder builder = new RecommendationMessageBuilder(List.of());
 
-    private static RecommendationUpdated update(Double form, Double ramp, boolean capped, boolean fallback) {
-        return new RecommendationUpdated("r1", "TEMPO", "Tempo / Sweet Spot", "#ff9800", "Heute Sweet Spot.", form,
+    private static Recommendation update(Double form, Double ramp, boolean capped, boolean fallback) {
+        return new Recommendation("r1", "TEMPO", "Tempo / Sweet Spot", "#ff9800", "Heute Sweet Spot.", form,
                 ramp, capped, LocalDate.of(2026, 11, 3), LocalDateTime.of(2026, 11, 3, 9, 0), false, fallback);
     }
 

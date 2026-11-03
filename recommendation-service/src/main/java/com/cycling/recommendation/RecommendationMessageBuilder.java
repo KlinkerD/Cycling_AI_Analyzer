@@ -4,7 +4,6 @@ import com.cycling.messaging.contract.DeliveryMessage;
 import com.cycling.messaging.contract.DeliveryMessage.Field;
 import com.cycling.messaging.contract.DeliveryMessage.Section;
 import com.cycling.messaging.contract.DeliveryMessage.Target;
-import com.cycling.messaging.contract.RecommendationUpdated;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -34,7 +33,7 @@ public class RecommendationMessageBuilder {
     }
 
     /** @param date Versandtag (bestimmt messageId und Unterzeile) */
-    public DeliveryMessage build(RecommendationUpdated update, LocalDate date) {
+    public DeliveryMessage build(Recommendation update, LocalDate date) {
         return new DeliveryMessage(
                 messageId(date),
                 "🚴 Empfehlung für heute",
@@ -47,7 +46,7 @@ public class RecommendationMessageBuilder {
                 targets);
     }
 
-    private static List<Field> fields(RecommendationUpdated update) {
+    private static List<Field> fields(Recommendation update) {
         List<Field> fields = new ArrayList<>();
         fields.add(new Field("Empfehlung", update.categoryLabel()));
         if (update.form() != null) {

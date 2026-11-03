@@ -12,7 +12,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ActivityService } from '../../services/activity.service';
-import { ReportDto, ZoneDistributionDto, PowerCurveSetDto } from '../../api';
+import { ReportDto, ZoneDistributionDto, PowerCurveSetDto } from '../../api/report';
 
 @Component({
   selector: 'app-report',

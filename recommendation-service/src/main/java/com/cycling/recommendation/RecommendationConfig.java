@@ -1,30 +1,36 @@
 package com.cycling.recommendation;
 
+import com.cycling.intervals.client.IntervalsClient;
 import com.cycling.messaging.MqttMessaging;
 import com.cycling.messaging.MqttSettings;
 import com.cycling.messaging.Topics;
-import com.cycling.messaging.contract.RecommendationRefreshRequest;
 import com.cycling.messaging.contract.RecommendationTextResult;
+import com.cycling.web.CyclingWebConfig;
+import io.swagger.v3.oas.models.OpenAPI;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.event.EventListener;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.web.client.RestClient;
 
-import java.net.http.HttpClient;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalTime;
 import java.time.ZoneId;
 
 /**
- * Verdrahtet den recommendation-service: REST zum intervals-service, MQTT rein (Refresh-Auftraege,
- * KI-Texte), MQTT raus (RecommendationUpdated, KI-Auftraege, DeliveryMessage).
+ * Verdrahtet den recommendation-service: REST zum intervals-service, MQTT rein (KI-Texte), MQTT raus
+ * (KI-Auftraege, DeliveryMessage), REST-API fuer die Overview-Karte.
  */
 @Configuration
+@Import(CyclingWebConfig.class)
 public class RecommendationConfig {
+
+    @Bean
+    public OpenAPI recommendationOpenApi() {
+        return CyclingWebConfig.openApi("Cycling Recommendation API");
+    }
 
     @Bean(destroyMethod = "close")
     public MqttMessaging mqttMessaging(
@@ -45,10 +51,7 @@ public class RecommendationConfig {
     public IntervalsData intervalsData(@Value("${intervals-service.base-url}") String baseUrl,
                                        @Value("${intervals-service.connect-timeout:5s}") Duration connectTimeout,
                                        @Value("${intervals-service.read-timeout:30s}") Duration readTimeout) {
-        HttpClient httpClient = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
-        requestFactory.setReadTimeout(readTimeout);
-        return new IntervalsRestClient(RestClient.builder().baseUrl(baseUrl).requestFactory(requestFactory).build());
+        return new IntervalsRestClient(IntervalsClient.create(baseUrl, connectTimeout, readTimeout));
     }
 
     @Bean
@@ -89,7 +92,6 @@ public class RecommendationConfig {
         RecommendationEngine engine = context.getBean(RecommendationEngine.class);
 
         messaging.subscribe(Topics.AI_RECOMMENDATION_RESULT, RecommendationTextResult.class, engine::applyText);
-        messaging.subscribe(Topics.RECOMMENDATION_REFRESH, RecommendationRefreshRequest.class, engine::onRefresh);
         messaging.start();
     }
 

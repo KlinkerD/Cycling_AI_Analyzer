@@ -5,8 +5,7 @@ import com.cycling.messaging.contract.DeliveryMessage.Attachment;
 import com.cycling.messaging.contract.DeliveryMessage.Field;
 import com.cycling.messaging.contract.DeliveryMessage.Section;
 import com.cycling.messaging.contract.DeliveryMessage.Target;
-import com.cycling.messaging.contract.ReportContent;
-import com.cycling.messaging.contract.ReportContent.Analysis;
+import com.cycling.report.ReportContent.Analysis;
 
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;

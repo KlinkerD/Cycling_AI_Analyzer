@@ -1,12 +1,11 @@
 package com.cycling.recommendation;
 
+import com.cycling.intervals.client.IntervalsUnavailableException;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
 import com.cycling.messaging.Topics;
-import com.cycling.messaging.contract.RecommendationRefreshRequest;
 import com.cycling.messaging.contract.RecommendationTextRequest;
 import com.cycling.messaging.contract.RecommendationTextResult;
-import com.cycling.messaging.contract.RecommendationUpdated;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -18,14 +17,14 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Zwei Nachrichten pro Berechnung: sofort Fallback, dann KI-Text oder - bei Ausfall - noch einmal Fallback. */
+/** Zwei Staende pro Berechnung: sofort Fallback, dann KI-Text oder - bei Ausfall - noch einmal Fallback. */
 class RecommendationEngineTest {
 
     private final MutableClock clock = new MutableClock(LocalDateTime.of(2026, 11, 3, 9, 0));
     private final RecordingPublisher publisher = new RecordingPublisher();
     private final FakeIntervals intervals = new FakeIntervals();
     private final RecommendationEngine engine = new RecommendationEngine(intervals, publisher, clock, Duration.ofSeconds(90));
-    private final List<RecommendationUpdated> seen = new ArrayList<>();
+    private final List<Recommendation> seen = new ArrayList<>();
 
     {
         engine.addListener(seen::add);
@@ -50,20 +49,20 @@ class RecommendationEngineTest {
         }
     }
 
-    private List<RecommendationUpdated> updates() {
-        return publisher.on(Topics.RECOMMENDATION_UPDATED, RecommendationUpdated.class);
+    private List<Recommendation> updates() {
+        return seen;
     }
 
     @Test
     void firstMessageIsFallbackAndRequestsText() {
-        RecommendationUpdated first = engine.compute("r1");
+        Recommendation first = engine.compute("r1");
 
         assertThat(first.textPending()).isTrue();
         assertThat(first.fallbackUsed()).isTrue();
         assertThat(first.category()).isEqualTo("TEMPO");
         assertThat(first.color()).isEqualTo("#ff9800");
         assertThat(first.computedAt()).isEqualTo(LocalDateTime.of(2026, 11, 3, 9, 0));
-        assertThat(publisher.sent).first().matches(RecordingPublisher.Sent::retained);
+        assertThat(engine.latest()).contains(first);
         RecommendationTextRequest request = publisher.on(Topics.AI_RECOMMENDATION_REQUEST, RecommendationTextRequest.class).getFirst();
         assertThat(request.requestId()).isEqualTo("r1");
         assertThat(request.last7DaysSummary()).contains("Runde, 70 TSS, IF 0,75, 40 km");
@@ -76,21 +75,21 @@ class RecommendationEngineTest {
         engine.applyText(new RecommendationTextResult("r1", true, null, "Heute Sweet Spot!"));
 
         assertThat(updates()).hasSize(2);
-        RecommendationUpdated second = updates().get(1);
+        Recommendation second = updates().get(1);
         assertThat(second.requestId()).isEqualTo("r1");
         assertThat(second.text()).isEqualTo("Heute Sweet Spot!");
         assertThat(second.textPending()).isFalse();
         assertThat(second.fallbackUsed()).isFalse();
-        assertThat(seen).hasSize(2);
+        assertThat(engine.latest()).contains(second);
     }
 
     @Test
     void failedTextStillSendsSecondMessageWithFallback() {
-        RecommendationUpdated first = engine.compute("r1");
+        Recommendation first = engine.compute("r1");
 
         engine.applyText(RecommendationTextResult.failed("r1", "HTTP 500"));
 
-        RecommendationUpdated second = updates().get(1);
+        Recommendation second = updates().get(1);
         assertThat(second.text()).isEqualTo(first.text());
         assertThat(second.textPending()).isFalse();
         assertThat(second.fallbackUsed()).isTrue();
@@ -103,7 +102,7 @@ class RecommendationEngineTest {
 
         engine.applyText(new RecommendationTextResult("r1", true, null, "Veraltet"));
 
-        assertThat(updates()).extracting(RecommendationUpdated::requestId).containsExactly("r1", "r2");
+        assertThat(updates()).extracting(Recommendation::requestId).containsExactly("r1", "r2");
     }
 
     @Test
@@ -128,7 +127,7 @@ class RecommendationEngineTest {
 
         engine.compute("r1");
 
-        assertThat(updates()).extracting(RecommendationUpdated::textPending).containsExactly(true, false);
+        assertThat(updates()).extracting(Recommendation::textPending).containsExactly(true, false);
     }
 
     @Test
@@ -144,12 +143,14 @@ class RecommendationEngineTest {
     }
 
     @Test
-    void intervalsOutagePublishesNothing() {
+    void intervalsOutageSetsNothing() {
         intervals.wellnessError = new IntervalsUnavailableException("weg", null);
 
         assertThatThrownBy(() -> engine.compute("r1")).isInstanceOf(IntervalsUnavailableException.class);
-        engine.onRefresh(new RecommendationRefreshRequest("r2"));
+        engine.computeScheduled();
 
+        assertThat(seen).isEmpty();
+        assertThat(engine.latest()).isEmpty();
         assertThat(publisher.sent).isEmpty();
     }
 
@@ -161,12 +162,5 @@ class RecommendationEngineTest {
 
         assertThat(publisher.on(Topics.AI_RECOMMENDATION_REQUEST, RecommendationTextRequest.class).getFirst()
                 .last7DaysSummary()).isEmpty();
-    }
-
-    @Test
-    void refreshUsesRequestIdFromBackend() {
-        engine.onRefresh(new RecommendationRefreshRequest("from-backend"));
-
-        assertThat(updates().getFirst().requestId()).isEqualTo("from-backend");
     }
 }

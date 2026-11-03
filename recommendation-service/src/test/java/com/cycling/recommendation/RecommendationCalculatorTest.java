@@ -21,7 +21,7 @@ class RecommendationCalculatorTest {
 
         assertThat(a.category()).isEqualTo(RecommendationCategory.TEMPO);
         assertThat(a.form()).isEqualTo(10.0);
-        assertThat(a.rampRate()).isEqualTo(0.0); // einziger Punkt ist seine eigene Referenz (wie bisher im backend)
+        assertThat(a.rampRate()).isEqualTo(0.0); // einziger Punkt ist seine eigene Referenz (wie frueher im backend)
         assertThat(a.refDate()).isEqualTo(LocalDate.of(2026, 11, 3));
     }
 

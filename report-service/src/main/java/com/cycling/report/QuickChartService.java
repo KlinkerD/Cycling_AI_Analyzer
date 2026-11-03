@@ -1,11 +1,11 @@
 package com.cycling.report;
 
-import com.cycling.messaging.contract.ReportContent.PowerCurve;
-import com.cycling.messaging.contract.ReportContent.PowerCurvePoint;
-import com.cycling.messaging.contract.ReportContent.PowerCurveSet;
-import com.cycling.messaging.contract.ReportContent.Streams;
-import com.cycling.messaging.contract.ReportContent.TrendPoint;
-import com.cycling.messaging.contract.ReportContent.Zone;
+import com.cycling.report.ReportContent.PowerCurve;
+import com.cycling.report.ReportContent.PowerCurvePoint;
+import com.cycling.report.ReportContent.PowerCurveSet;
+import com.cycling.report.ReportContent.Streams;
+import com.cycling.report.ReportContent.TrendPoint;
+import com.cycling.report.ReportContent.Zone;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;

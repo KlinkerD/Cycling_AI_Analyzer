@@ -1,6 +1,5 @@
 package com.cycling.report;
 
-import com.cycling.messaging.contract.ReportContent;
 
 import java.time.LocalDateTime;
 import java.util.List;

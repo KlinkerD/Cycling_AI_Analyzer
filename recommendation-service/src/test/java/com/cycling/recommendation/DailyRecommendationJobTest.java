@@ -1,9 +1,9 @@
 package com.cycling.recommendation;
 
+import com.cycling.intervals.client.IntervalsUnavailableException;
 import com.cycling.messaging.contract.DeliveryMessage;
 import com.cycling.messaging.contract.DeliveryMessage.Target;
 import com.cycling.messaging.contract.RecommendationTextResult;
-import com.cycling.messaging.contract.RecommendationUpdated;
 import com.cycling.messaging.Topics;
 import org.junit.jupiter.api.Test;
 
@@ -35,7 +35,7 @@ class DailyRecommendationJobTest {
     }
 
     private String pendingRequestId() {
-        return publisher.on(Topics.RECOMMENDATION_UPDATED, RecommendationUpdated.class).getLast().requestId();
+        return engine.latest().orElseThrow().requestId();
     }
 
     @Test
@@ -96,7 +96,7 @@ class DailyRecommendationJobTest {
     void refreshInBetweenDoesNotBlockTheDailySend() {
         clock.set(LocalDateTime.of(2026, 11, 3, 9, 0));
         job.check();
-        engine.compute("refresh-vom-backend"); // ersetzt den offenen KI-Auftrag des Jobs
+        engine.compute("refresh-button"); // ersetzt den offenen KI-Auftrag des Jobs
 
         clock.advance(Duration.ofMinutes(2));
         job.check();

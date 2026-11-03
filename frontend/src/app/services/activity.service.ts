@@ -1,42 +1,34 @@
 import { Injectable } from '@angular/core';
 import { Observable, first, of, switchMap, timer } from 'rxjs';
 import {
-  ActivitiesApi,
   ActivityDto,
   AnalysisJobDto,
-  AthleteThresholdsDto,
   ReportDto,
+  ReportsApi,
   ResendResultDto
-} from '../api';
+} from '../api/report';
 import { toIsoDate } from './date-params';
 
 /** Abfrage-Takt fuer laufende Analysen. */
 const POLL_INTERVAL_MS = 3000;
 
 /**
- * Duenne Fassade ueber den generierten {@link ActivitiesApi}-Client (OpenAPI Generator):
+ * Duenne Fassade ueber den generierten {@link ReportsApi}-Client des report-service (OpenAPI Generator):
  * wandelt Datumswerte um und kapselt das Polling der asynchronen Analyse.
  */
 @Injectable({ providedIn: 'root' })
 export class ActivityService {
 
-  constructor(private api: ActivitiesApi) {}
+  constructor(private api: ReportsApi) {}
 
-  getAthleteThresholds(): Observable<AthleteThresholdsDto> {
-    return this.api.getAthleteThresholds();
-  }
-
-  getAnalyzedIds(): Observable<string[]> {
-    return this.api.getAnalyzedIds();
-  }
-
+  /** Aktivitaeten im Zeitraum; {@code analyzed} sagt, ob es schon einen Report gibt. */
   getActivities(from: Date, to: Date): Observable<ActivityDto[]> {
     return this.api.getActivities(toIsoDate(from), toIsoDate(to));
   }
 
   /** Startet die KI-Analyse (202 + Job). Laeuft schon eine, kommt deren Job zurueck. */
   startAnalysis(activity: ActivityDto): Observable<AnalysisJobDto> {
-    return this.api.analyzeActivity(activity.id, activity);
+    return this.api.startAnalysis(activity.id, activity);
   }
 
   getAnalysisJob(jobId: string): Observable<AnalysisJobDto> {
@@ -45,7 +37,7 @@ export class ActivityService {
 
   /**
    * Startet die Analyse und fragt den Job ab, bis er fertig ist. Liefert genau einen Job
-   * mit Status DONE oder FAILED (Timeout erledigt das Backend).
+   * mit Status DONE oder FAILED (Timeout erledigt der report-service).
    */
   analyzeActivity(activity: ActivityDto): Observable<AnalysisJobDto> {
     return this.startAnalysis(activity).pipe(

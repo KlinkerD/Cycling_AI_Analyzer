@@ -7,7 +7,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
 import { OverviewService } from './services/overview.service';
-import { AthleteThresholdsDto } from './api/fitness';
+import { AthleteThresholdsDto } from './api/training';
 
 @Component({
   selector: 'app-root',

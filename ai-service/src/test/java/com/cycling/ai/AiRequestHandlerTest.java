@@ -2,12 +2,8 @@ package com.cycling.ai;
 
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.Topics;
-import com.cycling.messaging.contract.AnalysisRequest;
-import com.cycling.messaging.contract.AnalysisResult;
-import com.cycling.messaging.contract.RecommendationTextRequest;
-import com.cycling.messaging.contract.RecommendationTextResult;
-import com.cycling.messaging.contract.WorkoutData;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.cycling.messaging.contract.AiRequest;
+import com.cycling.messaging.contract.AiResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -24,44 +20,42 @@ import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AiRequestHandlerTest {
 
+    private static final String FROM_REPORT = Topics.aiRequest("report");
+
     private final GeminiClient gemini = mock(GeminiClient.class);
     private final MessagePublisher publisher = mock(MessagePublisher.class);
     private final List<Duration> sleeps = new ArrayList<>();
-    private final AiRequestHandler handler = new AiRequestHandler(gemini, new PromptBuilder(), publisher,
-            new ObjectMapper(), Duration.ofSeconds(5),
+    private final AiRequestHandler handler = new AiRequestHandler(gemini, publisher, Duration.ofSeconds(5),
             Clock.fixed(Instant.parse("2026-11-02T10:00:00Z"), ZoneOffset.UTC), sleeps::add);
 
-    private static AnalysisRequest request(String id) {
-        WorkoutData ride = new WorkoutData("Runde", null, false, 30.0, 3600, 200.0, null,
-                null, null, null, null, null, 250, 0.8, null);
-        return new AnalysisRequest(id, ride, List.of(), List.of(), List.of(), 250, 190);
-    }
-
-    private AnalysisResult publishedAnalysis() {
-        ArgumentCaptor<AnalysisResult> captor = ArgumentCaptor.forClass(AnalysisResult.class);
-        verify(publisher).publish(eq(Topics.AI_ANALYSIS_RESULT), captor.capture());
+    private AiResult published(String source) {
+        ArgumentCaptor<AiResult> captor = ArgumentCaptor.forClass(AiResult.class);
+        verify(publisher).publish(eq(Topics.aiResult(source)), captor.capture());
         return captor.getValue();
     }
 
     @Test
-    void publishesParsedAnalysisWithSameRequestId() {
-        when(gemini.generate(anyString(), anyDouble(), eq(true))).thenReturn("""
-                ```json
-                {"score": 8, "strengths": "s", "anomalies": "a", "progress": "p", "summary": "z"}
-                ```""");
+    void passesPromptAndSettingsThroughUnchanged() {
+        when(gemini.generate("Prompt", 0.3, true)).thenReturn("{\"score\": 8}");
 
-        handler.handleAnalysis(request("job-42"));
+        handler.handle(FROM_REPORT, new AiRequest("job-42", "Prompt", 0.3, true));
 
-        AnalysisResult result = publishedAnalysis();
-        assertThat(result.requestId()).isEqualTo("job-42");
-        assertThat(result.success()).isTrue();
-        assertThat(result.score()).isEqualTo(8);
-        assertThat(result.summary()).isEqualTo("z");
+        assertThat(published("report")).isEqualTo(AiResult.ok("job-42", "{\"score\": 8}"));
+    }
+
+    @Test
+    void answerGoesToTheTopicOfTheRequestingSource() {
+        when(gemini.generate(anyString(), anyDouble(), eq(false))).thenReturn("Fahr heute locker.");
+
+        handler.handle(Topics.aiRequest("training"), new AiRequest("rec-1", "Prompt", 0.5, false));
+
+        assertThat(published("training").text()).isEqualTo("Fahr heute locker.");
     }
 
     @Test
@@ -69,41 +63,37 @@ class AiRequestHandlerTest {
         when(gemini.generate(anyString(), anyDouble(), anyBoolean()))
                 .thenThrow(new GeminiClient.GeminiException("HTTP 429", null));
 
-        handler.handleAnalysis(request("job-1"));
+        handler.handle(FROM_REPORT, new AiRequest("job-1", "Prompt", 0.3, true));
 
-        AnalysisResult result = publishedAnalysis();
+        AiResult result = published("report");
         assertThat(result.success()).isFalse();
         assertThat(result.error()).contains("HTTP 429");
+        assertThat(result.text()).isNull();
     }
 
     @Test
-    void invalidJsonIsAnsweredWithErrorResult() {
-        when(gemini.generate(anyString(), anyDouble(), anyBoolean())).thenReturn("Das ist kein JSON");
+    void blankPromptIsRejectedWithoutCallingGemini() {
+        handler.handle(FROM_REPORT, new AiRequest("job-1", " ", 0.3, false));
 
-        handler.handleAnalysis(request("job-1"));
+        assertThat(published("report").success()).isFalse();
+        verify(gemini, never()).generate(anyString(), anyDouble(), anyBoolean());
+    }
 
-        assertThat(publishedAnalysis().success()).isFalse();
+    @Test
+    void temperatureOutsideRangeIsRejected() {
+        handler.handle(FROM_REPORT, new AiRequest("job-1", "Prompt", 2.5, false));
+
+        assertThat(published("report").error()).contains("Temperatur");
+        verify(gemini, never()).generate(anyString(), anyDouble(), anyBoolean());
     }
 
     @Test
     void secondCallWaitsForMinInterval() {
-        when(gemini.generate(anyString(), anyDouble(), anyBoolean())).thenReturn("{\"score\":7}");
+        when(gemini.generate(anyString(), anyDouble(), anyBoolean())).thenReturn("ok");
 
-        handler.handleAnalysis(request("a"));
-        handler.handleAnalysis(request("b"));
+        handler.handle(FROM_REPORT, new AiRequest("a", "Prompt", 0.3, false));
+        handler.handle(FROM_REPORT, new AiRequest("b", "Prompt", 0.3, false));
 
         assertThat(sleeps).containsExactly(Duration.ofSeconds(5));
-    }
-
-    @Test
-    void recommendationTextIsPublished() {
-        when(gemini.generate(anyString(), anyDouble(), eq(false))).thenReturn("Fahr heute locker.");
-
-        handler.handleRecommendation(new RecommendationTextRequest("rec-1", "Locker", -15, 2, false, ""));
-
-        ArgumentCaptor<RecommendationTextResult> captor = ArgumentCaptor.forClass(RecommendationTextResult.class);
-        verify(publisher).publish(eq(Topics.AI_RECOMMENDATION_RESULT), captor.capture());
-        assertThat(captor.getValue()).isEqualTo(
-                new RecommendationTextResult("rec-1", true, null, "Fahr heute locker."));
     }
 }

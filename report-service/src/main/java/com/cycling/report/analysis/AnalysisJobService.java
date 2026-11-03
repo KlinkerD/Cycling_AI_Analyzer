@@ -2,14 +2,11 @@ package com.cycling.report.analysis;
 
 import com.cycling.report.api.ActivityDto;
 import com.cycling.report.api.ReportDto;
-import com.cycling.report.api.ZoneDistributionDto;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.Topics;
-import com.cycling.messaging.contract.AnalysisRequest;
-import com.cycling.messaging.contract.AnalysisResult;
+import com.cycling.messaging.contract.AiRequest;
+import com.cycling.messaging.contract.AiResult;
 import com.cycling.report.ReportDelivery;
-import com.cycling.messaging.contract.WorkoutData;
-import com.cycling.messaging.contract.ZoneShare;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -18,7 +15,6 @@ import org.slf4j.LoggerFactory;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -26,8 +22,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
- * Steuert die asynchrone KI-Analyse: legt einen Job an, schickt den Auftrag per MQTT an den
- * ai-service und speichert die Analyse, sobald das Ergebnis zurueckkommt. Danach geht der fertige
+ * Steuert die asynchrone KI-Analyse: legt einen Job an, schickt den Prompt ({@link AnalysisPrompt}) per
+ * MQTT an den ai-service und speichert die Analyse, sobald die Antwort zurueckkommt. Danach geht der fertige
  * Report in den Versand (Job-ID = Request-ID, damit eine doppelte Zustellung des Ergebnisses keinen
  * zweiten Versand ausloest).
  *
@@ -38,6 +34,8 @@ import java.util.stream.Collectors;
 public class AnalysisJobService {
 
     private static final Logger log = LoggerFactory.getLogger(AnalysisJobService.class);
+    /** Quelle beim ai-service: Auftraege auf cycling/ai/request/report, Antworten auf cycling/ai/result/report. */
+    public static final String AI_SOURCE = "report";
 
     private final AnalysisService analysisService;
     private final AnalysisJobRepository jobRepository;
@@ -76,7 +74,7 @@ public class AnalysisJobService {
             PreparedAnalysis prepared = analysisService.prepare(activityId, activity);
             // Erst speichern, dann senden: ein schnelles Ergebnis muss den Job schon finden.
             jobRepository.save(job);
-            publisher.publish(Topics.AI_ANALYSIS_REQUEST, toRequest(job.getId(), prepared));
+            publisher.publish(Topics.aiRequest(AI_SOURCE), toRequest(job.getId(), prepared));
             log.info("Analyse-Auftrag {} fuer '{}' gesendet", job.getId(), activity.name());
         } catch (RuntimeException e) {
             log.error("Analyse fuer {} konnte nicht gestartet werden: {}", activityId, e.getMessage());
@@ -87,10 +85,10 @@ public class AnalysisJobService {
     }
 
     /**
-     * Verarbeitet ein Ergebnis des ai-service. Idempotent: doppelte Zustellungen fertiger Jobs werden
-     * ignoriert. Ein Ergebnis, das erst nach dem Timeout kommt, wird trotzdem noch uebernommen.
+     * Verarbeitet eine Antwort des ai-service. Idempotent: doppelte Zustellungen fertiger Jobs werden
+     * ignoriert. Eine Antwort, die erst nach dem Timeout kommt, wird trotzdem noch uebernommen.
      */
-    public void complete(AnalysisResult result) {
+    public void complete(AiResult result) {
         AnalysisJob job = jobRepository.findById(result.requestId()).orElse(null);
         if (job == null) {
             log.warn("Ergebnis fuer unbekannten Analyse-Job {} verworfen", result.requestId());
@@ -105,11 +103,20 @@ public class AnalysisJobService {
             jobRepository.save(job);
             return;
         }
+        AiAssessment assessment;
+        try {
+            assessment = AnalysisPrompt.parse(result.text());
+        } catch (IllegalArgumentException e) {
+            log.error("Antwort fuer Job {} unbrauchbar: {}", job.getId(), e.getMessage());
+            job.markFailed(e.getMessage(), now());
+            jobRepository.save(job);
+            return;
+        }
 
         ReportDto report;
         try {
             ActivityDto activity = objectMapper.readValue(job.getActivityJson(), ActivityDto.class);
-            report = analysisService.complete(analysisService.prepare(job.getActivityId(), activity), result);
+            report = analysisService.complete(analysisService.prepare(job.getActivityId(), activity), assessment);
         } catch (JsonProcessingException | RuntimeException e) {
             log.error("Ergebnis fuer Job {} konnte nicht gespeichert werden: {}", job.getId(), e.getMessage(), e);
             job.markFailed("Analyse konnte nicht gespeichert werden: " + e.getMessage(), now());
@@ -155,38 +162,8 @@ public class AnalysisJobService {
         }
     }
 
-    static AnalysisRequest toRequest(String requestId, PreparedAnalysis prepared) {
-        return new AnalysisRequest(
-                requestId,
-                toWorkout(prepared.analysis()),
-                toZones(prepared.powerZones()),
-                toZones(prepared.hrZones()),
-                prepared.lastThree().stream().map(AnalysisJobService::toWorkout).toList(),
-                prepared.ftp(),
-                prepared.maxHr());
-    }
-
-    private static WorkoutData toWorkout(ActivityAnalysis a) {
-        return new WorkoutData(
-                a.getActivityName(),
-                a.getActivityDate() != null ? a.getActivityDate().toString() : null,
-                a.getIndoor(),
-                a.getDistanceKm(),
-                a.getDurationSeconds(),
-                a.getAvgPowerWatts(),
-                a.getMaxPowerWatts(),
-                a.getAvgHeartRate(),
-                a.getMaxHeartRate(),
-                a.getAvgSpeedKmh(),
-                a.getElevationGainM(),
-                a.getAvgCadenceRpm(),
-                a.getFtpUsed(),
-                a.getIntensityFactor(),
-                a.getOverallScore());
-    }
-
-    private static List<ZoneShare> toZones(List<ZoneDistributionDto> zones) {
-        return zones.stream().map(z -> new ZoneShare(z.zoneName(), z.zoneLabel(), z.percentage())).toList();
+    static AiRequest toRequest(String requestId, PreparedAnalysis prepared) {
+        return new AiRequest(requestId, AnalysisPrompt.build(prepared), AnalysisPrompt.TEMPERATURE, true);
     }
 
     private String toJson(ActivityDto activity) {

@@ -1,8 +1,8 @@
 
 services:
 
-  # MQTT-Broker: verbindet intervals-service, ai-service, report-service, fitness-service,
-  # recommendation-service und delivery-service.
+  # MQTT-Broker: verbindet intervals-service, ai-service, report-service, training-service und
+  # delivery-service.
   mosquitto:
     image: eclipse-mosquitto:2.0.20
     container_name: cycling-mosquitto
@@ -19,9 +19,8 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # intervals-service: einzige Anbindung an intervals.icu. REST-API mit Cache fuer report-, fitness- und
-  # recommendation-service,
-  # meldet neue Aktivitaeten und Fitness-Aenderungen per MQTT. Kein Port nach aussen.
+  # intervals-service: einzige Anbindung an intervals.icu. REST-API mit Cache fuer report- und
+  # training-service, meldet neue Aktivitaeten und Fitness-Aenderungen per MQTT. Kein Port nach aussen.
   intervals-service:
     build:
       context: .
@@ -92,44 +91,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # fitness-service: liefert Fitness-Chart und Athleten-Profil per REST (/api/fitness) und schickt abends
-  # eine Tageszusammenfassung von Fitness/Fatigue/Form/Ramp an den delivery-service. Kein eigener Speicher.
-  fitness-service:
+  # training-service: Zustand des Athleten und Tagesempfehlung. Liefert Fitness-Chart und Athleten-Profil
+  # (/api/fitness) und die Empfehlung (/api/recommendation) per REST, schickt abends die Fitness-Zusammenfassung
+  # und morgens die Empfehlung an den delivery-service. Texte formuliert der ai-service. Kein eigener Speicher.
+  training-service:
     build:
       context: .
-      dockerfile: fitness-service/Dockerfile
-    container_name: cycling-fitness
+      dockerfile: training-service/Dockerfile
+    container_name: cycling-training
     environment:
       - MQTT_BROKER_URL=tcp://mosquitto:1883
       - INTERVALS_SERVICE_URL=http://intervals-service:8080
+      - TRAINING_ZONE=${TRAINING_ZONE:-Europe/Berlin}
       - FITNESS_SUMMARY_TIME=${FITNESS_SUMMARY_TIME:-21:00}
-      - FITNESS_SUMMARY_ZONE=${FITNESS_SUMMARY_ZONE:-Europe/Berlin}
       # Ziel beim delivery-service; "fitness" braucht dort DELIVERY_DISCORD_DESTINATIONS_FITNESS
       - FITNESS_TARGETS=${FITNESS_TARGETS:-DISCORD:fitness}
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    depends_on:
-      mosquitto:
-        condition: service_healthy
-      intervals-service:
-        condition: service_healthy
-    restart: unless-stopped
-
-  # recommendation-service: berechnet die Tagesempfehlung (Daten vom intervals-service, Text vom ai-service),
-  # liefert sie per REST an die Overview (/api/recommendation) und schickt sie morgens an den delivery-service.
-  recommendation-service:
-    build:
-      context: .
-      dockerfile: recommendation-service/Dockerfile
-    container_name: cycling-recommendation
-    environment:
-      - MQTT_BROKER_URL=tcp://mosquitto:1883
-      - INTERVALS_SERVICE_URL=http://intervals-service:8080
-      - RECOMMENDATION_ZONE=${RECOMMENDATION_ZONE:-Europe/Berlin}
       - RECOMMENDATION_REFRESH_CRON=${RECOMMENDATION_REFRESH_CRON:-0 0 */4 * * *}
       - RECOMMENDATION_DAILY_TIME=${RECOMMENDATION_DAILY_TIME:-09:00}
       - RECOMMENDATION_DAILY_CATCH_UP_UNTIL=${RECOMMENDATION_DAILY_CATCH_UP_UNTIL:-12:00}
@@ -178,8 +154,8 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # frontend: Angular-App hinter nginx; /api/reports, /api/fitness und /api/recommendation gehen
-  # direkt an den jeweiligen Service (siehe frontend/nginx.conf).
+  # frontend: Angular-App hinter nginx; /api/reports geht an den report-service, /api/fitness und
+  # /api/recommendation an den training-service (siehe frontend/nginx.conf).
   frontend:
     build:
       context: ./frontend
@@ -190,9 +166,7 @@ services:
     depends_on:
       report-service:
         condition: service_healthy
-      fitness-service:
-        condition: service_healthy
-      recommendation-service:
+      training-service:
         condition: service_healthy
     restart: unless-stopped
 

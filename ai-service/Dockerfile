@@ -15,8 +15,7 @@ COPY ai-service ./ai-service
 COPY cycling-web/pom.xml ./cycling-web/pom.xml
 COPY report-service/pom.xml ./report-service/pom.xml
 COPY delivery-service/pom.xml ./delivery-service/pom.xml
-COPY fitness-service/pom.xml ./fitness-service/pom.xml
-COPY recommendation-service/pom.xml ./recommendation-service/pom.xml
+COPY training-service/pom.xml ./training-service/pom.xml
 
 RUN --mount=type=cache,target=/root/.m2 \
     mvn -q -B -pl ai-service -am package -DskipTests

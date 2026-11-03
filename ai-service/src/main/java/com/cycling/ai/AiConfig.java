@@ -3,8 +3,7 @@ package com.cycling.ai;
 import com.cycling.messaging.MqttMessaging;
 import com.cycling.messaging.MqttSettings;
 import com.cycling.messaging.Topics;
-import com.cycling.messaging.contract.AnalysisRequest;
-import com.cycling.messaging.contract.RecommendationTextRequest;
+import com.cycling.messaging.contract.AiRequest;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -49,10 +48,9 @@ public class AiConfig {
     @Bean
     public AiRequestHandler aiRequestHandler(GeminiClient gemini, MqttMessaging messaging,
                                              @Value("${gemini.min-interval:5s}") Duration minInterval) {
-        AiRequestHandler handler = new AiRequestHandler(gemini, new PromptBuilder(), messaging,
-                new ObjectMapper(), minInterval, Clock.systemUTC(), Thread::sleep);
-        messaging.subscribe(Topics.AI_ANALYSIS_REQUEST, AnalysisRequest.class, handler::handleAnalysis);
-        messaging.subscribe(Topics.AI_RECOMMENDATION_REQUEST, RecommendationTextRequest.class, handler::handleRecommendation);
+        AiRequestHandler handler = new AiRequestHandler(gemini, messaging, minInterval, Clock.systemUTC(),
+                Thread::sleep);
+        messaging.subscribe(Topics.AI_REQUEST_ALL, AiRequest.class, handler::handle);
         return handler;
     }
 

@@ -2,7 +2,6 @@ package com.cycling.report.analysis;
 
 import com.cycling.report.api.ActivityDto;
 import com.cycling.report.api.StreamDataDto;
-import com.cycling.messaging.contract.AnalysisResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -49,7 +48,7 @@ class AnalysisServiceAnalyzeTest {
         return dto;
     }
 
-    private static final AnalysisResult AI = new AnalysisResult("job", true, null, 7, "s", "a", "p", "sum");
+    private static final AiAssessment AI = new AiAssessment(7, "s", "a", "p", "sum");
 
     private PreparedAnalysis analyze(ActivityDto activity) {
         PreparedAnalysis prepared = service.prepare("i1", activity);

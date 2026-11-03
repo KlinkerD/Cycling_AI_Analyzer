@@ -22,12 +22,10 @@ info:
       description: Einzige Anbindung an intervals.icu; meldet neue Fahrten und Fitness-Änderungen.
     - name: report-service
       description: Analysiert Fahrten (KI), speichert sie, versendet Reports.
-    - name: fitness-service
-      description: Abends eine Fitness-Zusammenfassung.
-    - name: recommendation-service
-      description: Tagesempfehlung, morgens per Discord.
+    - name: training-service
+      description: Zustand des Athleten; abends Fitness-Zusammenfassung, morgens Tagesempfehlung.
     - name: ai-service
-      description: Gemini; beantwortet Analyse- und Empfehlungsaufträge.
+      description: Gemini ohne Fachlichkeit; Prompt rein, Antworttext raus.
     - name: delivery-service
       description: Versand per Mail und Discord für alle Quellen.
 
@@ -68,33 +66,30 @@ channels:
       wellnessUpdated:
         $ref: '#/components/messages/WellnessUpdated'
 
-  aiAnalysisRequest:
-    address: cycling/ai/analysis/request
-    title: KI-Auftrag Analyse
+  aiRequest:
+    address: cycling/ai/request/{source}
+    title: KI-Auftrag
+    description: |
+      Fertiger Prompt für Gemini. Der letzte Topic-Teil ist die Quelle; der ai-service abonniert
+      `cycling/ai/request/+` und antwortet auf `cycling/ai/result/{source}`. Prompt bauen und Antwort
+      auswerten ist Sache des Absenders; neue Anwendungsfälle brauchen keine Änderung am ai-service.
+    parameters:
+      source:
+        $ref: '#/components/parameters/aiSource'
     messages:
-      analysisRequest:
-        $ref: '#/components/messages/AnalysisRequest'
+      aiRequest:
+        $ref: '#/components/messages/AiRequest'
 
-  aiAnalysisResult:
-    address: cycling/ai/analysis/result
-    title: KI-Ergebnis Analyse
+  aiResult:
+    address: cycling/ai/result/{source}
+    title: KI-Antwort
+    description: Genau eine Antwort pro Auftrag, auch bei Fehlern (success=false).
+    parameters:
+      source:
+        $ref: '#/components/parameters/aiSource'
     messages:
-      analysisResult:
-        $ref: '#/components/messages/AnalysisResult'
-
-  aiRecommendationRequest:
-    address: cycling/ai/recommendation/request
-    title: KI-Auftrag Empfehlungstext
-    messages:
-      recommendationTextRequest:
-        $ref: '#/components/messages/RecommendationTextRequest'
-
-  aiRecommendationResult:
-    address: cycling/ai/recommendation/result
-    title: KI-Ergebnis Empfehlungstext
-    messages:
-      recommendationTextResult:
-        $ref: '#/components/messages/RecommendationTextResult'
+      aiResult:
+        $ref: '#/components/messages/AiResult'
 
   deliveryRequest:
     address: cycling/delivery/request/{source}
@@ -162,11 +157,11 @@ operations:
   reportSendAnalysisRequest:
     action: send
     channel:
-      $ref: '#/channels/aiAnalysisRequest'
-    summary: KI-Auftrag; requestId = ID des Analyse-Jobs.
+      $ref: '#/channels/aiRequest'
+    summary: Analyse-Prompt (AnalysisPrompt, json=true, Temperatur 0.3) auf `cycling/ai/request/report`.
     description: |
-      Abbruch, wenn nach `ANALYSIS_JOB_TIMEOUT` (Standard 15 min) keine Antwort kommt; ein später
-      eintreffendes Ergebnis wird trotzdem übernommen.
+      requestId = ID des Analyse-Jobs. Abbruch, wenn nach `ANALYSIS_JOB_TIMEOUT` (Standard 15 min) keine
+      Antwort kommt; eine später eintreffende Antwort wird trotzdem übernommen.
     tags:
       - name: report-service
     x-service: report-service
@@ -177,13 +172,14 @@ operations:
         bindingVersion: 0.2.0
     reply:
       channel:
-        $ref: '#/channels/aiAnalysisResult'
+        $ref: '#/channels/aiResult'
 
   reportReceiveAnalysisResult:
     action: receive
     channel:
-      $ref: '#/channels/aiAnalysisResult'
-    summary: Speichert die Analyse und versendet den Report (idempotent je Job).
+      $ref: '#/channels/aiResult'
+    summary: Liest die JSON-Bewertung, speichert die Analyse und versendet den Report (idempotent je Job).
+    description: Antwort ohne lesbares JSON setzt den Job auf FAILED. Abo `cycling/ai/result/report`.
     tags:
       - name: report-service
     x-service: report-service
@@ -214,40 +210,40 @@ operations:
         retain: false
         bindingVersion: 0.2.0
 
-  # ---- fitness-service -----------------------------------------------------------------
-  fitnessReceiveWellnessUpdated:
+  # ---- training-service ----------------------------------------------------------------
+  trainingReceiveWellnessUpdated:
     action: receive
     channel:
       $ref: '#/channels/wellnessUpdated'
-    summary: Hält den letzten Stand für die Tageszusammenfassung.
+    summary: Hält den letzten Stand für die Fitness-Zusammenfassung.
     tags:
-      - name: fitness-service
-    x-service: fitness-service
+      - name: training-service
+    x-service: training-service
 
-  fitnessSendDeliveryMessage:
+  trainingSendFitnessMessage:
     action: send
     channel:
       $ref: '#/channels/deliveryRequest'
-    summary: Tageszusammenfassung ab `FITNESS_SUMMARY_TIME` (Quelle `fitness`).
+    summary: Fitness-Zusammenfassung ab `FITNESS_SUMMARY_TIME` (Quelle `fitness`).
     description: messageId `fitness-daily-<datum>`, damit pro Tag nur eine Nachricht verschickt wird.
     tags:
-      - name: fitness-service
-    x-service: fitness-service
+      - name: training-service
+    x-service: training-service
     bindings:
       mqtt:
         qos: 1
         retain: false
         bindingVersion: 0.2.0
 
-  # ---- recommendation-service ----------------------------------------------------------
-  recommendationSendTextRequest:
+  trainingSendRecommendationPrompt:
     action: send
     channel:
-      $ref: '#/channels/aiRecommendationRequest'
-    summary: KI-Text zur berechneten Kategorie anfragen (höchstens 90 s warten).
+      $ref: '#/channels/aiRequest'
+    summary: Prompt für den Empfehlungstext (RecommendationPrompt, json=false) auf `cycling/ai/request/training`.
+    description: Die Kategorie steht vorher fest; höchstens 90 s wird auf den Text gewartet.
     tags:
-      - name: recommendation-service
-    x-service: recommendation-service
+      - name: training-service
+    x-service: training-service
     bindings:
       mqtt:
         qos: 1
@@ -255,26 +251,27 @@ operations:
         bindingVersion: 0.2.0
     reply:
       channel:
-        $ref: '#/channels/aiRecommendationResult'
+        $ref: '#/channels/aiResult'
 
-  recommendationReceiveTextResult:
+  trainingReceiveRecommendationText:
     action: receive
     channel:
-      $ref: '#/channels/aiRecommendationResult'
+      $ref: '#/channels/aiResult'
     summary: Ersetzt den Fallback-Text; Antworten auf ältere Berechnungen werden ignoriert.
+    description: Abo `cycling/ai/result/training`.
     tags:
-      - name: recommendation-service
-    x-service: recommendation-service
+      - name: training-service
+    x-service: training-service
 
-  recommendationSendDeliveryMessage:
+  trainingSendRecommendationMessage:
     action: send
     channel:
       $ref: '#/channels/deliveryRequest'
-    summary: Morgen-Nachricht ab `RECOMMENDATION_DAILY_TIME` (Quelle `recommendation`).
+    summary: Morgen-Empfehlung ab `RECOMMENDATION_DAILY_TIME` (Quelle `recommendation`).
     description: messageId `recommendation-daily-<datum>`.
     tags:
-      - name: recommendation-service
-    x-service: recommendation-service
+      - name: training-service
+    x-service: training-service
     bindings:
       mqtt:
         qos: 1
@@ -282,43 +279,23 @@ operations:
         bindingVersion: 0.2.0
 
   # ---- ai-service ----------------------------------------------------------------------
-  aiReceiveAnalysisRequest:
+  aiReceiveRequest:
     action: receive
     channel:
-      $ref: '#/channels/aiAnalysisRequest'
-    summary: Bewertet die Fahrt mit Gemini.
+      $ref: '#/channels/aiRequest'
+    summary: Reicht den Prompt unverändert an Gemini weiter (Abo `cycling/ai/request/+`).
+    description: |
+      Leerer Prompt oder Temperatur außerhalb 0 … 2 wird ohne Gemini-Aufruf mit success=false beantwortet.
+      Zwischen zwei Aufrufen liegen mindestens `GEMINI_MIN_INTERVAL` (Standard 5 s).
     tags:
       - name: ai-service
     x-service: ai-service
 
-  aiSendAnalysisResult:
+  aiSendResult:
     action: send
     channel:
-      $ref: '#/channels/aiAnalysisResult'
-    summary: Ergebnis oder Fehler (success=false) mit derselben requestId.
-    tags:
-      - name: ai-service
-    x-service: ai-service
-    bindings:
-      mqtt:
-        qos: 1
-        retain: false
-        bindingVersion: 0.2.0
-
-  aiReceiveRecommendationRequest:
-    action: receive
-    channel:
-      $ref: '#/channels/aiRecommendationRequest'
-    summary: Formuliert den Empfehlungstext.
-    tags:
-      - name: ai-service
-    x-service: ai-service
-
-  aiSendRecommendationResult:
-    action: send
-    channel:
-      $ref: '#/channels/aiRecommendationResult'
-    summary: Text oder Fehler (success=false) mit derselben requestId.
+      $ref: '#/channels/aiResult'
+    summary: Antworttext oder Fehler (success=false) mit derselben requestId, an die Quelle des Auftrags.
     tags:
       - name: ai-service
     x-service: ai-service
@@ -357,6 +334,11 @@ operations:
 
 components:
   parameters:
+    aiSource:
+      description: Absender des KI-Auftrags; die Antwort geht an dieselbe Quelle.
+      enum:
+        - report
+        - training
     source:
       description: Absender des Versandauftrags.
       enum:
@@ -376,34 +358,20 @@ components:
       title: Fitness-Werte heute und gestern
       payload:
         $ref: '#/components/schemas/WellnessUpdated'
-    AnalysisRequest:
-      name: AnalysisRequest
-      title: Training bewerten
+    AiRequest:
+      name: AiRequest
+      title: Prompt für Gemini
       correlationId:
         $ref: '#/components/correlationIds/requestId'
       payload:
-        $ref: '#/components/schemas/AnalysisRequest'
-    AnalysisResult:
-      name: AnalysisResult
-      title: Bewertung eines Trainings
+        $ref: '#/components/schemas/AiRequest'
+    AiResult:
+      name: AiResult
+      title: Antwort von Gemini
       correlationId:
         $ref: '#/components/correlationIds/requestId'
       payload:
-        $ref: '#/components/schemas/AnalysisResult'
-    RecommendationTextRequest:
-      name: RecommendationTextRequest
-      title: Empfehlungstext formulieren
-      correlationId:
-        $ref: '#/components/correlationIds/requestId'
-      payload:
-        $ref: '#/components/schemas/RecommendationTextRequest'
-    RecommendationTextResult:
-      name: RecommendationTextResult
-      title: Formulierter Empfehlungstext
-      correlationId:
-        $ref: '#/components/correlationIds/requestId'
-      payload:
-        $ref: '#/components/schemas/RecommendationTextResult'
+        $ref: '#/components/schemas/AiResult'
     DeliveryMessage:
       name: DeliveryMessage
       title: Neutrale Nachricht für Mail/Discord
@@ -461,85 +429,23 @@ components:
             - $ref: '#/components/schemas/WellnessValues'
             - type: 'null'
 
-    WorkoutData:
+    AiRequest:
       type: object
-      description: Kennzahlen einer Fahrt für Bewertung und Vergleich; alle Werte optional.
+      required: [requestId, prompt, temperature, json]
       properties:
-        activityName: { type: [string, 'null'] }
-        activityDate: { type: [string, 'null'], description: ISO-Datum/Zeit }
-        indoor: { type: [boolean, 'null'] }
-        distanceKm: { type: [number, 'null'] }
-        durationSeconds: { type: [integer, 'null'] }
-        avgPowerWatts: { type: [number, 'null'] }
-        maxPowerWatts: { type: [number, 'null'] }
-        avgHeartRate: { type: [number, 'null'] }
-        maxHeartRate: { type: [number, 'null'] }
-        avgSpeedKmh: { type: [number, 'null'] }
-        elevationGainM: { type: [number, 'null'] }
-        avgCadenceRpm: { type: [number, 'null'] }
-        ftpUsed: { type: [integer, 'null'] }
-        intensityFactor: { type: [number, 'null'] }
-        overallScore: { type: [integer, 'null'] }
+        requestId: { type: string, description: 'Korrelation, z. B. ID des Analyse-Jobs' }
+        prompt: { type: string, minLength: 1, description: vollständiger Prompt, geht unverändert an Gemini }
+        temperature: { type: number, minimum: 0, maximum: 2, examples: [0.3, 0.5] }
+        json: { type: boolean, description: true = Gemini soll reines JSON liefern (der Absender parst es) }
 
-    ZoneShare:
-      type: object
-      properties:
-        zoneName: { type: string, examples: [Z2] }
-        zoneLabel: { type: string, examples: [Ausdauer] }
-        percentage: { type: number, description: Anteil der Fahrzeit in Prozent }
-
-    AnalysisRequest:
-      type: object
-      required: [requestId, workout, ftp, maxHr]
-      properties:
-        requestId: { type: string, description: ID des Analyse-Jobs }
-        workout:
-          $ref: '#/components/schemas/WorkoutData'
-        powerZones:
-          type: array
-          items: { $ref: '#/components/schemas/ZoneShare' }
-        hrZones:
-          type: array
-          items: { $ref: '#/components/schemas/ZoneShare' }
-        previous:
-          type: array
-          description: bis zu 3 vorherige Fahrten, neueste zuerst
-          items: { $ref: '#/components/schemas/WorkoutData' }
-        ftp: { type: integer }
-        maxHr: { type: integer }
-
-    AnalysisResult:
+    AiResult:
       type: object
       required: [requestId, success]
       properties:
         requestId: { type: string }
         success: { type: boolean }
         error: { type: [string, 'null'], description: Grund bei success=false }
-        score: { type: integer, minimum: 0, maximum: 10 }
-        strengths: { type: [string, 'null'] }
-        anomalies: { type: [string, 'null'] }
-        progress: { type: [string, 'null'] }
-        summary: { type: [string, 'null'] }
-
-    RecommendationTextRequest:
-      type: object
-      required: [requestId, categoryLabel]
-      properties:
-        requestId: { type: string }
-        categoryLabel: { type: string, description: 'Feste Kategorie, z. B. Tempo / Sweet Spot; die KI darf sie nicht ändern' }
-        form: { type: number }
-        rampRate: { type: number }
-        rampCapped: { type: boolean, description: wegen zu schnellem Aufbau eine Stufe lockerer }
-        last7DaysSummary: { type: string, description: 'Zeilen "- dd.MM. Name, TSS, IF, km"; leer = keine Fahrten' }
-
-    RecommendationTextResult:
-      type: object
-      required: [requestId, success]
-      properties:
-        requestId: { type: string }
-        success: { type: boolean }
-        error: { type: [string, 'null'] }
-        text: { type: [string, 'null'] }
+        text: { type: [string, 'null'], description: Antworttext unverändert; null bei success=false }
 
     DeliveryMessage:
       type: object

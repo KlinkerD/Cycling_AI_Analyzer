@@ -9,8 +9,8 @@ import com.cycling.report.api.ZoneDistributionDto;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.MessagingException;
 import com.cycling.messaging.Topics;
-import com.cycling.messaging.contract.AnalysisRequest;
-import com.cycling.messaging.contract.AnalysisResult;
+import com.cycling.messaging.contract.AiRequest;
+import com.cycling.messaging.contract.AiResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -95,8 +95,11 @@ class AnalysisJobServiceTest {
                 List.of(), List.of(), null);
     }
 
-    private static AnalysisResult success(String jobId) {
-        return new AnalysisResult(jobId, true, null, 8, "s", "a", "p", "z");
+    private static final AiAssessment ASSESSMENT = new AiAssessment(8, "s", "a", "p", "z");
+
+    private static AiResult success(String jobId) {
+        return AiResult.ok(jobId, """
+                {"score": 8, "strengths": "s", "anomalies": "a", "progress": "p", "summary": "z"}""");
     }
 
     @Test
@@ -106,14 +109,13 @@ class AnalysisJobServiceTest {
         AnalysisJob job = service.start("i1", activity());
 
         assertThat(job.getStatus()).isEqualTo(AnalysisJobStatus.PENDING);
-        ArgumentCaptor<AnalysisRequest> captor = ArgumentCaptor.forClass(AnalysisRequest.class);
-        verify(publisher).publish(eq(Topics.AI_ANALYSIS_REQUEST), captor.capture());
-        AnalysisRequest request = captor.getValue();
+        ArgumentCaptor<AiRequest> captor = ArgumentCaptor.forClass(AiRequest.class);
+        verify(publisher).publish(eq("cycling/ai/request/report"), captor.capture());
+        AiRequest request = captor.getValue();
         assertThat(request.requestId()).isEqualTo(job.getId());
-        assertThat(request.ftp()).isEqualTo(250);
-        assertThat(request.workout().activityDate()).isEqualTo("2026-11-01T09:30");
-        assertThat(request.powerZones()).singleElement().satisfies(z -> assertThat(z.percentage()).isEqualTo(50.0));
-        assertThat(request.previous()).extracting(w -> w.activityName()).containsExactly("Vorher");
+        assertThat(request.json()).isTrue();
+        assertThat(request.temperature()).isEqualTo(AnalysisPrompt.TEMPERATURE);
+        assertThat(request.prompt()).isEqualTo(AnalysisPrompt.build(prepared()));
     }
 
     @Test
@@ -141,7 +143,7 @@ class AnalysisJobServiceTest {
     void successfulResultStoresAnalysisAndRequestsDelivery() {
         when(analysis.prepare(eq("i1"), any())).thenReturn(prepared());
         AnalysisJob job = service.start("i1", activity());
-        when(analysis.complete(any(), eq(success(job.getId())))).thenReturn(report());
+        when(analysis.complete(any(), eq(ASSESSMENT))).thenReturn(report());
 
         service.complete(success(job.getId()));
 
@@ -202,10 +204,21 @@ class AnalysisJobServiceTest {
     void failedResultMarksJobFailed() {
         stored.put("j1", new AnalysisJob("j1", "i1", "{}", NOW));
 
-        service.complete(AnalysisResult.failed("j1", "HTTP 429"));
+        service.complete(AiResult.failed("j1", "HTTP 429"));
 
         assertThat(stored.get("j1").getStatus()).isEqualTo(AnalysisJobStatus.FAILED);
         assertThat(stored.get("j1").getError()).contains("HTTP 429");
+    }
+
+    @Test
+    void unreadableAnswerMarksJobFailedWithoutSaving() {
+        stored.put("j1", new AnalysisJob("j1", "i1", "{}", NOW));
+
+        service.complete(AiResult.ok("j1", "Das ist kein JSON"));
+
+        assertThat(stored.get("j1").getStatus()).isEqualTo(AnalysisJobStatus.FAILED);
+        assertThat(stored.get("j1").getError()).contains("kein gueltiges JSON");
+        verify(analysis, never()).complete(any(), any());
     }
 
     @Test

@@ -1,0 +1,250 @@
+openapi: 3.0.1
+info:
+  title: Cycling Training API
+  version: "1"
+servers:
+- url: /
+paths:
+  /api/fitness/athlete:
+    get:
+      operationId: getAthlete
+      parameters:
+      - in: query
+        name: refresh
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AthleteZonesDto"
+          description: OK
+      tags:
+      - Fitness
+  /api/fitness/wellness:
+    get:
+      operationId: getWellness
+      parameters:
+      - in: query
+        name: from
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: refresh
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WellnessPointDto"
+          description: OK
+      tags:
+      - Fitness
+  /api/recommendation:
+    get:
+      operationId: getRecommendation
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyRecommendationDto"
+          description: Aktuelle Empfehlung
+        "503":
+          description: Noch keine Empfehlung und intervals-service nicht erreichbar
+      tags:
+      - Recommendation
+  /api/recommendation/refresh:
+    post:
+      operationId: refreshRecommendation
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyRecommendationDto"
+          description: Neue (oder bei Fehlern die letzte) Empfehlung
+        "503":
+          description: Noch keine Empfehlung und intervals-service nicht erreichbar
+      tags:
+      - Recommendation
+components:
+  schemas:
+    AthleteThresholdsDto:
+      type: object
+      properties:
+        ftp:
+          type: integer
+          format: int32
+          nullable: true
+        indoorFtp:
+          type: integer
+          format: int32
+          nullable: true
+        lthr:
+          type: integer
+          format: int32
+          nullable: true
+        maxHr:
+          type: integer
+          format: int32
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        weight:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - ftp
+      - indoorFtp
+      - lthr
+      - maxHr
+      - name
+      - weight
+    AthleteZonesDto:
+      type: object
+      properties:
+        hrReference:
+          type: string
+          enum:
+          - lthr
+          - max_hr
+        hrZones:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZoneDto"
+        powerZones:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZoneDto"
+        thresholds:
+          $ref: "#/components/schemas/AthleteThresholdsDto"
+      required:
+      - hrReference
+      - hrZones
+      - powerZones
+      - thresholds
+    DailyRecommendationDto:
+      type: object
+      properties:
+        category:
+          type: string
+          enum:
+          - REST
+          - EASY
+          - ENDURANCE
+          - TEMPO
+          - HARD_INTERVALS
+          - INSUFFICIENT_DATA
+        categoryLabel:
+          type: string
+        color:
+          type: string
+        computedAt:
+          type: string
+          format: date-time
+          nullable: true
+        form:
+          type: number
+          format: double
+          nullable: true
+        rampCapped:
+          type: boolean
+        rampRate:
+          type: number
+          format: double
+          nullable: true
+        refDate:
+          type: string
+          format: date
+          nullable: true
+        text:
+          type: string
+        textPending:
+          type: boolean
+      required:
+      - category
+      - categoryLabel
+      - color
+      - computedAt
+      - form
+      - rampCapped
+      - rampRate
+      - refDate
+      - text
+      - textPending
+    WellnessPointDto:
+      type: object
+      properties:
+        atl:
+          type: number
+          format: double
+          nullable: true
+        ctl:
+          type: number
+          format: double
+          nullable: true
+        date:
+          type: string
+        form:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - atl
+      - ctl
+      - date
+      - form
+    ZoneDto:
+      type: object
+      properties:
+        color:
+          type: string
+        index:
+          type: integer
+          format: int32
+        lowerPct:
+          type: number
+          format: double
+          nullable: true
+        lowerValue:
+          type: integer
+          format: int32
+          nullable: true
+        name:
+          type: string
+        upperPct:
+          type: number
+          format: double
+          nullable: true
+        upperValue:
+          type: integer
+          format: int32
+          nullable: true
+      required:
+      - color
+      - index
+      - lowerPct
+      - lowerValue
+      - name
+      - upperPct
+      - upperValue

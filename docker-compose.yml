@@ -1,7 +1,7 @@
 
 services:
 
-  # MQTT-Broker: verbindet backend, ai-service und report-delivery-service.
+  # MQTT-Broker: verbindet backend, intervals-service, ai-service, report-service, fitness-service und delivery-service.
   mosquitto:
     image: eclipse-mosquitto:2.0.20
     container_name: cycling-mosquitto
@@ -18,7 +18,33 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # analysis-service: REST-API, intervals.icu, Analysen, Tagesempfehlung
+  # intervals-service: einzige Anbindung an intervals.icu. REST-API mit Cache fuer das backend,
+  # meldet neue Aktivitaeten und Fitness-Aenderungen per MQTT. Kein Port nach aussen.
+  intervals-service:
+    build:
+      context: .
+      dockerfile: intervals-service/Dockerfile
+    container_name: cycling-intervals
+    environment:
+      - INTERVALS_API_KEY=${INTERVALS_API_KEY}
+      - INTERVALS_ATHLETE_ID=${INTERVALS_ATHLETE_ID}
+      - INTERVALS_POLL_INTERVAL=${INTERVALS_POLL_INTERVAL:-15m}
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+    # Zum Debuggen bei Bedarf nur lokal freigeben:
+    # ports:
+    #   - "127.0.0.1:8081:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # analysis-service: REST-API, Analysen, Tagesempfehlung. intervals.icu-Daten ueber den intervals-service.
   backend:
     build:
       context: .
@@ -29,8 +55,7 @@ services:
     volumes:
       - cycling-data:/app/data
     environment:
-      - INTERVALS_API_KEY=${INTERVALS_API_KEY}
-      - INTERVALS_ATHLETE_ID=${INTERVALS_ATHLETE_ID}
+      - INTERVALS_SERVICE_URL=http://intervals-service:8080
       - CYCLING_FTP=${CYCLING_FTP:-250}
       - CYCLING_MAX_HR=${CYCLING_MAX_HR:-190}
       - MQTT_BROKER_URL=tcp://mosquitto:1883
@@ -38,6 +63,8 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/cycling-analysis;AUTO_SERVER=TRUE
     depends_on:
       mosquitto:
+        condition: service_healthy
+      intervals-service:
         condition: service_healthy
     restart: unless-stopped
 
@@ -56,18 +83,53 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # report-delivery-service: versendet Reports per Mail/Discord, holt sie per REST beim backend
-  report-delivery-service:
+  # report-service: holt den Report per REST beim backend, rendert die Charts und
+  # schickt eine DeliveryMessage an den delivery-service. Kein eigener Speicher.
+  report-service:
     build:
       context: .
-      dockerfile: report-delivery-service/Dockerfile
-    container_name: cycling-report-delivery
+      dockerfile: report-service/Dockerfile
+    container_name: cycling-report
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - ANALYSIS_SERVICE_URL=http://backend:8080
+      - QUICKCHART_BASE_URL=${QUICKCHART_BASE_URL:-https://quickchart.io}
+      # Ziele der Reports, z. B. DISCORD:reports,MAIL:default (leer = "default" jedes aktiven Kanals)
+      - REPORT_TARGETS=${REPORT_TARGETS:-}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # fitness-service: schickt abends eine Tageszusammenfassung von Fitness/Fatigue/Form/Ramp
+  # (aus cycling/intervals/wellness/updated) an den delivery-service. Kein eigener Speicher.
+  fitness-service:
+    build:
+      context: .
+      dockerfile: fitness-service/Dockerfile
+    container_name: cycling-fitness
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - FITNESS_SUMMARY_TIME=${FITNESS_SUMMARY_TIME:-21:00}
+      - FITNESS_SUMMARY_ZONE=${FITNESS_SUMMARY_ZONE:-Europe/Berlin}
+      # Ziel beim delivery-service; "fitness" braucht dort DELIVERY_DISCORD_DESTINATIONS_FITNESS
+      - FITNESS_TARGETS=${FITNESS_TARGETS:-DISCORD:fitness}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # delivery-service: versendet Nachrichten aller Quellen per Mail/Discord, mit Wiederholung
+  delivery-service:
+    build:
+      context: .
+      dockerfile: delivery-service/Dockerfile
+    container_name: cycling-delivery
     volumes:
       - delivery-data:/app/data
     environment:
       - MQTT_BROKER_URL=tcp://mosquitto:1883
-      - ANALYSIS_SERVICE_URL=http://backend:8080
-      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/report-delivery;AUTO_SERVER=TRUE
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/delivery;AUTO_SERVER=TRUE
       # Beide Kanaele unabhaengig, Default aus
       - REPORT_MAIL_ENABLED=${REPORT_MAIL_ENABLED:-false}
       - REPORT_MAIL_TO=${REPORT_MAIL_TO:-}
@@ -78,7 +140,9 @@ services:
       - REPORT_DISCORD_ENABLED=${REPORT_DISCORD_ENABLED:-false}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
       - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
-      - QUICKCHART_BASE_URL=${QUICKCHART_BASE_URL:-https://quickchart.io}
+      # Weitere logische Ziele (leer = nicht konfiguriert)
+      - DELIVERY_DISCORD_DESTINATIONS_REPORTS=${DELIVERY_DISCORD_DESTINATIONS_REPORTS:-}
+      - DELIVERY_DISCORD_DESTINATIONS_FITNESS=${DELIVERY_DISCORD_DESTINATIONS_FITNESS:-}
     depends_on:
       mosquitto:
         condition: service_healthy

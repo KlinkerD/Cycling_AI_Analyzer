@@ -7,7 +7,8 @@ import com.cycling.dto.AthleteThresholdsDto;
 import com.cycling.dto.ReportDto;
 import com.cycling.service.AnalysisJobService;
 import com.cycling.service.AnalysisService;
-import com.cycling.service.IntervalsService;
+import com.cycling.service.IntervalsClient;
+import com.cycling.service.ReportNotFoundException;
 import com.cycling.service.ReportResendService;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -27,16 +28,16 @@ import java.util.List;
 @RequestMapping("/api/activities")
 public class ActivityController {
 
-    private final IntervalsService intervalsService;
+    private final IntervalsClient intervalsClient;
     private final AnalysisService analysisService;
     private final AnalysisJobService jobService;
     private final ReportResendService resendService;
 
-    public ActivityController(IntervalsService intervalsService,
+    public ActivityController(IntervalsClient intervalsClient,
                               AnalysisService analysisService,
                               AnalysisJobService jobService,
                               ReportResendService resendService) {
-        this.intervalsService = intervalsService;
+        this.intervalsClient = intervalsClient;
         this.analysisService = analysisService;
         this.jobService = jobService;
         this.resendService = resendService;
@@ -44,7 +45,7 @@ public class ActivityController {
 
     /**
      * GET /api/activities?from=2024-01-01&to=2024-12-31
-     * Liefert Rad-Aktivitäten aus intervals.icu für den gewählten Zeitraum.
+     * Liefert Rad-Aktivitäten aus intervals.icu (über den intervals-service) für den gewählten Zeitraum.
      */
     @GetMapping
     public ResponseEntity<List<ActivityDto>> getActivities(
@@ -53,7 +54,7 @@ public class ActivityController {
     ) {
         String fromStr = from.format(DateTimeFormatter.ISO_DATE);
         String toStr = to.format(DateTimeFormatter.ISO_DATE);
-        List<ActivityDto> activities = intervalsService.getActivities(fromStr, toStr);
+        List<ActivityDto> activities = intervalsClient.getActivities(fromStr, toStr);
         return ResponseEntity.ok(activities);
     }
 
@@ -98,7 +99,7 @@ public class ActivityController {
      */
     @GetMapping("/athlete-thresholds")
     public ResponseEntity<AthleteThresholdsDto> getAthleteThresholds() {
-        return ResponseEntity.ok(intervalsService.getAthleteThresholds());
+        return ResponseEntity.ok(intervalsClient.getAthleteThresholds());
     }
 
     /**
@@ -121,14 +122,14 @@ public class ActivityController {
         try {
             ReportDto report = analysisService.getReport(id);
             return ResponseEntity.ok(report);
-        } catch (RuntimeException e) {
+        } catch (ReportNotFoundException e) {
             return ResponseEntity.notFound().build();
         }
     }
 
     /**
      * POST /api/activities/{id}/resend
-     * Beauftragt den report-delivery-service, den gespeicherten Report an alle aktiven Kanaele
+     * Beauftragt den report-service, den gespeicherten Report an alle aktiven Kanaele
      * (Mail, Discord) zu senden. 202 heisst "angestossen", nicht "zugestellt".
      */
     @PostMapping("/{id}/resend")

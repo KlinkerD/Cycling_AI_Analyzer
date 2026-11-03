@@ -26,10 +26,22 @@ jobs:
             context: .
             dockerfile: ./ai-service/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/cycling-ai-service
-          - name: report-delivery-service
+          - name: report-service
             context: .
-            dockerfile: ./report-delivery-service/Dockerfile
-            image: ghcr.io/${{ github.repository_owner }}/cycling-report-delivery
+            dockerfile: ./report-service/Dockerfile
+            image: ghcr.io/${{ github.repository_owner }}/cycling-report
+          - name: delivery-service
+            context: .
+            dockerfile: ./delivery-service/Dockerfile
+            image: ghcr.io/${{ github.repository_owner }}/cycling-delivery
+          - name: intervals-service
+            context: .
+            dockerfile: ./intervals-service/Dockerfile
+            image: ghcr.io/${{ github.repository_owner }}/cycling-intervals
+          - name: fitness-service
+            context: .
+            dockerfile: ./fitness-service/Dockerfile
+            image: ghcr.io/${{ github.repository_owner }}/cycling-fitness
           - name: frontend
             context: ./frontend
             dockerfile: ./frontend/Dockerfile

@@ -42,16 +42,16 @@ public class RecommendationService {
     /** Ramp-Rate-Obergrenze in CTL/Woche, ab der nachhaltig aufgebaut werden sollte. */
     private static final double RAMP_THRESHOLD = 6.0;
 
-    private final IntervalsService intervalsService;
+    private final IntervalsClient intervalsClient;
     private final MessagePublisher publisher;
     private final DailyRecommendationRepository recommendationRepository;
     private final ActivityAnalysisRepository activityRepository;
 
-    public RecommendationService(IntervalsService intervalsService,
+    public RecommendationService(IntervalsClient intervalsClient,
                                  MessagePublisher publisher,
                                  DailyRecommendationRepository recommendationRepository,
                                  ActivityAnalysisRepository activityRepository) {
-        this.intervalsService = intervalsService;
+        this.intervalsClient = intervalsClient;
         this.publisher = publisher;
         this.recommendationRepository = recommendationRepository;
         this.activityRepository = activityRepository;
@@ -158,7 +158,7 @@ public class RecommendationService {
         LocalDate to = LocalDate.now();
         LocalDate from = to.minusDays(21);
         try {
-            return intervalsService.getWellness(from.format(DATE_FMT), to.format(DATE_FMT));
+            return intervalsClient.getWellness(from.format(DATE_FMT), to.format(DATE_FMT));
         } catch (Exception e) {
             log.warn("Wellness-Daten fuer Empfehlung nicht ladbar: {}", e.getMessage());
             return List.of();

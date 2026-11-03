@@ -22,6 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -47,7 +48,8 @@ public class MqttMessaging implements MessagePublisher, AutoCloseable {
 
     private final MqttSettings settings;
     private final MessageCodec codec = new MessageCodec();
-    private final Map<String, Consumer<byte[]>> handlers = new ConcurrentHashMap<>();
+    /** Topic-Filter -> Handler (bekommt konkretes Topic + Payload). */
+    private final Map<String, BiConsumer<String, byte[]>> handlers = new ConcurrentHashMap<>();
     private final MqttAsyncClient client;
     private final ExecutorService worker =
             Executors.newSingleThreadExecutor(Thread.ofPlatform().name("mqtt-worker").factory());
@@ -78,9 +80,17 @@ public class MqttMessaging implements MessagePublisher, AutoCloseable {
         client.setBufferOpts(buffer);
     }
 
-    /** Registriert einen Handler fuer genau dieses Topic (keine Wildcards). */
-    public <T> void subscribe(String topic, Class<T> type, Consumer<T> handler) {
-        handlers.put(topic, payload -> handler.accept(codec.decode(payload, type)));
+    /** Registriert einen Handler fuer dieses Topic bzw. diesen Filter. */
+    public <T> void subscribe(String topicFilter, Class<T> type, Consumer<T> handler) {
+        subscribe(topicFilter, type, (topic, message) -> handler.accept(message));
+    }
+
+    /**
+     * Registriert einen Handler fuer einen Topic-Filter (Wildcards "+" und "#" erlaubt). Der Handler
+     * bekommt das konkrete Topic mit, z. B. um die Quelle aus dem letzten Teil abzulesen.
+     */
+    public <T> void subscribe(String topicFilter, Class<T> type, BiConsumer<String, T> handler) {
+        handlers.put(topicFilter, (topic, payload) -> handler.accept(topic, codec.decode(payload, type)));
     }
 
     /**
@@ -96,7 +106,7 @@ public class MqttMessaging implements MessagePublisher, AutoCloseable {
         this.onConnect = action;
     }
 
-    /** Wie {@link #publish}, aber retained: neue Subscriber bekommen die letzte Nachricht sofort. */
+    @Override
     public void publishRetained(String topic, Object message) {
         MqttMessage mqttMessage = new MqttMessage(codec.encode(message));
         mqttMessage.setQos(QOS);
@@ -216,12 +226,12 @@ public class MqttMessaging implements MessagePublisher, AutoCloseable {
     }
 
     private void handle(String topic, MqttMessage message) {
-        Consumer<byte[]> handler = handlers.get(topic);
+        BiConsumer<String, byte[]> handler = handlerFor(topic);
         try {
             if (handler == null) {
                 log.warn("Kein Handler fuer Topic {}, Nachricht verworfen", topic);
             } else {
-                handler.accept(message.getPayload());
+                handler.accept(topic, message.getPayload());
             }
         } catch (RuntimeException e) {
             // Nicht erneut zustellen lassen: eine kaputte Nachricht soll die Queue nicht blockieren.
@@ -229,6 +239,17 @@ public class MqttMessaging implements MessagePublisher, AutoCloseable {
         } finally {
             acknowledge(message);
         }
+    }
+
+    /** Exakter Treffer zuerst, sonst der erste passende Wildcard-Filter. */
+    private BiConsumer<String, byte[]> handlerFor(String topic) {
+        BiConsumer<String, byte[]> exact = handlers.get(topic);
+        if (exact != null) return exact;
+        return handlers.entrySet().stream()
+                .filter(e -> Topics.matches(e.getKey(), topic))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
     }
 
     private void acknowledge(MqttMessage message) {

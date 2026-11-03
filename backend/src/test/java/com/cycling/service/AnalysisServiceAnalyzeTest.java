@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 /** Neue Analysen speichern Indoor-Kennung und die fuer die Fahrt gueltige FTP. */
 class AnalysisServiceAnalyzeTest {
 
-    private final IntervalsService intervals = mock(IntervalsService.class);
+    private final IntervalsClient intervals = mock(IntervalsClient.class);
     private final ActivityAnalysisRepository repository = mock(ActivityAnalysisRepository.class);
     private final PowerCurveService powerCurves = mock(PowerCurveService.class);
     private AnalysisService service;
@@ -49,7 +49,7 @@ class AnalysisServiceAnalyzeTest {
         dto.setName("Test-Fahrt");
         dto.setType(type);
         dto.setMovingTime(3600);
-        dto.setIcuWeightedAvgWatts(200.0);
+        dto.setNormalizedPower(200.0);
         return dto;
     }
 

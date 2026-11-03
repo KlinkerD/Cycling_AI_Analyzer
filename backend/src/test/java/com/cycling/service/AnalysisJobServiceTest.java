@@ -65,7 +65,7 @@ class AnalysisJobServiceTest {
         dto.setId("i1");
         dto.setName("Runde");
         dto.setMovingTime(3600);
-        dto.setIcuWeightedAvgWatts(210.0);
+        dto.setNormalizedPower(210.0);
         return dto;
     }
 

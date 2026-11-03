@@ -9,9 +9,13 @@ RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
 
 COPY pom.xml .
 COPY cycling-messaging ./cycling-messaging
+COPY intervals-api ./intervals-api
+COPY intervals-service/pom.xml ./intervals-service/pom.xml
 COPY backend ./backend
 COPY ai-service/pom.xml ./ai-service/pom.xml
-COPY report-delivery-service/pom.xml ./report-delivery-service/pom.xml
+COPY report-service/pom.xml ./report-service/pom.xml
+COPY delivery-service/pom.xml ./delivery-service/pom.xml
+COPY fitness-service/pom.xml ./fitness-service/pom.xml
 
 # -am baut cycling-messaging mit; der Cache-Mount spart das erneute Laden der Dependencies.
 RUN --mount=type=cache,target=/root/.m2 \

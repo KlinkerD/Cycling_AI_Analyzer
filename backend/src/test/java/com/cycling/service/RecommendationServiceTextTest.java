@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 /** Kategorie und Fallback kommen sofort, der KI-Text wird per MQTT nachgeliefert. */
 class RecommendationServiceTextTest {
 
-    private final IntervalsService intervals = mock(IntervalsService.class);
+    private final IntervalsClient intervals = mock(IntervalsClient.class);
     private final MessagePublisher publisher = mock(MessagePublisher.class);
     private final DailyRecommendationRepository repository = mock(DailyRecommendationRepository.class);
     private final ActivityAnalysisRepository activities = mock(ActivityAnalysisRepository.class);

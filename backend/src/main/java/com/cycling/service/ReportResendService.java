@@ -14,9 +14,9 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * "Erneut senden"-Button: schickt einen Versandauftrag an den report-delivery-service. Welche Kanaele
- * aktiv sind, kennt das Backend aus dessen retained Status-Nachricht, damit der Button sofort
- * antworten kann.
+ * "Erneut senden"-Button: schickt einen Versandauftrag an den report-service. Welche Kanaele
+ * aktiv sind, kennt das Backend aus der retained Status-Nachricht des delivery-service, damit
+ * der Button sofort antworten kann.
  */
 @Service
 public class ReportResendService {
@@ -33,7 +33,7 @@ public class ReportResendService {
     }
 
     public void updateStatus(DeliveryServiceStatus newStatus) {
-        log.info("report-delivery-service {}: Kanaele {}", newStatus.online() ? "online" : "offline", newStatus.channels());
+        log.info("delivery-service {}: Kanaele {}", newStatus.online() ? "online" : "offline", newStatus.channels());
         status.set(newStatus);
     }
 

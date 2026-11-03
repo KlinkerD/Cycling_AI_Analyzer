@@ -19,7 +19,7 @@ import java.util.SortedMap;
  * Berechnet, persistiert und liefert die "Bestleistungs-Kurve" (Mean Maximal Power)
  * pro Aktivitaet, projeziert auf ein festes log-skaliertes Bucket-Schema von 1s bis 2h.
  *
- * Datenquelle: intervals.icu (siehe {@link IntervalsService#getActivityPowerCurve(String)}).
+ * Datenquelle: intervals.icu (siehe {@link IntervalsClient#getActivityPowerCurve(String)}).
  */
 @Service
 public class PowerCurveService {
@@ -36,11 +36,11 @@ public class PowerCurveService {
             3600, 4500, 5400, 6300, 7200
     };
 
-    private final IntervalsService intervalsService;
+    private final IntervalsClient intervalsClient;
     private final ActivityAnalysisRepository repository;
 
-    public PowerCurveService(IntervalsService intervalsService, ActivityAnalysisRepository repository) {
-        this.intervalsService = intervalsService;
+    public PowerCurveService(IntervalsClient intervalsClient, ActivityAnalysisRepository repository) {
+        this.intervalsClient = intervalsClient;
         this.repository = repository;
     }
 
@@ -50,7 +50,7 @@ public class PowerCurveService {
      * Eintraegen, wobei {@code watts} null sein kann, wenn der Bucket nicht abgedeckt ist.
      */
     public List<PowerCurvePoint> buildPointsForActivity(String activityId) {
-        SortedMap<Integer, Integer> raw = intervalsService.getActivityPowerCurve(activityId);
+        SortedMap<Integer, Integer> raw = intervalsClient.getActivityPowerCurve(activityId);
         return interpolate(raw);
     }
 

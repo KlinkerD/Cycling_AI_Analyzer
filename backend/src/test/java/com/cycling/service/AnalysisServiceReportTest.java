@@ -22,7 +22,7 @@ import static org.mockito.Mockito.when;
 /** Nachtragen von Indoor-Kennung und FTP beim Oeffnen gespeicherter Reports. */
 class AnalysisServiceReportTest {
 
-    private final IntervalsService intervals = mock(IntervalsService.class);
+    private final IntervalsClient intervals = mock(IntervalsClient.class);
     private final ActivityAnalysisRepository repository = mock(ActivityAnalysisRepository.class);
     private final PowerCurveService powerCurves = mock(PowerCurveService.class);
     private AnalysisService service;

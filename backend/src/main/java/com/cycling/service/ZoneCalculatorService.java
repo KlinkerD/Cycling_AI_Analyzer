@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
  * <p>
  * Die Zonen-Verteilung einer Aktivitaet wird NICHT mehr hier berechnet, sondern direkt aus den
  * von intervals.icu vorberechneten Zonen-Zeiten uebernommen
- * (siehe {@code IntervalsService#getActivityZones}), damit die Report-Werte exakt mit der
+ * (siehe {@code IntervalsClient#getActivityZones}), damit die Report-Werte exakt mit der
  * intervals.icu-Website uebereinstimmen.
  */
 @Service

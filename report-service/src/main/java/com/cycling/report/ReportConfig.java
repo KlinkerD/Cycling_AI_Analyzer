@@ -5,7 +5,7 @@ import com.cycling.messaging.MqttMessaging;
 import com.cycling.messaging.MqttSettings;
 import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.ActivityDetected;
-import com.cycling.messaging.contract.AnalysisResult;
+import com.cycling.messaging.contract.AiResult;
 import com.cycling.messaging.contract.DeliveryServiceStatus;
 import com.cycling.report.analysis.ActivityAnalysisRepository;
 import com.cycling.report.analysis.ActivityDetectedHandler;
@@ -134,7 +134,7 @@ public class ReportConfig {
         ActivityDetectedHandler detected = context.getBean(ActivityDetectedHandler.class);
 
         messaging.subscribe(Topics.INTERVALS_ACTIVITY_DETECTED, ActivityDetected.class, detected::onActivityDetected);
-        messaging.subscribe(Topics.AI_ANALYSIS_RESULT, AnalysisResult.class, jobs::complete);
+        messaging.subscribe(Topics.aiResult(AnalysisJobService.AI_SOURCE), AiResult.class, jobs::complete);
         messaging.subscribe(Topics.DELIVERY_STATUS, DeliveryServiceStatus.class, resend::updateStatus);
         messaging.start();
     }

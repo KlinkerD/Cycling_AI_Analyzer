@@ -8,8 +8,7 @@ import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE } from '@angular/materia
 import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 import { routes } from './app.routes';
 import { provideApi as provideReportApi } from './api/report';
-import { provideApi as provideFitnessApi } from './api/fitness';
-import { provideApi as provideRecommendationApi } from './api/recommendation';
+import { provideApi as provideTrainingApi } from './api/training';
 import { GERMAN_DATE_FORMATS, GermanDateAdapter } from './shared/german-date-adapter';
 
 registerLocaleData(localeDe);
@@ -19,11 +18,10 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
     provideAnimations(),
     provideHttpClient(),
-    // Generierte API-Clients: relative URLs (/api/reports, /api/fitness, /api/recommendation);
-    // Dev-Proxy bzw. nginx leiten je nach Praefix an den zustaendigen Service weiter.
+    // Generierte API-Clients: relative URLs (/api/reports -> report-service,
+    // /api/fitness und /api/recommendation -> training-service); Dev-Proxy bzw. nginx leiten weiter.
     provideReportApi(''),
-    provideFitnessApi(''),
-    provideRecommendationApi(''),
+    provideTrainingApi(''),
     provideCharts(withDefaultRegisterables()),
     { provide: LOCALE_ID, useValue: 'de-DE' },
     { provide: MAT_DATE_LOCALE, useValue: 'de-DE' },

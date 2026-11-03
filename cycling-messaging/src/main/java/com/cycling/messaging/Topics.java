@@ -8,21 +8,18 @@ public final class Topics {
 
     private static final String ROOT = "cycling/";
 
-    /** report-service -> ai-service: Training analysieren ({@code AnalysisRequest}). */
-    public static final String AI_ANALYSIS_REQUEST = ROOT + "ai/analysis/request";
-    /** ai-service -> report-service: Ergebnis der Analyse ({@code AnalysisResult}). */
-    public static final String AI_ANALYSIS_RESULT = ROOT + "ai/analysis/result";
-
-    /** recommendation-service -> ai-service: Text fuer die Tagesempfehlung ({@code RecommendationTextRequest}). */
-    public static final String AI_RECOMMENDATION_REQUEST = ROOT + "ai/recommendation/request";
-    /** ai-service -> recommendation-service: Text der Tagesempfehlung ({@code RecommendationTextResult}). */
-    public static final String AI_RECOMMENDATION_RESULT = ROOT + "ai/recommendation/result";
+    /** Praefix der KI-Auftraege; der letzte Teil ist die Quelle, z. B. "report" oder "training". */
+    private static final String AI_REQUEST_PREFIX = ROOT + "ai/request/";
+    /** Praefix der KI-Antworten; der letzte Teil ist die Quelle des Auftrags. */
+    private static final String AI_RESULT_PREFIX = ROOT + "ai/result/";
+    /** Abo des ai-service: KI-Auftraege aller Quellen ({@code AiRequest}). */
+    public static final String AI_REQUEST_ALL = AI_REQUEST_PREFIX + "+";
 
     /** intervals-service -> report-service: neue Rad-Aktivitaet bei intervals.icu ({@code ActivityDetected}). */
     public static final String INTERVALS_ACTIVITY_DETECTED = ROOT + "intervals/activity/detected";
     /**
      * intervals-service -> alle: heutige Fitness/Fatigue/Form/Ramp haben sich geaendert ({@code WellnessUpdated}).
-     * Retained, damit z. B. ein spaeterer Fitness-Service beim Start sofort den aktuellen Stand hat.
+     * Retained, damit z. B. der training-service beim Start sofort den aktuellen Stand hat.
      */
     public static final String INTERVALS_WELLNESS_UPDATED = ROOT + "intervals/wellness/updated";
 
@@ -41,14 +38,29 @@ public final class Topics {
     private Topics() {
     }
 
+    /** Topic, auf dem die Quelle {@code source} ihre {@code AiRequest}s veroeffentlicht. */
+    public static String aiRequest(String source) {
+        return AI_REQUEST_PREFIX + source;
+    }
+
+    /** Topic, auf dem der ai-service die {@code AiResult}s fuer die Quelle {@code source} veroeffentlicht. */
+    public static String aiResult(String source) {
+        return AI_RESULT_PREFIX + source;
+    }
+
     /** Topic, auf dem die Quelle {@code source} ihre {@code DeliveryMessage}s veroeffentlicht. */
     public static String deliveryRequest(String source) {
         return DELIVERY_REQUEST_PREFIX + source;
     }
 
+    /** Quelle eines Auftrags (KI oder Versand) = letzter Teil des Topics. */
+    public static String source(String topic) {
+        return topic.substring(topic.lastIndexOf('/') + 1);
+    }
+
     /** Quelle eines Versandauftrags = letzter Teil des Topics. */
     public static String deliverySource(String topic) {
-        return topic.substring(topic.lastIndexOf('/') + 1);
+        return source(topic);
     }
 
     /** MQTT-Filtervergleich: "+" passt auf genau eine Ebene, "#" (am Ende) auf alle restlichen. */

@@ -14,7 +14,7 @@
     <artifactId>ai-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>ai-service</name>
-    <description>Gemini-Anbindung: beantwortet Analyse- und Empfehlungs-Auftraege ueber MQTT</description>
+    <description>Gemini-Anbindung: beantwortet generische KI-Auftraege (Prompt rein, Text raus) ueber MQTT</description>
 
     <properties>
         <java.version>25</java.version>

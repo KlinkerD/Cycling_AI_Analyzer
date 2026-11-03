@@ -13,8 +13,7 @@ COPY intervals-api ./intervals-api
 COPY intervals-service/pom.xml ./intervals-service/pom.xml
 COPY report-service ./report-service
 COPY delivery-service/pom.xml ./delivery-service/pom.xml
-COPY fitness-service/pom.xml ./fitness-service/pom.xml
-COPY recommendation-service/pom.xml ./recommendation-service/pom.xml
+COPY training-service/pom.xml ./training-service/pom.xml
 COPY cycling-web ./cycling-web
 COPY ai-service/pom.xml ./ai-service/pom.xml
 

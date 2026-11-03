@@ -34,14 +34,10 @@ jobs:
             context: .
             dockerfile: ./intervals-service/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/cycling-intervals
-          - name: fitness-service
+          - name: training-service
             context: .
-            dockerfile: ./fitness-service/Dockerfile
-            image: ghcr.io/${{ github.repository_owner }}/cycling-fitness
-          - name: recommendation-service
-            context: .
-            dockerfile: ./recommendation-service/Dockerfile
-            image: ghcr.io/${{ github.repository_owner }}/cycling-recommendation
+            dockerfile: ./training-service/Dockerfile
+            image: ghcr.io/${{ github.repository_owner }}/cycling-training
           - name: frontend
             context: ./frontend
             dockerfile: ./frontend/Dockerfile

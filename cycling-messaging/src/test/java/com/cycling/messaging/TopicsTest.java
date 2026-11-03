@@ -35,6 +35,15 @@ class TopicsTest {
     }
 
     @Test
+    void aiRequestAndResultCarryTheSource() {
+        assertThat(Topics.aiRequest("report")).isEqualTo("cycling/ai/request/report");
+        assertThat(Topics.aiResult("training")).isEqualTo("cycling/ai/result/training");
+        assertThat(Topics.matches(Topics.AI_REQUEST_ALL, Topics.aiRequest("training"))).isTrue();
+        assertThat(Topics.matches(Topics.AI_REQUEST_ALL, Topics.aiResult("training"))).isFalse();
+        assertThat(Topics.source(Topics.aiRequest("report"))).isEqualTo("report");
+    }
+
+    @Test
     void intervalsTopicsAreBelowIntervalsLevel() {
         assertThat(Topics.INTERVALS_ACTIVITY_DETECTED).isEqualTo("cycling/intervals/activity/detected");
         assertThat(Topics.INTERVALS_WELLNESS_UPDATED).isEqualTo("cycling/intervals/wellness/updated");

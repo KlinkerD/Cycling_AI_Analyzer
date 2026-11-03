@@ -16,8 +16,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartData } from 'chart.js';
 import { OverviewService } from '../../services/overview.service';
-import { AthleteZonesDto, WellnessPointDto, ZoneDto } from '../../api/fitness';
-import { DailyRecommendationDto } from '../../api/recommendation';
+import { AthleteZonesDto, DailyRecommendationDto, WellnessPointDto, ZoneDto } from '../../api/training';
 
 /** Nachfrage-Takt fuer den asynchron nachgelieferten KI-Empfehlungstext (5 s x 24 = 2 Min.). */
 const RECOMMENDATION_POLL_MS = 5000;

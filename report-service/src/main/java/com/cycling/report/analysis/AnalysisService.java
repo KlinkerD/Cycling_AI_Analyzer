@@ -1,7 +1,6 @@
 package com.cycling.report.analysis;
 
 import com.cycling.report.api.*;
-import com.cycling.messaging.contract.AnalysisResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -103,7 +102,7 @@ public class AnalysisService {
      * Uebernimmt die KI-Bewertung, laedt die Power-Curve und speichert die Analyse (Upsert).
      * Liefert den fertigen Report.
      */
-    public ReportDto complete(PreparedAnalysis prepared, AnalysisResult aiResult) {
+    public ReportDto complete(PreparedAnalysis prepared, AiAssessment aiResult) {
         ActivityAnalysis analysis = prepared.analysis();
         String activityId = analysis.getActivityId();
 

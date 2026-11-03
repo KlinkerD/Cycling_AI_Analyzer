@@ -1,12 +1,18 @@
 import { Injectable } from '@angular/core';
 import { Observable, map } from 'rxjs';
-import { AthleteThresholdsDto, AthleteZonesDto, FitnessApi, WellnessPointDto } from '../api/fitness';
-import { DailyRecommendationDto, RecommendationApi } from '../api/recommendation';
+import {
+  AthleteThresholdsDto,
+  AthleteZonesDto,
+  DailyRecommendationDto,
+  FitnessApi,
+  RecommendationApi,
+  WellnessPointDto,
+} from '../api/training';
 import { toIsoDate } from './date-params';
 
 /**
- * Duenne Fassade ueber die generierten Clients von fitness-service ({@link FitnessApi}) und
- * recommendation-service ({@link RecommendationApi}).
+ * Duenne Fassade ueber die generierten Clients des training-service ({@link FitnessApi},
+ * {@link RecommendationApi}).
  */
 @Injectable({ providedIn: 'root' })
 export class OverviewService {

@@ -6,7 +6,7 @@ Analysiere deine Radtrainings aus **intervals.icu** mit **Google Gemini AI** und
 
 | Schicht | Technologie |
 |---|---|
-| Backend | Spring Boot 4 + Java 25, aufgeteilt in intervals-service, report-service, fitness-service, recommendation-service, ai-service, delivery-service |
+| Backend | Spring Boot 4 + Java 25, aufgeteilt in intervals-service, report-service, training-service, ai-service, delivery-service |
 | Messaging | MQTT (Eclipse Mosquitto, Paho-v5-Client) |
 | API-Vertrag | OpenAPI (springdoc) je Service → OpenAPI Generator (typescript-angular), ein Client pro Service |
 | Frontend | Angular 17 + Angular Material |
@@ -62,13 +62,12 @@ docker compose up -d mosquitto
 # und MQTT_BROKER_URL=tcp://localhost:<port> für die Services setzen.
 ```
 
-**intervals-service, report-service, fitness-service, recommendation-service, ai-service, delivery-service** (jeweils in eigenem Terminal):
+**intervals-service, report-service, training-service, ai-service, delivery-service** (jeweils in eigenem Terminal):
 ```bash
 mvn install -DskipTests                       # einmalig, baut auch cycling-messaging, intervals-api und cycling-web
 mvn -pl intervals-service spring-boot:run     # http://localhost:8081, braucht INTERVALS_API_KEY/INTERVALS_ATHLETE_ID
 mvn -pl report-service spring-boot:run        # http://localhost:8082 (/api/reports), Swagger-UI: /swagger-ui.html
-mvn -pl fitness-service spring-boot:run       # http://localhost:8083 (/api/fitness)
-mvn -pl recommendation-service spring-boot:run  # http://localhost:8084 (/api/recommendation)
+mvn -pl training-service spring-boot:run      # http://localhost:8083 (/api/fitness, /api/recommendation)
 mvn -pl ai-service spring-boot:run            # braucht GEMINI_API_KEY
 mvn -pl delivery-service spring-boot:run
 ```
@@ -79,8 +78,8 @@ cd frontend
 npm install
 npm start          # erzeugt vorher die API-Clients, öffnet http://localhost:4200
 ```
-Der Dev-Proxy (`proxy.conf.json`) leitet `/api/reports` an 8082, `/api/fitness` an 8083 und `/api/recommendation`
-an 8084 weiter; im Docker-Betrieb macht das nginx (`frontend/nginx.conf`).
+Der Dev-Proxy (`proxy.conf.json`) leitet `/api/reports` an 8082, `/api/fitness` und `/api/recommendation` an 8083
+weiter; im Docker-Betrieb macht das nginx (`frontend/nginx.conf`).
 
 ### Docker (Produktion / Raspberry Pi)
 
@@ -134,7 +133,7 @@ Je nach GitHub-Account heißen die Images typischerweise so:
 ghcr.io/<dein-github-username>/cycling-report:latest
 ghcr.io/<dein-github-username>/cycling-frontend:latest
 ```
-Dazu kommen `cycling-intervals`, `cycling-fitness`, `cycling-recommendation`, `cycling-ai-service` und
+Dazu kommen `cycling-intervals`, `cycling-training`, `cycling-ai-service` und
 `cycling-delivery` für die übrigen Services.
 
 ### Auf dem Raspberry Pi nutzen
@@ -171,7 +170,8 @@ Der **report-service** besitzt alles rund um die Analyse einer Fahrt:
 - **Start:** per Button (`POST /api/reports/{id}/analysis`, 202 + Job, das Frontend fragt den Job ab) oder automatisch,
   wenn der intervals-service eine neue Fahrt meldet (`cycling/intervals/activity/detected`). Fahrten mit Report oder
   laufendem Job werden übersprungen.
-- **KI:** Auftrag an den ai-service (`cycling/ai/analysis/request|result`), Abbruch nach `ANALYSIS_JOB_TIMEOUT` (15 min).
+- **KI:** baut den Prompt selbst (`AnalysisPrompt`), schickt ihn an den ai-service (`cycling/ai/request/report`) und
+  liest die JSON-Antwort (`cycling/ai/result/report`); Abbruch nach `ANALYSIS_JOB_TIMEOUT` (15 min).
 - **Speicher:** eigene H2 (`report.mv.db`) mit Analysen, Power-Curves und Analyse-Jobs.
 - **Report-Seite:** `GET /api/reports/{id}` lädt die Analyse und holt Streams/Zonen frisch vom intervals-service.
 - **Versand:** nach der Analyse automatisch, sonst per „Erneut senden“ (`POST /api/reports/{id}/resend`).
@@ -208,10 +208,8 @@ Absender bauen den Inhalt, der delivery-service stellt zu:
   `DeliveryMessage` (Titel, Felder, Abschnitte, PNG-Anhänge) auf `cycling/delivery/request/report`. Welche Kanäle
   aktiv sind, weiß er aus `cycling/delivery/status`. Fehlschläge beim Rendern oder Senden werden nach 1, 5 und
   15 Minuten wiederholt, danach hilft „Erneut senden“.
-- **fitness-service** schickt einmal am Tag eine Fitness-Zusammenfassung auf `cycling/delivery/request/fitness`
-  (siehe unten).
-- **recommendation-service** schickt einmal am Tag die Tagesempfehlung auf `cycling/delivery/request/recommendation`
-  (siehe unten).
+- **training-service** schickt abends die Fitness-Zusammenfassung auf `cycling/delivery/request/fitness` und
+  morgens die Tagesempfehlung auf `cycling/delivery/request/recommendation` (siehe unten).
 - **delivery-service** abonniert `cycling/delivery/request/+` (letzter Teil = Quelle, z. B. `report`),
   speichert die Nachricht und versendet sie per Mail/Discord – mit Wiederholung alle 15 Minuten (max. 5×, 2 Tage).
   Bilder werden nach 7 Tagen gelöscht, Statuszeilen nach 90 Tagen.
@@ -228,23 +226,28 @@ delivery-service:
 | `DELIVERY_DISCORD_DESTINATIONS_<NAME>` | weiteres Discord-Ziel, z. B. `..._REPORTS=1234…` |
 | `DELIVERY_MAIL_DESTINATIONS_<NAME>` | weiteres Mail-Ziel |
 | `REPORT_TARGETS` (report-service) | wohin Reports gehen, z. B. `DISCORD:reports,MAIL:default`; leer = `default` jedes aktiven Kanals |
-| `FITNESS_TARGETS` (fitness-service) | wohin die Fitness-Zusammenfassung geht; Default `DISCORD:fitness` (braucht `DELIVERY_DISCORD_DESTINATIONS_FITNESS`) |
-| `RECOMMENDATION_TARGETS` (recommendation-service) | wohin die Tagesempfehlung geht; Default `DISCORD:recommendation` (braucht `DELIVERY_DISCORD_DESTINATIONS_RECOMMENDATION`) |
+| `FITNESS_TARGETS` (training-service) | wohin die Fitness-Zusammenfassung geht; Default `DISCORD:fitness` (braucht `DELIVERY_DISCORD_DESTINATIONS_FITNESS`) |
+| `RECOMMENDATION_TARGETS` (training-service) | wohin die Tagesempfehlung geht; Default `DISCORD:recommendation` (braucht `DELIVERY_DISCORD_DESTINATIONS_RECOMMENDATION`) |
 
 Unbekannte Ziele werden sofort als fehlgeschlagen markiert.
 
-### Fitness und Athlet (fitness-service)
+### Training: Fitness, Form und Tagesempfehlung (training-service)
 
-Der **fitness-service** liefert dem Frontend den Fitness-Chart und das Athleten-Profil (Daten vom intervals-service;
-mit `refresh=true` werden dessen Caches vorher geleert):
+Der **training-service** besitzt alles rund um den Zustand des Athleten: Fitness-Chart, Athleten-Profil, Form-Zonen
+und die Tagesempfehlung. Beide nutzen dieselbe Einordnung von Form und Ramp (`FormZone`, `RampAssessment`), damit
+Übersicht, Abend-Zusammenfassung und Empfehlung sich nicht widersprechen. Kein eigener Speicher.
+
+#### Fitness und Athlet
+
+Fitness-Chart und Athleten-Profil kommen vom intervals-service; mit `refresh=true` werden dessen Caches vorher geleert:
 
 | Endpoint | Liefert |
 |---|---|
 | `GET /api/fitness/wellness?from&to[&refresh]` | Fitness (CTL), Fatigue (ATL), Form pro Tag |
 | `GET /api/fitness/athlete[?refresh]` | Schwellenwerte (Kopfzeile) und Power-/HF-Zonen (Übersicht); leer statt Fehler |
 
-**Tageszusammenfassung:** Der fitness-service abonniert `cycling/intervals/wellness/updated` (retained, vom intervals-service) und schickt
-**einmal am Tag ab 21:00** (`FITNESS_SUMMARY_TIME`, Zeitzone `FITNESS_SUMMARY_ZONE`, Default `Europe/Berlin`)
+**Tageszusammenfassung:** Der training-service abonniert `cycling/intervals/wellness/updated` (retained, vom intervals-service) und schickt
+**einmal am Tag ab 21:00** (`FITNESS_SUMMARY_TIME`, Zeitzone `TRAINING_ZONE`, Default `Europe/Berlin`)
 eine Zusammenfassung an den delivery-service:
 
 - Felder: Fitness (CTL), Fatigue (ATL), Form (TSB) jeweils mit Änderung zum Vortag, dazu Ramp in CTL/Woche
@@ -260,28 +263,37 @@ eine Zusammenfassung an den delivery-service:
 
 - Ramp-Hinweis nur außerhalb von −5 … +6: > 6 zügiger Aufbau, > 8 zu schnell, < −5 Fitness baut ab
 
-Kein eigener Speicher: Der letzte Stand liegt im Speicher, nach einem Start liefert der Broker die retained Nachricht.
+Der letzte Stand liegt im Speicher, nach einem Start liefert der Broker die retained Nachricht.
 Liegt um 21:00 noch kein Stand von heute vor, wird gewartet und bis Mitternacht nachgeholt (Prüfung jede Minute).
 Die messageId `fitness-daily-<datum>` sorgt dafür, dass der delivery-service eine zweite Nachricht für denselben Tag
 (z. B. nach einem Neustart) verwirft.
 
-### Tagesempfehlung (recommendation-service)
+#### Tagesempfehlung
 
-Der **recommendation-service** berechnet die Trainingsempfehlung für die Overview-Karte und für Discord.
-Er hat keine Datenbank; der letzte Stand liegt im Speicher.
+Die Trainingsempfehlung für die Overview-Karte und für Discord; der letzte Stand liegt im Speicher.
 
-- **Regeln:** Kategorie aus der Form (TSB) des jüngsten Wellness-Punkts (> +15 harte Intervalle, +5 … +15 Tempo,
-  −10 … +5 Grundlage, −25 … −10 locker, < −25 Ruhetag). Steigt die CTL in 7 Tagen um mehr als 6, wird eine Stufe
-  lockerer empfohlen. Daten: Wellness (21 Tage) und Fahrten (7 Tage, mit TSS/IF von intervals.icu) per REST vom
+- **Regeln:** Kategorie aus der Form-Zone des jüngsten Wellness-Punkts (dieselben Zonen wie oben):
+
+  | Form-Zone | Empfehlung |
+  |---|---|
+  | ⚪ Übergang, 🔵 Frisch | Harte Intervalle |
+  | ⚫ Grauzone | Tempo / Sweet Spot |
+  | 🟢 Optimal | Grundlage |
+  | 🔴 Hohes Risiko | Ruhetag |
+
+  Liegt die Ramp über +6 (zügiger oder zu schneller Aufbau, wie in der Zusammenfassung), wird eine Stufe lockerer
+  empfohlen; „Locker / Regeneration“ entsteht so aus „Grundlage“. Die Ramp kommt von intervals.icu, fehlt sie, wird
+  CTL heute minus CTL vor 7 Tagen genommen. Daten: Wellness (21 Tage) und Fahrten (7 Tage, mit TSS/IF) per REST vom
   intervals-service.
-- **Text:** sofort ein fester Text pro Kategorie, den formulierten Text liefert der ai-service nach
-  (`cycling/ai/recommendation/request|result`, höchstens 90 s Wartezeit).
+- **Text:** sofort ein fester Text pro Kategorie. Den formulierten Text liefert der ai-service nach: Der
+  training-service baut den Prompt (`RecommendationPrompt`) und schickt ihn auf `cycling/ai/request/training`, die
+  Antwort kommt auf `cycling/ai/result/training` (höchstens 90 s Wartezeit).
 - **Stand:** pro Berechnung zweimal mit derselben `requestId`: erst mit festem Text (`textPending=true`), dann mit
   KI-Text – oder, wenn die KI ausfällt, noch einmal mit festem Text (`textPending=false`). Ist der intervals-service
   nicht erreichbar, bleibt der letzte Stand.
 - **Wann:** alle 4 Stunden (`RECOMMENDATION_REFRESH_CRON`), per Refresh-Button und morgens für Discord.
 
-**Morgen-Nachricht:** ab 09:00 (`RECOMMENDATION_DAILY_TIME`, Zeitzone `RECOMMENDATION_ZONE`, Default `Europe/Berlin`)
+**Morgen-Nachricht:** ab 09:00 (`RECOMMENDATION_DAILY_TIME`, Zeitzone `TRAINING_ZONE`, Default `Europe/Berlin`)
 wird frisch gerechnet und mit KI-Text verschickt, spätestens nach 2 Minuten mit festem Text (Fußzeile
 „KI-Text nicht verfügbar“). Scheitert die Berechnung oder die Übergabe, folgt der nächste Versuch eine Minute später.
 Nach einem Neustart wird nur bis 12:00 (`RECOMMENDATION_DAILY_CATCH_UP_UNTIL`) nachgeholt. Die messageId
@@ -294,13 +306,29 @@ fragt die Overview erneut ab. Scheitert die Berechnung, bleibt der letzte Stand;
 
 ---
 
+## 🤖 KI (ai-service)
+
+Der **ai-service** kennt nur Gemini, keine Fachlichkeit: Prompt rein, Antworttext raus. Die Absender bauen den Prompt
+und werten die Antwort selbst aus (report-service: `AnalysisPrompt`, training-service: `RecommendationPrompt`).
+
+| Topic | Inhalt |
+|---|---|
+| `cycling/ai/request/<quelle>` | `AiRequest` – `requestId`, fertiger `prompt`, `temperature`, `json` (true = reines JSON anfordern) |
+| `cycling/ai/result/<quelle>` | `AiResult` – dieselbe `requestId`, `success`, `error`, `text` (unverändert) |
+
+Jeder Auftrag bekommt genau eine Antwort, auch bei Fehlern (leerer Prompt, Temperatur außerhalb 0 … 2, Gemini-Fehler).
+Zwischen zwei Gemini-Aufrufen liegen mindestens `GEMINI_MIN_INTERVAL` (Default 5 s). Neue Anwendungsfälle brauchen nur
+eine neue Quelle – am ai-service ändert sich nichts.
+
+---
+
 ## 🔗 intervals.icu-Anbindung (intervals-service)
 
 Nur der **intervals-service** spricht mit intervals.icu und kennt `INTERVALS_API_KEY` / `INTERVALS_ATHLETE_ID`.
 Er speichert nichts dauerhaft, hält die Antworten aber im Speicher (Caffeine):
 Aktivitätsliste 2 min, Wellness 15 min, Zonen/Schwellenwerte 1 h, Streams/Zonenzeiten/Power-Curve einer Aktivität 6 h.
 
-**REST für report-, fitness- und recommendation-service** (Vertrag als Records im Modul `intervals-api`, Fehler als
+**REST für report- und training-service** (Vertrag als Records im Modul `intervals-api`, Fehler als
 ProblemDetail mit `code`; alle nutzen den gemeinsamen `IntervalsClient` aus demselben Modul):
 
 | Endpoint | Liefert |
@@ -318,7 +346,7 @@ ProblemDetail mit `code`; alle nutzen den gemeinsamen `IntervalsClient` aus dems
 | Topic | Inhalt |
 |---|---|
 | `cycling/intervals/activity/detected` | `ActivityDetected` – bei jedem Lauf alle Rad-Fahrten der letzten 2 Tage. Der report-service startet die Analyse für Fahrten ohne Report und ohne laufenden Job, so werden auch fehlgeschlagene Analysen erneut versucht. |
-| `cycling/intervals/wellness/updated` | `WellnessUpdated` (retained) – heutige CTL/ATL/Form/Ramp plus Vortag, sobald sich ein Wert (auf eine Nachkommastelle) ändert. Der fitness-service macht daraus abends eine `DeliveryMessage` auf `cycling/delivery/request/fitness`. |
+| `cycling/intervals/wellness/updated` | `WellnessUpdated` (retained) – heutige CTL/ATL/Form/Ramp plus Vortag, sobald sich ein Wert (auf eine Nachkommastelle) ändert. Der training-service macht daraus abends eine `DeliveryMessage` auf `cycling/delivery/request/fitness`. |
 
 **Fehler und Rate-Limit:** Timeouts 5 s/30 s, bei 429/5xx/Netzwerkfehlern höchstens 2 Wiederholungen
 (1 s, 3 s; `Retry-After` bis 10 s), höchstens 4 gleichzeitige Anfragen. An die Clients gehen 502 (`INTERVALS_AUTH`,
@@ -343,9 +371,8 @@ Alle MQTT-Topics und Payloads als AsyncAPI-Spec: [`docs/asyncapi.yaml`](docs/asy
 Die Angular-Models und -Services für die REST-APIs werden generiert, nicht von Hand geschrieben – ein Client pro Service:
 
 ```
-report-service         (springdoc)  →  frontend/openapi/report-api.yaml          →  frontend/src/app/api/report/
-fitness-service        (springdoc)  →  frontend/openapi/fitness-api.yaml         →  frontend/src/app/api/fitness/
-recommendation-service (springdoc)  →  frontend/openapi/recommendation-api.yaml  →  frontend/src/app/api/recommendation/
+report-service   (springdoc)  →  frontend/openapi/report-api.yaml    →  frontend/src/app/api/report/
+training-service (springdoc)  →  frontend/openapi/training-api.yaml  →  frontend/src/app/api/training/
 ```
 
 - Die Specs sind eingecheckt. Der Test `OpenApiSpecTest` im jeweiligen Service schlägt fehl, sobald sie nicht mehr zur
@@ -353,7 +380,7 @@ recommendation-service (springdoc)  →  frontend/openapi/recommendation-api.yam
   ```bash
   mvn -pl report-service test -Dtest=OpenApiSpecTest -Dopenapi.update=true
   ```
-- `npm start` / `npm run build` erzeugen `src/app/api/` automatisch (`npm run generate:api`, alle drei Generatoren aus
+- `npm start` / `npm run build` erzeugen `src/app/api/` automatisch (`npm run generate:api`, beide Generatoren aus
   `openapitools.json`). Der Ordner ist nicht eingecheckt. Der Generator braucht Java (lokal vorhanden, im Docker-Build
   wird eine JRE installiert).
 - Felder sind in der Spec immer vorhanden; Objekt-Typen sind `T | null`. Felder, die nie null sind, tragen `@ApiNonNull`.
@@ -372,9 +399,9 @@ cycling/
 ├── cycling-web/                # gemeinsame Web-Bausteine: OpenAPI-Regeln, ProblemDetail-Fehler, Spec-Vergleich
 ├── intervals-service/          # einzige intervals.icu-Anbindung: REST mit Cache, meldet Aktivitäten/Fitness per MQTT
 ├── report-service/             # Analysen (KI-Auftrag, H2), REST /api/reports, Report -> DeliveryMessage (QuickChart)
-├── fitness-service/            # REST /api/fitness (Wellness, Athlet), tägliche Fitness-Zusammenfassung, ohne Speicher
-├── recommendation-service/     # Tagesempfehlung: REST /api/recommendation, morgens -> DeliveryMessage, ohne Speicher
-├── ai-service/                 # Gemini: beantwortet Analyse-/Empfehlungs-Aufträge über MQTT
+├── training-service/           # Fitness, Form-Zonen, Athlet und Tagesempfehlung: REST /api/fitness + /api/recommendation,
+│                               #   abends Fitness-, morgens Empfehlungs-Nachricht, ohne Speicher
+├── ai-service/                 # Gemini: generische KI-Aufträge (Prompt rein, Text raus) über MQTT
 ├── delivery-service/           # Mail + Discord für alle Quellen, eigene H2 für Nachrichten + Versandstatus
 ├── mosquitto/config/           # Broker-Konfiguration
 ├── docs/                       # Datenflüsse (Markdown + Mermaid) und AsyncAPI-Spec der MQTT-Topics

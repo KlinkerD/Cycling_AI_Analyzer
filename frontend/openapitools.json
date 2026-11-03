@@ -17,23 +17,10 @@
           "supportsES6": true
         }
       },
-      "fitness-api": {
+      "training-api": {
         "generatorName": "typescript-angular",
-        "inputSpec": "#{cwd}/openapi/fitness-api.yaml",
-        "output": "#{cwd}/src/app/api/fitness",
-        "additionalProperties": {
-          "ngVersion": "17.3.0",
-          "providedIn": "root",
-          "serviceSuffix": "Api",
-          "serviceFileSuffix": ".api",
-          "enumPropertyNaming": "UPPERCASE",
-          "supportsES6": true
-        }
-      },
-      "recommendation-api": {
-        "generatorName": "typescript-angular",
-        "inputSpec": "#{cwd}/openapi/recommendation-api.yaml",
-        "output": "#{cwd}/src/app/api/recommendation",
+        "inputSpec": "#{cwd}/openapi/training-api.yaml",
+        "output": "#{cwd}/src/app/api/training",
         "additionalProperties": {
           "ngVersion": "17.3.0",
           "providedIn": "root",

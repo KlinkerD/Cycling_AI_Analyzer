@@ -33,4 +33,11 @@ class TopicsTest {
         assertThat(Topics.deliveryRequest("fitness")).isEqualTo("cycling/delivery/request/fitness");
         assertThat(Topics.deliverySource("cycling/delivery/request/fitness")).isEqualTo("fitness");
     }
+
+    @Test
+    void intervalsTopicsAreBelowIntervalsLevel() {
+        assertThat(Topics.INTERVALS_ACTIVITY_DETECTED).isEqualTo("cycling/intervals/activity/detected");
+        assertThat(Topics.INTERVALS_WELLNESS_UPDATED).isEqualTo("cycling/intervals/wellness/updated");
+        assertThat(Topics.matches("cycling/intervals/#", Topics.INTERVALS_WELLNESS_UPDATED)).isTrue();
+    }
 }

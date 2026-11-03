@@ -19,19 +19,19 @@ public class AnalysisService {
 
     private static final Logger log = LoggerFactory.getLogger(AnalysisService.class);
 
-    private final IntervalsService intervalsService;
+    private final IntervalsClient intervalsClient;
     private final ZoneCalculatorService zoneCalculator;
     private final ActivityAnalysisRepository repository;
     private final PowerCurveService powerCurveService;
     private final FtpResolver ftpResolver;
 
-    public AnalysisService(IntervalsService intervalsService,
+    public AnalysisService(IntervalsClient intervalsClient,
                            ZoneCalculatorService zoneCalculator,
                            ActivityAnalysisRepository repository,
                            PowerCurveService powerCurveService,
                            FtpResolver ftpResolver) {
         this.ftpResolver = ftpResolver;
-        this.intervalsService = intervalsService;
+        this.intervalsClient = intervalsClient;
         this.zoneCalculator = zoneCalculator;
         this.repository = repository;
         this.powerCurveService = powerCurveService;
@@ -45,15 +45,15 @@ public class AnalysisService {
         log.info("Bereite Analyse vor für Aktivität: {} ({})", activityDto.name(), activityId);
 
         // Athleten-Schwellenwerte laden
-        AthleteThresholdsDto thresholds = intervalsService.getAthleteThresholds();
+        AthleteThresholdsDto thresholds = intervalsClient.getAthleteThresholds();
         int maxHr = thresholds.maxHrOrDefault(zoneCalculator.getMaxHr());
 
         // Streams laden
-        StreamDataDto streams = intervalsService.getStreams(activityId);
+        StreamDataDto streams = intervalsClient.getStreams(activityId);
 
         // Zonen aus den von intervals.icu vorberechneten Zonen-Zeiten uebernehmen
         // (exakt wie auf der intervals.icu-Website; leere Liste -> Block wird im Report ausgeblendet)
-        ActivityZonesDto zones = intervalsService.getActivityZones(activityId);
+        ActivityZonesDto zones = intervalsClient.getActivityZones(activityId);
         List<ZoneDistributionDto> powerZones = zones.powerZones();
         List<ZoneDistributionDto> hrZones = zones.hrZones();
 
@@ -148,13 +148,13 @@ public class AnalysisService {
      */
     public ReportDto getReport(String activityId) {
         ActivityAnalysis analysis = repository.findByActivityId(activityId)
-                .orElseThrow(() -> new RuntimeException("Kein Report für Aktivität " + activityId + " gefunden. Bitte zuerst analysieren."));
+                .orElseThrow(() -> new ReportNotFoundException(activityId));
 
-        StreamDataDto streams = intervalsService.getStreams(activityId);
+        StreamDataDto streams = intervalsClient.getStreams(activityId);
 
-        AthleteThresholdsDto thresholds = intervalsService.getAthleteThresholds();
+        AthleteThresholdsDto thresholds = intervalsClient.getAthleteThresholds();
 
-        ActivityZonesDto zones = intervalsService.getActivityZones(activityId);
+        ActivityZonesDto zones = intervalsClient.getActivityZones(activityId);
         List<ZoneDistributionDto> powerZones = zones.powerZones();
         List<ZoneDistributionDto> hrZones = zones.hrZones();
         List<TrendDataDto> trend = buildTrend();

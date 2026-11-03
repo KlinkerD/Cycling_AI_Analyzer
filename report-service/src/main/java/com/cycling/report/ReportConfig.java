@@ -35,7 +35,7 @@ public class ReportConfig {
         return new MqttMessaging(new MqttSettings(brokerUrl, clientId, username, password, sessionExpiry));
     }
 
-    /** Laedt Reports beim analysis-service; grosszuegiger Timeout, weil dort Streams von intervals.icu geholt werden. */
+    /** Laedt Reports beim analysis-service; grosszuegiger Timeout, weil der dafuer Streams beim intervals-service holt. */
     @Bean
     public ReportClient reportClient(@Value("${analysis-service.base-url}") String baseUrl) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();

@@ -1,7 +1,7 @@
 
 services:
 
-  # MQTT-Broker: verbindet backend, ai-service, report-service und delivery-service.
+  # MQTT-Broker: verbindet backend, intervals-service, ai-service, report-service und delivery-service.
   mosquitto:
     image: eclipse-mosquitto:2.0.20
     container_name: cycling-mosquitto
@@ -18,7 +18,33 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # analysis-service: REST-API, intervals.icu, Analysen, Tagesempfehlung
+  # intervals-service: einzige Anbindung an intervals.icu. REST-API mit Cache fuer das backend,
+  # meldet neue Aktivitaeten und Fitness-Aenderungen per MQTT. Kein Port nach aussen.
+  intervals-service:
+    build:
+      context: .
+      dockerfile: intervals-service/Dockerfile
+    container_name: cycling-intervals
+    environment:
+      - INTERVALS_API_KEY=${INTERVALS_API_KEY}
+      - INTERVALS_ATHLETE_ID=${INTERVALS_ATHLETE_ID}
+      - INTERVALS_POLL_INTERVAL=${INTERVALS_POLL_INTERVAL:-15m}
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+    # Zum Debuggen bei Bedarf nur lokal freigeben:
+    # ports:
+    #   - "127.0.0.1:8081:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # analysis-service: REST-API, Analysen, Tagesempfehlung. intervals.icu-Daten ueber den intervals-service.
   backend:
     build:
       context: .
@@ -29,8 +55,7 @@ services:
     volumes:
       - cycling-data:/app/data
     environment:
-      - INTERVALS_API_KEY=${INTERVALS_API_KEY}
-      - INTERVALS_ATHLETE_ID=${INTERVALS_ATHLETE_ID}
+      - INTERVALS_SERVICE_URL=http://intervals-service:8080
       - CYCLING_FTP=${CYCLING_FTP:-250}
       - CYCLING_MAX_HR=${CYCLING_MAX_HR:-190}
       - MQTT_BROKER_URL=tcp://mosquitto:1883
@@ -38,6 +63,8 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/cycling-analysis;AUTO_SERVER=TRUE
     depends_on:
       mosquitto:
+        condition: service_healthy
+      intervals-service:
         condition: service_healthy
     restart: unless-stopped
 

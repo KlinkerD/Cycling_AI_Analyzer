@@ -19,9 +19,11 @@
 
   <modules>
     <module>cycling-messaging</module>
+    <module>intervals-api</module>
     <module>backend</module>
     <module>ai-service</module>
     <module>report-service</module>
     <module>delivery-service</module>
+    <module>intervals-service</module>
   </modules>
 </project>

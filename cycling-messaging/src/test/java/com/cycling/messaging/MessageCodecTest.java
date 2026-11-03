@@ -1,6 +1,8 @@
 package com.cycling.messaging;
 
+import com.cycling.messaging.contract.ActivityDetected;
 import com.cycling.messaging.contract.AnalysisRequest;
+import com.cycling.messaging.contract.WellnessUpdated;
 import com.cycling.messaging.contract.AnalysisResult;
 import com.cycling.messaging.contract.WorkoutData;
 import com.cycling.messaging.contract.ZoneShare;
@@ -38,6 +40,22 @@ class MessageCodecTest {
 
         assertThat(result.requestId()).isEqualTo("r1");
         assertThat(result.score()).isEqualTo(8);
+    }
+
+    @Test
+    void activityDetectedSurvivesRoundTrip() {
+        ActivityDetected detected = new ActivityDetected("i1", "Runde", "2026-11-01T08:30:00", "Ride",
+                42000.0, 5400, 5600, 180.0, 195.0, 600.0, 140.0, 175.0, 7.8, null);
+
+        assertThat(codec.decode(codec.encode(detected), ActivityDetected.class)).isEqualTo(detected);
+    }
+
+    @Test
+    void wellnessUpdatedSurvivesRoundTripWithoutPreviousDay() {
+        WellnessUpdated updated = new WellnessUpdated(
+                new WellnessUpdated.Values("2026-11-03", 55.2, 60.1, -4.9, 3.4), null);
+
+        assertThat(codec.decode(codec.encode(updated), WellnessUpdated.class)).isEqualTo(updated);
     }
 
     @Test

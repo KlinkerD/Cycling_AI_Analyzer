@@ -106,7 +106,7 @@ public class MqttMessaging implements MessagePublisher, AutoCloseable {
         this.onConnect = action;
     }
 
-    /** Wie {@link #publish}, aber retained: neue Subscriber bekommen die letzte Nachricht sofort. */
+    @Override
     public void publishRetained(String topic, Object message) {
         MqttMessage mqttMessage = new MqttMessage(codec.encode(message));
         mqttMessage.setQos(QOS);

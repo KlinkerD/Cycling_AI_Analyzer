@@ -23,6 +23,14 @@ public final class Topics {
     /** analysis-service -> report-service: Report erneut versenden, Button im Frontend ({@code ReportDeliveryRequest}). */
     public static final String REPORT_RESEND = ROOT + "report/resend";
 
+    /** intervals-service -> analysis-service: neue Rad-Aktivitaet bei intervals.icu ({@code ActivityDetected}). */
+    public static final String INTERVALS_ACTIVITY_DETECTED = ROOT + "intervals/activity/detected";
+    /**
+     * intervals-service -> alle: heutige Fitness/Fatigue/Form/Ramp haben sich geaendert ({@code WellnessUpdated}).
+     * Retained, damit z. B. ein spaeterer Fitness-Service beim Start sofort den aktuellen Stand hat.
+     */
+    public static final String INTERVALS_WELLNESS_UPDATED = ROOT + "intervals/wellness/updated";
+
     /** Praefix der Versandauftraege; der letzte Teil ist die Quelle, z. B. "report" oder "fitness". */
     private static final String DELIVERY_REQUEST_PREFIX = ROOT + "delivery/request/";
     /** Abo des delivery-service: Versandauftraege aller Quellen ({@code DeliveryMessage}). */

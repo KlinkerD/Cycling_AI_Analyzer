@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
 
 COPY pom.xml .
 COPY cycling-messaging ./cycling-messaging
+COPY intervals-api/pom.xml ./intervals-api/pom.xml
+COPY intervals-service/pom.xml ./intervals-service/pom.xml
 COPY report-service ./report-service
 COPY delivery-service/pom.xml ./delivery-service/pom.xml
 COPY backend/pom.xml ./backend/pom.xml

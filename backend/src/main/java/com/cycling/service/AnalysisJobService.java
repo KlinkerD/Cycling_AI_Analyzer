@@ -34,7 +34,8 @@ import java.util.stream.Collectors;
  * Zustellung keinen zweiten Versand ausloest).
  *
  * <p>Beim Ergebnis werden Streams/Zonen erneut geladen (statt sie im Speicher zu halten). Das kostet
- * ein paar zusaetzliche intervals.icu-Aufrufe, dafuer uebersteht ein Job einen Neustart des Backends.
+ * ein paar zusaetzliche Aufrufe beim intervals-service (meist aus dessen Cache), dafuer uebersteht ein Job
+ * einen Neustart des Backends.
  */
 public class AnalysisJobService {
 

@@ -3,10 +3,13 @@ package com.cycling.config;
 import com.cycling.messaging.MqttMessaging;
 import com.cycling.messaging.MqttSettings;
 import com.cycling.messaging.Topics;
+import com.cycling.messaging.contract.ActivityDetected;
 import com.cycling.messaging.contract.AnalysisResult;
 import com.cycling.messaging.contract.DeliveryServiceStatus;
 import com.cycling.messaging.contract.RecommendationTextResult;
+import com.cycling.repository.ActivityAnalysisRepository;
 import com.cycling.repository.AnalysisJobRepository;
+import com.cycling.service.ActivityDetectedHandler;
 import com.cycling.service.AnalysisJobService;
 import com.cycling.service.AnalysisService;
 import com.cycling.service.RecommendationService;
@@ -21,7 +24,7 @@ import org.springframework.context.event.EventListener;
 import java.time.Clock;
 import java.time.Duration;
 
-/** MQTT-Anbindung an ai-service, report-service und delivery-service. */
+/** MQTT-Anbindung an intervals-service, ai-service, report-service und delivery-service. */
 @Configuration
 public class MessagingConfig {
 
@@ -50,6 +53,12 @@ public class MessagingConfig {
         return new AnalysisJobService(analysisService, jobRepository, messaging, objectMapper, clock, timeout);
     }
 
+    @Bean
+    public ActivityDetectedHandler activityDetectedHandler(AnalysisJobService jobService,
+                                                           ActivityAnalysisRepository repository) {
+        return new ActivityDetectedHandler(jobService, repository);
+    }
+
     /** Handler registrieren und erst danach verbinden, damit keine nachgelieferte Nachricht verloren geht. */
     @EventListener(ApplicationReadyEvent.class)
     public void connectMqtt(ApplicationReadyEvent event) {
@@ -58,7 +67,9 @@ public class MessagingConfig {
         AnalysisJobService jobs = context.getBean(AnalysisJobService.class);
         RecommendationService recommendations = context.getBean(RecommendationService.class);
         ReportResendService resend = context.getBean(ReportResendService.class);
+        ActivityDetectedHandler detected = context.getBean(ActivityDetectedHandler.class);
 
+        messaging.subscribe(Topics.INTERVALS_ACTIVITY_DETECTED, ActivityDetected.class, detected::onActivityDetected);
         messaging.subscribe(Topics.AI_ANALYSIS_RESULT, AnalysisResult.class, jobs::complete);
         messaging.subscribe(Topics.AI_RECOMMENDATION_RESULT, RecommendationTextResult.class, recommendations::applyText);
         messaging.subscribe(Topics.DELIVERY_STATUS, DeliveryServiceStatus.class, resend::updateStatus);

@@ -3,12 +3,8 @@ package com.cycling.dto;
 import java.util.List;
 
 /**
- * Enthält die Zeitreihendaten (Streams) einer Aktivität von intervals.icu.
- * Endpoint: GET /api/v1/activity/{id}/streams
- *
- * intervals.icu gibt die Streams als Array von Objekten zurück:
- * [ { "type": "watts", "data": [...] }, { "type": "heartrate", "data": [...] }, ... ]
- * Diese Klasse ist das aufbereitete Ergebnis nach der Verarbeitung.
+ * Enthält die Zeitreihendaten (Streams) einer Aktivität von intervals.icu, geliefert vom
+ * intervals-service (der dort auch das Rohformat von intervals.icu liest).
  */
 public record StreamDataDto(
         List<Double> distance,   // in Metern

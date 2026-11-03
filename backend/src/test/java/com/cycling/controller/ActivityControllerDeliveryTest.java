@@ -4,7 +4,7 @@ import com.cycling.dto.AnalysisJobDto;
 import com.cycling.model.AnalysisJob;
 import com.cycling.service.AnalysisJobService;
 import com.cycling.service.AnalysisService;
-import com.cycling.service.IntervalsService;
+import com.cycling.service.IntervalsClient;
 import com.cycling.service.ReportResendService;
 import com.cycling.service.ReportResendService.Outcome;
 import com.cycling.service.ReportResendService.Result;
@@ -27,7 +27,7 @@ class ActivityControllerDeliveryTest {
     private final AnalysisService analysisService = mock(AnalysisService.class);
     private final AnalysisJobService jobService = mock(AnalysisJobService.class);
     private final ActivityController controller = new ActivityController(
-            mock(IntervalsService.class), analysisService, jobService, resend);
+            mock(IntervalsClient.class), analysisService, jobService, resend);
 
     @Test
     void analyzeAnswersAcceptedWithJob() {

@@ -1,11 +1,12 @@
 package com.cycling.report;
 
-import com.cycling.report.dto.StreamDataDto;
-import com.cycling.report.dto.TrendDataDto;
-import com.cycling.report.dto.ZoneDistributionDto;
-import com.cycling.report.dto.PowerCurveDto;
-import com.cycling.report.dto.PowerCurvePointDto;
-import com.cycling.report.dto.PowerCurveSetDto;
+import com.cycling.messaging.contract.ReportContent.PowerCurve;
+import com.cycling.messaging.contract.ReportContent.PowerCurvePoint;
+import com.cycling.messaging.contract.ReportContent.PowerCurveSet;
+import com.cycling.messaging.contract.ReportContent.Streams;
+import com.cycling.messaging.contract.ReportContent.TrendPoint;
+import com.cycling.messaging.contract.ReportContent.Zone;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,7 +55,7 @@ public class QuickChartService {
      * (m, rechts als gefuellte Flaeche ab Min-Hoehe). Faellt die Hoehe weg (Indoor/konstant),
      * bleibt nur die gefuellte Geschwindigkeitslinie.
      */
-    public byte[] renderSpeedAndAltitude(StreamDataDto streams) {
+    public byte[] renderSpeedAndAltitude(Streams streams) {
         if (streams.velocity() == null || streams.velocity().isEmpty()) return null;
 
         List<Double> speedKmh = new ArrayList<>(streams.velocity().size());
@@ -100,7 +101,7 @@ public class QuickChartService {
      * Leistung (W, links als gefuellte Flaeche) kombiniert mit der Herzfrequenz
      * (bpm, rechts als Linie). Fehlt eine der beiden Metriken, wird nur die vorhandene gezeigt.
      */
-    public byte[] renderPowerAndHr(StreamDataDto streams) {
+    public byte[] renderPowerAndHr(Streams streams) {
         boolean hasWatts = hasAny(streams.watts());
         boolean hasHr = hasAny(streams.heartrate());
         if (!hasWatts && !hasHr) return null;
@@ -135,18 +136,18 @@ public class QuickChartService {
         return postMultiAxis("Leistung & Herzfrequenz über Distanz", xs, datasets, scales, hasWatts && hasHr);
     }
 
-    public byte[] renderCadenceOverDistance(StreamDataDto streams) {
+    public byte[] renderCadenceOverDistance(Streams streams) {
         return renderLine("Kadenz (rpm)", "Distanz (km)", streams.distance(), streams.cadence(),
                 "rgba(76,175,80,1)", "rgba(76,175,80,0.2)");
     }
 
-    public byte[] renderZoneDoughnut(String title, List<ZoneDistributionDto> zones) {
+    public byte[] renderZoneDoughnut(String title, List<Zone> zones) {
         if (zones == null || zones.isEmpty()) return null;
 
         List<String> labels = new ArrayList<>();
         List<Double> values = new ArrayList<>();
         List<String> colors = new ArrayList<>();
-        for (ZoneDistributionDto z : zones) {
+        for (Zone z : zones) {
             double pct = round1(z.percentage());
             labels.add(z.zoneName() + " " + z.zoneLabel() + " – " + fmtPct(pct) + " %");
             values.add(pct);
@@ -174,11 +175,11 @@ public class QuickChartService {
         return postChart(chart, DOUGHNUT_SIZE + 180, DOUGHNUT_SIZE);
     }
 
-    public byte[] renderTrend(List<TrendDataDto> trend) {
+    public byte[] renderTrend(List<TrendPoint> trend) {
         if (trend == null || trend.size() < 2) return null;
 
         // Aelteste zuerst (DB liefert DESC)
-        List<TrendDataDto> ordered = new ArrayList<>(trend);
+        List<TrendPoint> ordered = new ArrayList<>(trend);
         java.util.Collections.reverse(ordered);
 
         List<String> labels = new ArrayList<>();
@@ -186,7 +187,7 @@ public class QuickChartService {
         List<Double> hr = new ArrayList<>();
         List<Double> speed = new ArrayList<>();
         List<Double> score = new ArrayList<>();
-        for (TrendDataDto t : ordered) {
+        for (TrendPoint t : ordered) {
             labels.add(t.activityDate() != null ? t.activityDate().format(TREND_FMT) : "?");
             power.add(t.avgPowerWatts());
             hr.add(t.avgHeartRate());
@@ -241,14 +242,14 @@ public class QuickChartService {
      * - Bis zu 3 vorherige Aktivitaeten: progressiv blasser (grau)
      * - FTP-Reflinie als gestrichelte horizontale Linie
      */
-    public byte[] renderPowerCurve(PowerCurveSetDto set) {
+    public byte[] renderPowerCurve(PowerCurveSet set) {
         if (set == null || set.current() == null) return null;
-        List<PowerCurvePointDto> currentPts = set.current().points();
+        List<PowerCurvePoint> currentPts = set.current().points();
         if (currentPts == null || currentPts.isEmpty()) return null;
 
         // X-Werte (Sekunden) aus aktueller Kurve – Buckets sind fix gleich fuer alle
         List<Integer> xs = new ArrayList<>(currentPts.size());
-        for (PowerCurvePointDto p : currentPts) xs.add(p.durationSeconds());
+        for (PowerCurvePoint p : currentPts) xs.add(p.durationSeconds());
 
         List<Map<String, Object>> datasets = new ArrayList<>();
 
@@ -257,7 +258,7 @@ public class QuickChartService {
         double[] alphas = {0.45, 0.30, 0.18};
         if (set.previous() != null) {
             for (int i = 0; i < set.previous().size() && i < alphas.length; i++) {
-                PowerCurveDto prev = set.previous().get(i);
+                PowerCurve prev = set.previous().get(i);
                 String label = (prev.activityDate() != null
                         ? prev.activityDate().format(TREND_FMT) + " "
                         : "") + safeShort(prev.activityName(), 24);
@@ -333,10 +334,10 @@ public class QuickChartService {
         return postChart(chart, CHART_WIDTH + 100, CHART_HEIGHT + 60);
     }
 
-    private Map<String, Object> curveDataset(String label, List<PowerCurvePointDto> points,
+    private Map<String, Object> curveDataset(String label, List<PowerCurvePoint> points,
                                              String borderColor, double borderWidth, boolean current) {
         List<Integer> ys = new ArrayList<>(points.size());
-        for (PowerCurvePointDto p : points) ys.add(p.watts());
+        for (PowerCurvePoint p : points) ys.add(p.watts());
 
         Map<String, Object> ds = new LinkedHashMap<>();
         ds.put("label", label);

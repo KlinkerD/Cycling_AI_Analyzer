@@ -3,22 +3,23 @@ package com.cycling.report;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.DeliveryMessage;
+import com.cycling.messaging.contract.ReportContent;
 import com.cycling.messaging.contract.ReportDeliveryRequest;
-import com.cycling.report.dto.ReportDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.function.Function;
 
 /**
- * Verarbeitet Versandauftraege fuer Reports: Report laden, Charts rendern, {@link DeliveryMessage}
- * bauen und an den delivery-service schicken. Die requestId wird zur messageId, dadurch verwirft der
- * delivery-service doppelt zugestellte Auftraege.
+ * Verarbeitet Versandauftraege fuer Reports: Charts rendern, {@link DeliveryMessage} bauen und an den
+ * delivery-service schicken. Der Report steckt vollstaendig im Auftrag, es gibt keinen Rueckruf beim
+ * analysis-service. Die requestId wird zur messageId, dadurch verwirft der delivery-service doppelt
+ * zugestellte Auftraege.
  * <p>
- * Kein eigener Speicher: schlaegt ein Schritt fehl, wird nur im Speicher nach den konfigurierten
- * Abstaenden wiederholt. Geht der Service dabei neu an, ist der Auftrag weg ("Erneut senden" im Frontend).
+ * Kein eigener Speicher: schlaegt Rendern (QuickChart) oder Senden fehl, wird nur im Speicher nach den
+ * konfigurierten Abstaenden wiederholt. Geht der Service dabei neu an, ist der Auftrag weg ("Erneut senden"
+ * im Frontend).
  */
 public class ReportRequestHandler {
 
@@ -30,17 +31,14 @@ public class ReportRequestHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ReportRequestHandler.class);
 
-    private final Function<String, ReportDto> reportLoader;
     private final ReportChartRenderer renderer;
     private final ReportMessageBuilder messageBuilder;
     private final MessagePublisher publisher;
     private final Scheduler scheduler;
     private final List<Duration> retryDelays;
 
-    public ReportRequestHandler(Function<String, ReportDto> reportLoader, ReportChartRenderer renderer,
-                                ReportMessageBuilder messageBuilder, MessagePublisher publisher,
-                                Scheduler scheduler, List<Duration> retryDelays) {
-        this.reportLoader = reportLoader;
+    public ReportRequestHandler(ReportChartRenderer renderer, ReportMessageBuilder messageBuilder,
+                                MessagePublisher publisher, Scheduler scheduler, List<Duration> retryDelays) {
         this.renderer = renderer;
         this.messageBuilder = messageBuilder;
         this.publisher = publisher;
@@ -48,17 +46,23 @@ public class ReportRequestHandler {
         this.retryDelays = List.copyOf(retryDelays);
     }
 
-    /** Nimmt den Auftrag an und arbeitet ihn im Hintergrund ab (der MQTT-Worker wartet nicht auf Backend/QuickChart). */
+    /** Nimmt den Auftrag an und arbeitet ihn im Hintergrund ab (der MQTT-Worker wartet nicht auf QuickChart). */
     public void handle(ReportDeliveryRequest request) {
+        ReportContent report = request.report();
+        if (report == null || report.analysis() == null || report.streams() == null) {
+            // z. B. ein Auftrag im alten Format, der noch in der Broker-Session lag
+            log.error("Versandauftrag {} fuer Aktivitaet {} ohne vollstaendigen Report verworfen",
+                    request.requestId(), request.activityId());
+            return;
+        }
         log.info("Versandauftrag {} fuer Aktivitaet {} angenommen", request.requestId(), request.activityId());
         scheduler.schedule(() -> attempt(request, 0), Duration.ZERO);
     }
 
     private void attempt(ReportDeliveryRequest request, int failures) {
         try {
-            ReportDto report = reportLoader.apply(request.activityId());
-            ReportCharts charts = renderer.render(report);
-            DeliveryMessage message = messageBuilder.build(request.requestId(), report, charts);
+            ReportCharts charts = renderer.render(request.report());
+            DeliveryMessage message = messageBuilder.build(request.requestId(), request.report(), charts);
             publisher.publish(Topics.DELIVERY_REQUEST_REPORT, message);
             log.info("Report {} als Nachricht {} an den delivery-service uebergeben ({} Anhaenge)",
                     request.activityId(), request.requestId(), message.attachments().size());

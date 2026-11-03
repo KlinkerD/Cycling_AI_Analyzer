@@ -171,7 +171,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResendResultDto"
-          description: Versand-Service nicht erreichbar
+          description: Versand-Service nicht erreichbar oder Report nicht ladbar
       tags:
       - Activities
   /api/overview/recommendation:

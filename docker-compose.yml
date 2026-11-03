@@ -83,8 +83,8 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # report-service: holt den Report per REST beim backend, rendert die Charts und
-  # schickt eine DeliveryMessage an den delivery-service. Kein eigener Speicher.
+  # report-service: bekommt den fertigen Report per MQTT vom backend, rendert die Charts und
+  # schickt eine DeliveryMessage an den delivery-service. Kein eigener Speicher, kein REST-Aufruf.
   report-service:
     build:
       context: .
@@ -92,7 +92,6 @@ services:
     container_name: cycling-report
     environment:
       - MQTT_BROKER_URL=tcp://mosquitto:1883
-      - ANALYSIS_SERVICE_URL=http://backend:8080
       - QUICKCHART_BASE_URL=${QUICKCHART_BASE_URL:-https://quickchart.io}
       # Ziele der Reports, z. B. DISCORD:reports,MAIL:default (leer = "default" jedes aktiven Kanals)
       - REPORT_TARGETS=${REPORT_TARGETS:-}

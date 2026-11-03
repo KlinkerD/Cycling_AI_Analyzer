@@ -5,8 +5,8 @@ import com.cycling.messaging.contract.DeliveryMessage.Attachment;
 import com.cycling.messaging.contract.DeliveryMessage.Field;
 import com.cycling.messaging.contract.DeliveryMessage.Section;
 import com.cycling.messaging.contract.DeliveryMessage.Target;
-import com.cycling.report.dto.ActivityAnalysis;
-import com.cycling.report.dto.ReportDto;
+import com.cycling.messaging.contract.ReportContent;
+import com.cycling.messaging.contract.ReportContent.Analysis;
 
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -29,42 +29,42 @@ public class ReportMessageBuilder {
         this.targets = List.copyOf(targets);
     }
 
-    public DeliveryMessage build(String messageId, ReportDto report, ReportCharts charts) {
-        ActivityAnalysis a = report.analysis();
+    public DeliveryMessage build(String messageId, ReportContent report, ReportCharts charts) {
+        Analysis a = report.analysis();
         return new DeliveryMessage(
                 messageId,
-                "🚴 " + (a.getActivityName() == null ? "" : a.getActivityName()),
-                a.getActivityDate() != null ? a.getActivityDate().format(DATE_FMT) : null,
-                scoreColor(a.getOverallScore()),
+                "🚴 " + (a.activityName() == null ? "" : a.activityName()),
+                a.activityDate() != null ? a.activityDate().format(DATE_FMT) : null,
+                scoreColor(a.overallScore()),
                 fields(a),
                 sections(a),
                 charts.all().stream().map(c -> new Attachment(c.key(), c.title(), c.png())).toList(),
-                a.getAnalyzedAt() != null ? "Analysiert am " + a.getAnalyzedAt().format(DATETIME_FMT) + " Uhr" : null,
+                a.analyzedAt() != null ? "Analysiert am " + a.analyzedAt().format(DATETIME_FMT) + " Uhr" : null,
                 targets);
     }
 
-    private static List<Field> fields(ActivityAnalysis a) {
+    private static List<Field> fields(Analysis a) {
         List<Field> fields = new ArrayList<>();
-        add(fields, "Score", a.getOverallScore() != null ? a.getOverallScore() + " / 10" : null);
-        add(fields, "Distanz", num(a.getDistanceKm(), 1, "km"));
-        add(fields, "Dauer", formatDuration(a.getDurationSeconds()));
-        add(fields, "Leistung ø", num(a.getAvgPowerWatts(), 0, "W"));
-        add(fields, "NP", num(a.getNormalizedPowerWatts(), 0, "W"));
-        add(fields, "TSS", num(a.getTrainingLoad(), 0, ""));
-        add(fields, "IF", num(a.getIntensityFactor(), 2, ""));
-        add(fields, "Puls ø", num(a.getAvgHeartRate(), 0, "bpm"));
-        add(fields, "Tempo ø", num(a.getAvgSpeedKmh(), 1, "km/h"));
-        add(fields, "Höhenmeter", num(a.getElevationGainM(), 0, "hm"));
-        add(fields, "Kadenz ø", num(a.getAvgCadenceRpm(), 0, "rpm"));
+        add(fields, "Score", a.overallScore() != null ? a.overallScore() + " / 10" : null);
+        add(fields, "Distanz", num(a.distanceKm(), 1, "km"));
+        add(fields, "Dauer", formatDuration(a.durationSeconds()));
+        add(fields, "Leistung ø", num(a.avgPowerWatts(), 0, "W"));
+        add(fields, "NP", num(a.normalizedPowerWatts(), 0, "W"));
+        add(fields, "TSS", num(a.trainingLoad(), 0, ""));
+        add(fields, "IF", num(a.intensityFactor(), 2, ""));
+        add(fields, "Puls ø", num(a.avgHeartRate(), 0, "bpm"));
+        add(fields, "Tempo ø", num(a.avgSpeedKmh(), 1, "km/h"));
+        add(fields, "Höhenmeter", num(a.elevationGainM(), 0, "hm"));
+        add(fields, "Kadenz ø", num(a.avgCadenceRpm(), 0, "rpm"));
         return fields;
     }
 
-    private static List<Section> sections(ActivityAnalysis a) {
+    private static List<Section> sections(Analysis a) {
         List<Section> sections = new ArrayList<>();
-        addSection(sections, "👍 Was gut lief", a.getStrengths(), "#4caf50");
-        addSection(sections, "⚠️ Auffälligkeiten", a.getAnomalies(), "#ff9800");
-        addSection(sections, "📈 Fortschritt", a.getProgress(), "#2196f3");
-        addSection(sections, "📝 Fazit", a.getSummary(), "#3f51b5");
+        addSection(sections, "👍 Was gut lief", a.strengths(), "#4caf50");
+        addSection(sections, "⚠️ Auffälligkeiten", a.anomalies(), "#ff9800");
+        addSection(sections, "📈 Fortschritt", a.progress(), "#2196f3");
+        addSection(sections, "📝 Fazit", a.summary(), "#3f51b5");
         return sections;
     }
 

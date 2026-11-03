@@ -163,9 +163,11 @@ Für private Repositories musst du auf dem Raspberry Pi per `docker login ghcr.i
 
 Absender bauen den Inhalt, der delivery-service stellt zu:
 
-- **report-service** bekommt `cycling/report/ready` bzw. `cycling/report/resend`, holt den Report beim Backend,
-  rendert die Charts und baut daraus eine neutrale `DeliveryMessage` (Titel, Felder, Abschnitte, PNG-Anhänge).
-  Kein eigener Speicher: Fehlschläge werden nach 1, 5 und 15 Minuten wiederholt, danach hilft „Erneut senden“.
+- **report-service** bekommt `cycling/report/ready` bzw. `cycling/report/resend` mit dem kompletten Report
+  (Vertrag `ReportContent` in `cycling-messaging`, Streams in voller Auflösung), rendert die Charts und baut daraus
+  eine neutrale `DeliveryMessage` (Titel, Felder, Abschnitte, PNG-Anhänge). Er ruft das Backend nicht zurück.
+  Kein eigener Speicher: Fehlschläge beim Rendern oder Senden werden nach 1, 5 und 15 Minuten wiederholt,
+  danach hilft „Erneut senden“.
 - **fitness-service** schickt einmal am Tag eine Fitness-Zusammenfassung auf `cycling/delivery/request/fitness`
   (siehe unten).
 - **delivery-service** abonniert `cycling/delivery/request/+` (letzter Teil = Quelle, z. B. `report`),

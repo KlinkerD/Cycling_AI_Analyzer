@@ -1,10 +1,9 @@
 package com.cycling.report;
 
 import com.cycling.messaging.contract.DeliveryMessage;
-import com.cycling.report.dto.ReportDto;
+import com.cycling.messaging.contract.ReportContent;
 import org.junit.jupiter.api.Test;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -12,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ReportMessageBuilderTest {
 
     private final ReportMessageBuilder builder = new ReportMessageBuilder(List.of());
-    private final ReportDto report = ReportFixtures.report("i1");
+    private final ReportContent report = ReportFixtures.report("i1");
     private final ReportCharts charts = new ReportCharts(List.of(
             new ReportCharts.Chart(ReportCharts.SPEED_ALT, "Geschwindigkeit & Höhe", ReportFixtures.png("speed")),
             new ReportCharts.Chart(ReportCharts.HR_ZONES, "Herzfrequenzzonen", ReportFixtures.png("hr"))));
@@ -48,9 +47,10 @@ class ReportMessageBuilderTest {
 
     @Test
     void aiTextsBecomeColoredSectionsAndBlankOnesAreSkipped() {
-        report.analysis().setAnomalies(" ");
+        ReportContent blankAnomalies = ReportFixtures.report(ReportFixtures.analysis("i1", 8, " ",
+                ReportFixtures.ACTIVITY_DATE, ReportFixtures.ANALYZED_AT));
 
-        DeliveryMessage message = builder.build("r1", report, charts);
+        DeliveryMessage message = builder.build("r1", blankAnomalies, charts);
 
         assertThat(message.sections()).extracting(DeliveryMessage.Section::title)
                 .containsExactly("👍 Was gut lief", "📈 Fortschritt", "📝 Fazit");
@@ -78,19 +78,16 @@ class ReportMessageBuilderTest {
 
     @Test
     void reportWithoutDatesHasNoSubtitleAndNoFooter() {
-        report.analysis().setActivityDate(null);
-        report.analysis().setAnalyzedAt(null);
+        ReportContent withoutDates = ReportFixtures.report(ReportFixtures.analysis("i1", 8, "x", null, null));
 
-        DeliveryMessage message = builder.build("r1", report, charts);
+        DeliveryMessage message = builder.build("r1", withoutDates, charts);
 
         assertThat(message.subtitle()).isNull();
         assertThat(message.footer()).isNull();
     }
 
-    private ReportDto withScore(Integer score) {
-        ReportDto r = ReportFixtures.report("i1");
-        r.analysis().setOverallScore(score);
-        r.analysis().setAnalyzedAt(LocalDateTime.of(2026, 11, 1, 10, 0));
-        return r;
+    private ReportContent withScore(Integer score) {
+        return ReportFixtures.report(ReportFixtures.analysis("i1", score, "x",
+                ReportFixtures.ACTIVITY_DATE, ReportFixtures.ANALYZED_AT));
     }
 }

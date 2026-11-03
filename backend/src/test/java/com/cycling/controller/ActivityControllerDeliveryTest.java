@@ -14,7 +14,6 @@ import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -82,5 +81,16 @@ class ActivityControllerDeliveryTest {
         when(resend.resend("i1")).thenReturn(new Outcome(Result.UNAVAILABLE, List.of()));
 
         assertThat(controller.resendReport("i1").getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    @Test
+    void resendAnswersServiceUnavailableWithReasonWhenReportCannotBeLoaded() {
+        when(resend.resend("i1")).thenReturn(new Outcome(Result.REPORT_UNAVAILABLE, List.of()));
+
+        ResponseEntity<com.cycling.dto.ResendResultDto> response = controller.resendReport("i1");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody().status()).isEqualTo("unavailable");
+        assertThat(response.getBody().message()).contains("Report konnte nicht geladen werden");
     }
 }

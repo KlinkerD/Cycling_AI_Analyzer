@@ -1,6 +1,6 @@
 package com.cycling.report;
 
-import com.cycling.report.dto.ReportDto;
+import com.cycling.messaging.contract.ReportContent;
 
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +17,7 @@ class ReportChartRendererTest {
 
     @Test
     void keepsOnlyRenderedChartsInReportOrder() {
-        ReportDto report = ReportFixtures.report("i1");
+        ReportContent report = ReportFixtures.report("i1");
         when(quickChart.renderSpeedAndAltitude(any())).thenReturn(ReportFixtures.png("speed"));
         when(quickChart.renderPowerAndHr(any())).thenReturn(null);
         when(quickChart.renderCadenceOverDistance(any())).thenReturn(ReportFixtures.png("cadence"));

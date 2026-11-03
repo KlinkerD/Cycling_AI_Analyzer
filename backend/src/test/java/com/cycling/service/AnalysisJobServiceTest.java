@@ -2,6 +2,7 @@ package com.cycling.service;
 
 import com.cycling.dto.ActivityDto;
 import com.cycling.dto.ReportDto;
+import com.cycling.dto.StreamDataDto;
 import com.cycling.dto.ZoneDistributionDto;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.MessagingException;
@@ -83,6 +84,17 @@ class AnalysisJobServiceTest {
                 List.of(prev), 250, 190);
     }
 
+    /** Fertiger Report, wie ihn AnalysisService.complete liefert. */
+    private static ReportDto report() {
+        ActivityAnalysis a = prepared().analysis();
+        a.setOverallScore(8);
+        a.setSummary("z");
+        StreamDataDto streams = new StreamDataDto(List.of(0.0, 10.0), List.of(150, 160), List.of(120, 125),
+                List.of(8.0, 8.1), List.of(100.0, 101.0), List.of(0, 1), List.of());
+        return new ReportDto(a, streams, List.of(new ZoneDistributionDto("Z2", "Ausdauer", 1800, 50.0, "#0f0")),
+                List.of(), List.of(), null);
+    }
+
     private static AnalysisResult success(String jobId) {
         return new AnalysisResult(jobId, true, null, 8, "s", "a", "p", "z");
     }
@@ -129,20 +141,29 @@ class AnalysisJobServiceTest {
     void successfulResultStoresAnalysisAndRequestsDelivery() {
         when(analysis.prepare(eq("i1"), any())).thenReturn(prepared());
         AnalysisJob job = service.start("i1", activity());
-        ReportDto report = mock(ReportDto.class);
-        when(analysis.complete(any(), eq(success(job.getId())))).thenReturn(report);
+        when(analysis.complete(any(), eq(success(job.getId())))).thenReturn(report());
 
         service.complete(success(job.getId()));
 
         assertThat(stored.get(job.getId()).getStatus()).isEqualTo(AnalysisJobStatus.DONE);
-        verify(publisher).publish(Topics.REPORT_READY, new ReportDeliveryRequest(job.getId(), "i1"));
+        ArgumentCaptor<ReportDeliveryRequest> captor = ArgumentCaptor.forClass(ReportDeliveryRequest.class);
+        verify(publisher).publish(eq(Topics.REPORT_READY), captor.capture());
+        ReportDeliveryRequest request = captor.getValue();
+        assertThat(request.requestId()).isEqualTo(job.getId());
+        assertThat(request.activityId()).isEqualTo("i1");
+        assertThat(request.report().analysis().activityName()).isEqualTo("Runde");
+        assertThat(request.report().analysis().overallScore()).isEqualTo(8);
+        assertThat(request.report().analysis().activityDate()).isEqualTo(LocalDateTime.of(2026, 11, 1, 9, 30));
+        assertThat(request.report().streams().watts()).containsExactly(150, 160);
+        assertThat(request.report().powerZones()).singleElement().satisfies(z -> assertThat(z.zoneName()).isEqualTo("Z2"));
+        assertThat(request.report().powerCurveSet()).isNull();
     }
 
     @Test
     void storedActivityKeepsNormalizedPowerForCompletion() {
         when(analysis.prepare(eq("i1"), any())).thenReturn(prepared());
         AnalysisJob job = service.start("i1", activity());
-        when(analysis.complete(any(), any())).thenReturn(mock(ReportDto.class));
+        when(analysis.complete(any(), any())).thenReturn(report());
 
         service.complete(success(job.getId()));
 
@@ -169,7 +190,7 @@ class AnalysisJobServiceTest {
     @Test
     void brokerOutageOnDeliveryRequestStillMarksJobDone() {
         stored.put("j1", new AnalysisJob("j1", "i1", "{\"id\":\"i1\"}", NOW));
-        when(analysis.complete(any(), any())).thenReturn(mock(ReportDto.class));
+        when(analysis.complete(any(), any())).thenReturn(report());
         doThrow(new MessagingException("weg", null)).when(publisher).publish(eq(Topics.REPORT_READY), any());
 
         service.complete(success("j1"));
@@ -192,7 +213,7 @@ class AnalysisJobServiceTest {
         AnalysisJob expired = new AnalysisJob("j1", "i1", "{\"id\":\"i1\"}", NOW.minusMinutes(30));
         expired.markFailed("Timeout", NOW);
         stored.put("j1", expired);
-        when(analysis.complete(any(), any())).thenReturn(mock(ReportDto.class));
+        when(analysis.complete(any(), any())).thenReturn(report());
 
         service.complete(success("j1"));
 

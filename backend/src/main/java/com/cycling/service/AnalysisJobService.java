@@ -1,6 +1,7 @@
 package com.cycling.service;
 
 import com.cycling.dto.ActivityDto;
+import com.cycling.dto.ReportDto;
 import com.cycling.dto.ZoneDistributionDto;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.Topics;
@@ -30,8 +31,8 @@ import java.util.stream.Collectors;
 /**
  * Steuert die asynchrone KI-Analyse: legt einen Job an, schickt den Auftrag per MQTT an den
  * ai-service und speichert die Analyse, sobald das Ergebnis zurueckkommt. Danach geht ein
- * Versandauftrag an den report-service (Job-ID = Request-ID, damit eine doppelte
- * Zustellung keinen zweiten Versand ausloest).
+ * Versandauftrag mit dem fertigen Report an den report-service (Job-ID = Request-ID, damit eine
+ * doppelte Zustellung keinen zweiten Versand ausloest).
  *
  * <p>Beim Ergebnis werden Streams/Zonen erneut geladen (statt sie im Speicher zu halten). Das kostet
  * ein paar zusaetzliche Aufrufe beim intervals-service (meist aus dessen Cache), dafuer uebersteht ein Job
@@ -106,9 +107,10 @@ public class AnalysisJobService {
             return;
         }
 
+        ReportDto report;
         try {
             ActivityDto activity = objectMapper.readValue(job.getActivityJson(), ActivityDto.class);
-            analysisService.complete(analysisService.prepare(job.getActivityId(), activity), result);
+            report = analysisService.complete(analysisService.prepare(job.getActivityId(), activity), result);
         } catch (JsonProcessingException | RuntimeException e) {
             log.error("Ergebnis fuer Job {} konnte nicht gespeichert werden: {}", job.getId(), e.getMessage(), e);
             job.markFailed("Analyse konnte nicht gespeichert werden: " + e.getMessage(), now());
@@ -117,13 +119,14 @@ public class AnalysisJobService {
         }
         job.markDone(now());
         jobRepository.save(job);
-        requestDelivery(job);
+        requestDelivery(job, report);
     }
 
     /** Fail-soft: die Analyse ist gespeichert; der Versand kann per Button nachgeholt werden. */
-    private void requestDelivery(AnalysisJob job) {
+    private void requestDelivery(AnalysisJob job, ReportDto report) {
         try {
-            publisher.publish(Topics.REPORT_READY, new ReportDeliveryRequest(job.getId(), job.getActivityId()));
+            publisher.publish(Topics.REPORT_READY,
+                    new ReportDeliveryRequest(job.getId(), job.getActivityId(), ReportContentMapper.toContent(report)));
         } catch (RuntimeException e) {
             log.warn("Versand fuer {} konnte nicht angestossen werden: {}", job.getActivityId(), e.getMessage());
         }

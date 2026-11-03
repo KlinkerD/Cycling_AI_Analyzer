@@ -18,9 +18,9 @@ public final class Topics {
     /** ai-service -> analysis-service: Text der Tagesempfehlung ({@code RecommendationTextResult}). */
     public static final String AI_RECOMMENDATION_RESULT = ROOT + "ai/recommendation/result";
 
-    /** analysis-service -> report-service: Analyse fertig, Report versenden ({@code ReportDeliveryRequest}). */
+    /** analysis-service -> report-service: Analyse fertig, Report versenden ({@code ReportDeliveryRequest} inkl. Report). */
     public static final String REPORT_READY = ROOT + "report/ready";
-    /** analysis-service -> report-service: Report erneut versenden, Button im Frontend ({@code ReportDeliveryRequest}). */
+    /** analysis-service -> report-service: Report erneut versenden, Button im Frontend ({@code ReportDeliveryRequest} inkl. Report). */
     public static final String REPORT_RESEND = ROOT + "report/resend";
 
     /** intervals-service -> analysis-service: neue Rad-Aktivitaet bei intervals.icu ({@code ActivityDetected}). */

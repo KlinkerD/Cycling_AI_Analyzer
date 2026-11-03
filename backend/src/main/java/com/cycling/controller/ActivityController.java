@@ -129,7 +129,7 @@ public class ActivityController {
 
     /**
      * POST /api/activities/{id}/resend
-     * Beauftragt den report-service, den gespeicherten Report an alle aktiven Kanaele
+     * Laedt den gespeicherten Report und beauftragt den report-service, ihn an alle aktiven Kanaele
      * (Mail, Discord) zu senden. 202 heisst "angestossen", nicht "zugestellt".
      */
     @PostMapping("/{id}/resend")
@@ -137,7 +137,7 @@ public class ActivityController {
     @ApiResponse(responseCode = "404", description = "Kein Report vorhanden", content = @Content)
     @ApiResponse(responseCode = "409", description = "Kein Versandkanal aktiv",
             content = @Content(schema = @Schema(implementation = ResendResultDto.class)))
-    @ApiResponse(responseCode = "503", description = "Versand-Service nicht erreichbar",
+    @ApiResponse(responseCode = "503", description = "Versand-Service nicht erreichbar oder Report nicht ladbar",
             content = @Content(schema = @Schema(implementation = ResendResultDto.class)))
     public ResponseEntity<ResendResultDto> resendReport(@PathVariable String id) {
         ReportResendService.Outcome outcome = resendService.resend(id);
@@ -147,6 +147,9 @@ public class ActivityController {
                     .body(ResendResultDto.failed("disabled", "Kein Versandkanal aktiv."));
             case UNAVAILABLE -> ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(ResendResultDto.failed("unavailable", "Versand-Service nicht erreichbar."));
+            case REPORT_UNAVAILABLE -> ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(ResendResultDto.failed("unavailable",
+                            "Report konnte nicht geladen werden (intervals-service nicht erreichbar)."));
             case NOT_FOUND -> ResponseEntity.notFound().build();
         };
     }

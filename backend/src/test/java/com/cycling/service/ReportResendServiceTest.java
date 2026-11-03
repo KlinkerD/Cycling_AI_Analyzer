@@ -1,5 +1,7 @@
 package com.cycling.service;
 
+import com.cycling.dto.ReportDto;
+import com.cycling.dto.StreamDataDto;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.MessagingException;
 import com.cycling.messaging.Topics;
@@ -11,6 +13,7 @@ import com.cycling.service.ReportResendService.Result;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -27,12 +30,19 @@ import static org.mockito.Mockito.when;
 class ReportResendServiceTest {
 
     private final ActivityAnalysisRepository repository = mock(ActivityAnalysisRepository.class);
+    private final AnalysisService analysisService = mock(AnalysisService.class);
     private final MessagePublisher publisher = mock(MessagePublisher.class);
-    private final ReportResendService service = new ReportResendService(repository, publisher);
+    private final ReportResendService service = new ReportResendService(repository, analysisService, publisher);
 
     @BeforeEach
     void setUp() {
-        when(repository.findByActivityId("i1")).thenReturn(Optional.of(new ActivityAnalysis()));
+        ActivityAnalysis analysis = new ActivityAnalysis();
+        analysis.setActivityId("i1");
+        analysis.setActivityName("Runde");
+        when(repository.findByActivityId("i1")).thenReturn(Optional.of(analysis));
+        StreamDataDto streams = new StreamDataDto(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        when(analysisService.getReport("i1"))
+                .thenReturn(new ReportDto(analysis, streams, List.of(), List.of(), List.of(), null));
     }
 
     @Test
@@ -47,6 +57,7 @@ class ReportResendServiceTest {
         ArgumentCaptor<ReportDeliveryRequest> captor = ArgumentCaptor.forClass(ReportDeliveryRequest.class);
         verify(publisher, org.mockito.Mockito.times(2)).publish(eq(Topics.REPORT_RESEND), captor.capture());
         assertThat(captor.getAllValues()).extracting(ReportDeliveryRequest::activityId).containsOnly("i1");
+        assertThat(captor.getAllValues()).extracting(r -> r.report().analysis().activityName()).containsOnly("Runde");
         assertThat(captor.getAllValues().get(0).requestId()).isNotEqualTo(captor.getAllValues().get(1).requestId());
     }
 
@@ -66,6 +77,16 @@ class ReportResendServiceTest {
     }
 
     @Test
+    void reportThatCannotBeLoadedIsReportedAndNothingIsSent() {
+        service.updateStatus(new DeliveryServiceStatus(true, List.of("MAIL")));
+        when(analysisService.getReport("i1")).thenThrow(new IntervalsUnavailableException(HttpStatus.SERVICE_UNAVAILABLE,
+                IntervalsUnavailableException.SERVICE_UNREACHABLE, "intervals-service weg", null, null));
+
+        assertThat(service.resend("i1").result()).isEqualTo(Result.REPORT_UNAVAILABLE);
+        verify(publisher, never()).publish(any(), any());
+    }
+
+    @Test
     void noStatusYetMeansUnavailable() {
         assertThat(service.resend("i1").result()).isEqualTo(Result.UNAVAILABLE);
     }
@@ -76,6 +97,7 @@ class ReportResendServiceTest {
 
         assertThat(service.resend("i1").result()).isEqualTo(Result.DISABLED);
         verify(publisher, never()).publish(any(), any());
+        verify(analysisService, never()).getReport(any());
     }
 
     @Test

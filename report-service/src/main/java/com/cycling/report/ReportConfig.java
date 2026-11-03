@@ -9,8 +9,6 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 import java.util.List;
@@ -35,15 +33,6 @@ public class ReportConfig {
         return new MqttMessaging(new MqttSettings(brokerUrl, clientId, username, password, sessionExpiry));
     }
 
-    /** Laedt Reports beim analysis-service; grosszuegiger Timeout, weil der dafuer Streams beim intervals-service holt. */
-    @Bean
-    public ReportClient reportClient(@Value("${analysis-service.base-url}") String baseUrl) {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
-        requestFactory.setReadTimeout(Duration.ofSeconds(90));
-        return new ReportClient(RestClient.builder().baseUrl(baseUrl).requestFactory(requestFactory).build());
-    }
-
     @Bean
     public ReportMessageBuilder reportMessageBuilder(@Value("${report.targets:}") String targets) {
         return new ReportMessageBuilder(ReportTargets.parse(targets));
@@ -56,12 +45,12 @@ public class ReportConfig {
     }
 
     @Bean
-    public ReportRequestHandler reportRequestHandler(ReportClient reportClient, ReportChartRenderer renderer,
+    public ReportRequestHandler reportRequestHandler(ReportChartRenderer renderer,
                                                      ReportMessageBuilder messageBuilder, MqttMessaging messaging,
                                                      ScheduledExecutorService reportExecutor) {
         ReportRequestHandler.Scheduler scheduler = (task, delay) ->
                 reportExecutor.schedule(task, delay.toMillis(), TimeUnit.MILLISECONDS);
-        return new ReportRequestHandler(reportClient::fetch, renderer, messageBuilder, messaging, scheduler, RETRY_DELAYS);
+        return new ReportRequestHandler(renderer, messageBuilder, messaging, scheduler, RETRY_DELAYS);
     }
 
     @EventListener(ApplicationReadyEvent.class)

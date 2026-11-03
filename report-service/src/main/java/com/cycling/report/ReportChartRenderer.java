@@ -1,6 +1,6 @@
 package com.cycling.report;
 
-import com.cycling.report.dto.ReportDto;
+import com.cycling.messaging.contract.ReportContent;
 
 import org.springframework.stereotype.Component;
 
@@ -20,7 +20,7 @@ public class ReportChartRenderer {
         this.quickChart = quickChart;
     }
 
-    public ReportCharts render(ReportDto report) {
+    public ReportCharts render(ReportContent report) {
         List<ReportCharts.Chart> charts = new ArrayList<>();
         boolean hasCadence = report.streams().cadence() != null && !report.streams().cadence().isEmpty();
 

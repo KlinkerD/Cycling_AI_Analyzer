@@ -2,7 +2,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Der OpenAPI Generator (API-Client aus openapi/cycling-api.yaml) laeuft auf Java.
+# Der OpenAPI Generator (API-Clients aus openapi/*-api.yaml) laeuft auf Java.
 RUN apk add --no-cache openjdk17-jre-headless
 
 COPY package*.json ./

@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "scripts": {
     "ng": "ng",
-    "generate:api": "openapi-generator-cli generate --generator-key cycling-api",
+    "generate:api": "openapi-generator-cli generate",
     "prestart": "npm run generate:api",
     "start": "ng serve",
     "prebuild": "npm run generate:api",

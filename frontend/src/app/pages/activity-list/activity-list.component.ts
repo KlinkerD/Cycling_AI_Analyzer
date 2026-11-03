@@ -17,7 +17,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatBadgeModule } from '@angular/material/badge';
 import { ActivityService } from '../../services/activity.service';
-import { ActivityDto } from '../../api';
+import { ActivityDto } from '../../api/report';
 
 interface MonthGroup {
   key: string;
@@ -88,9 +88,9 @@ export class ActivityListComponent implements OnInit {
     this.activityService.getActivities(from, to).subscribe({
       next: (data) => {
         this.activities = data;
+        this.analyzedIds = new Set(data.filter(a => a.analyzed).map(a => a.id));
         this.monthGroups = this.groupByMonth(data);
         this.loading = false;
-        this.loadAnalyzedIds();
       },
       error: (err) => {
         this.loading = false;
@@ -123,20 +123,13 @@ export class ActivityListComponent implements OnInit {
     return d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
   }
 
-  private loadAnalyzedIds(): void {
-    this.activityService.getAnalyzedIds().subscribe({
-      next: (ids) => this.analyzedIds = new Set(ids),
-      error: () => {}
-    });
-  }
-
   isAnalyzed(activityId: string): boolean {
     return this.analyzedIds.has(activityId);
   }
 
   analyzeActivity(activity: ActivityDto): void {
     this.analyzingId = activity.id;
-    // Die Analyse laeuft asynchron im Backend weiter, auch wenn die Seite verlassen wird.
+    // Die Analyse laeuft asynchron im report-service weiter, auch wenn die Seite verlassen wird.
     this.activityService.analyzeActivity(activity).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (job) => {
         this.analyzingId = null;

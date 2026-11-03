@@ -9,6 +9,8 @@ package com.cycling.intervals.api;
  * @param movingTime     Sekunden
  * @param elapsedTime    Sekunden
  * @param averageSpeed   m/s
+ * @param trainingLoad   TSS laut intervals.icu ({@code icu_training_load}); null, wenn nicht berechnet
+ * @param intensityFactor IF laut intervals.icu ({@code icu_intensity} / 100, z. B. 0.78); null, wenn nicht berechnet
  */
 public record IntervalsActivity(
         String id,
@@ -24,6 +26,8 @@ public record IntervalsActivity(
         Double averageHeartrate,
         Double maxHeartrate,
         Double averageSpeed,
-        Double totalElevationGain
+        Double totalElevationGain,
+        Double trainingLoad,
+        Double intensityFactor
 ) {
 }

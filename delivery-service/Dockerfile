@@ -13,9 +13,10 @@ COPY intervals-api/pom.xml ./intervals-api/pom.xml
 COPY intervals-service/pom.xml ./intervals-service/pom.xml
 COPY delivery-service ./delivery-service
 COPY report-service/pom.xml ./report-service/pom.xml
-COPY backend/pom.xml ./backend/pom.xml
+COPY cycling-web/pom.xml ./cycling-web/pom.xml
 COPY ai-service/pom.xml ./ai-service/pom.xml
 COPY fitness-service/pom.xml ./fitness-service/pom.xml
+COPY recommendation-service/pom.xml ./recommendation-service/pom.xml
 
 RUN --mount=type=cache,target=/root/.m2     mvn -q -B -pl delivery-service -am package -DskipTests
 

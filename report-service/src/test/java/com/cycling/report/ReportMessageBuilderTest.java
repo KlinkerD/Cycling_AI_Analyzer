@@ -1,7 +1,6 @@
 package com.cycling.report;
 
 import com.cycling.messaging.contract.DeliveryMessage;
-import com.cycling.messaging.contract.ReportContent;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

@@ -38,7 +38,7 @@ class IntervalsPollerTest {
 
     private static IntervalsActivity ride(String id) {
         return new IntervalsActivity(id, "Runde " + id, "2026-11-02T08:00:00", "Ride", 30000.0, 3600, 3700,
-                180.0, 190.0, 500.0, 140.0, 170.0, 8.0, 200.0);
+                180.0, 190.0, 500.0, 140.0, 170.0, 8.0, 200.0, 60.0, 0.72);
     }
 
     private void recent(IntervalsActivity... rides) {
@@ -60,7 +60,7 @@ class IntervalsPollerTest {
         assertThat(sent.getValue().movingTime()).isEqualTo(3600);
     }
 
-    /** Wiederholtes Melden ist gewollt: so startet der analysis-service fehlgeschlagene Analysen neu. */
+    /** Wiederholtes Melden ist gewollt: so startet der report-service fehlgeschlagene Analysen neu. */
     @Test
     void reportsAgainOnNextRun() {
         recent(ride("i1"));

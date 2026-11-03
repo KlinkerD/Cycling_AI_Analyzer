@@ -20,11 +20,12 @@
   <modules>
     <module>cycling-messaging</module>
     <module>intervals-api</module>
-    <module>backend</module>
+    <module>cycling-web</module>
     <module>ai-service</module>
     <module>report-service</module>
     <module>delivery-service</module>
     <module>intervals-service</module>
     <module>fitness-service</module>
+    <module>recommendation-service</module>
   </modules>
 </project>

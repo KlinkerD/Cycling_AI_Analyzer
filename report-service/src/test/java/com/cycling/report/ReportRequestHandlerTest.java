@@ -4,7 +4,6 @@ import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.MessagingException;
 import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.DeliveryMessage;
-import com.cycling.messaging.contract.ReportDeliveryRequest;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -36,7 +35,7 @@ class ReportRequestHandlerTest {
     private final MessagePublisher publisher = mock(MessagePublisher.class);
     private final ReportRequestHandler handler =
             new ReportRequestHandler(renderer, new ReportMessageBuilder(List.of()), publisher, scheduler, DELAYS);
-    private final ReportDeliveryRequest request = new ReportDeliveryRequest("r1", "i1", ReportFixtures.report("i1"));
+    private final ReportDelivery request = new ReportDelivery("r1", "i1", ReportFixtures.report("i1"));
 
     ReportRequestHandlerTest() {
         when(renderer.render(any())).thenReturn(new ReportCharts(List.of()));
@@ -66,7 +65,7 @@ class ReportRequestHandlerTest {
 
     @Test
     void requestWithoutReportIsDroppedWithoutRetry() {
-        handler.handle(new ReportDeliveryRequest("r1", "i1", null));
+        handler.handle(new ReportDelivery("r1", "i1", null));
 
         assertThat(scheduled).isEmpty();
         verify(renderer, never()).render(any());

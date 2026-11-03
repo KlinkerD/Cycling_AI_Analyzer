@@ -1,8 +1,17 @@
 {
-  "/api": {
-    "target": "http://localhost:8080",
+  "/api/reports": {
+    "target": "http://localhost:8082",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/api/fitness": {
+    "target": "http://localhost:8083",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/api/recommendation": {
+    "target": "http://localhost:8084",
     "secure": false,
     "changeOrigin": true
   }
 }
-

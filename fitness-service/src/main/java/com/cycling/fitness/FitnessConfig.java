@@ -1,13 +1,17 @@
 package com.cycling.fitness;
 
+import com.cycling.intervals.client.IntervalsClient;
 import com.cycling.messaging.MqttMessaging;
 import com.cycling.messaging.MqttSettings;
 import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.WellnessUpdated;
+import com.cycling.web.CyclingWebConfig;
+import io.swagger.v3.oas.models.OpenAPI;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.event.EventListener;
 
 import java.time.Clock;
@@ -15,9 +19,25 @@ import java.time.Duration;
 import java.time.LocalTime;
 import java.time.ZoneId;
 
-/** Verdrahtet den fitness-service: MQTT rein (WellnessUpdated), MQTT raus (DeliveryMessage). */
+/**
+ * Verdrahtet den fitness-service: MQTT rein (WellnessUpdated), MQTT raus (DeliveryMessage),
+ * REST zum intervals-service und REST-API fuer das Frontend (Athlet, Wellness).
+ */
 @Configuration
+@Import(CyclingWebConfig.class)
 public class FitnessConfig {
+
+    @Bean
+    public OpenAPI fitnessOpenApi() {
+        return CyclingWebConfig.openApi("Cycling Fitness API");
+    }
+
+    @Bean
+    public IntervalsClient intervalsClient(@Value("${intervals-service.base-url}") String baseUrl,
+                                           @Value("${intervals-service.connect-timeout:5s}") Duration connectTimeout,
+                                           @Value("${intervals-service.read-timeout:60s}") Duration readTimeout) {
+        return IntervalsClient.create(baseUrl, connectTimeout, readTimeout);
+    }
 
     @Bean(destroyMethod = "close")
     public MqttMessaging mqttMessaging(

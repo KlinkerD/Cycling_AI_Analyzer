@@ -1,7 +1,8 @@
 
 services:
 
-  # MQTT-Broker: verbindet backend, intervals-service, ai-service, report-service, fitness-service und delivery-service.
+  # MQTT-Broker: verbindet intervals-service, ai-service, report-service, fitness-service,
+  # recommendation-service und delivery-service.
   mosquitto:
     image: eclipse-mosquitto:2.0.20
     container_name: cycling-mosquitto
@@ -18,7 +19,8 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # intervals-service: einzige Anbindung an intervals.icu. REST-API mit Cache fuer das backend,
+  # intervals-service: einzige Anbindung an intervals.icu. REST-API mit Cache fuer report-, fitness- und
+  # recommendation-service,
   # meldet neue Aktivitaeten und Fitness-Aenderungen per MQTT. Kein Port nach aussen.
   intervals-service:
     build:
@@ -44,30 +46,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # analysis-service: REST-API, Analysen, Tagesempfehlung. intervals.icu-Daten ueber den intervals-service.
-  backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    container_name: cycling-backend
-    ports:
-      - "8080:8080"
-    volumes:
-      - cycling-data:/app/data
-    environment:
-      - INTERVALS_SERVICE_URL=http://intervals-service:8080
-      - CYCLING_FTP=${CYCLING_FTP:-250}
-      - CYCLING_MAX_HR=${CYCLING_MAX_HR:-190}
-      - MQTT_BROKER_URL=tcp://mosquitto:1883
-      # Spring-Properties via Env-Vars überschreiben
-      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/cycling-analysis;AUTO_SERVER=TRUE
-    depends_on:
-      mosquitto:
-        condition: service_healthy
-      intervals-service:
-        condition: service_healthy
-    restart: unless-stopped
-
   # ai-service: beantwortet Analyse- und Empfehlungs-Auftraege mit Gemini
   ai-service:
     build:
@@ -83,25 +61,39 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # report-service: bekommt den fertigen Report per MQTT vom backend, rendert die Charts und
-  # schickt eine DeliveryMessage an den delivery-service. Kein eigener Speicher, kein REST-Aufruf.
+  # report-service: analysiert neue Fahrten (KI-Auftrag an den ai-service), speichert die Analysen (H2),
+  # liefert Aktivitaetsliste und Report-Seite per REST (/api/reports) und schickt Reports an den delivery-service.
   report-service:
     build:
       context: .
       dockerfile: report-service/Dockerfile
     container_name: cycling-report
+    volumes:
+      - report-data:/app/data
     environment:
       - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - INTERVALS_SERVICE_URL=http://intervals-service:8080
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/report;AUTO_SERVER=TRUE
+      - CYCLING_FTP=${CYCLING_FTP:-250}
+      - CYCLING_MAX_HR=${CYCLING_MAX_HR:-190}
       - QUICKCHART_BASE_URL=${QUICKCHART_BASE_URL:-https://quickchart.io}
       # Ziele der Reports, z. B. DISCORD:reports,MAIL:default (leer = "default" jedes aktiven Kanals)
       - REPORT_TARGETS=${REPORT_TARGETS:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     depends_on:
       mosquitto:
         condition: service_healthy
+      intervals-service:
+        condition: service_healthy
     restart: unless-stopped
 
-  # fitness-service: schickt abends eine Tageszusammenfassung von Fitness/Fatigue/Form/Ramp
-  # (aus cycling/intervals/wellness/updated) an den delivery-service. Kein eigener Speicher.
+  # fitness-service: liefert Fitness-Chart und Athleten-Profil per REST (/api/fitness) und schickt abends
+  # eine Tageszusammenfassung von Fitness/Fatigue/Form/Ramp an den delivery-service. Kein eigener Speicher.
   fitness-service:
     build:
       context: .
@@ -109,12 +101,50 @@ services:
     container_name: cycling-fitness
     environment:
       - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - INTERVALS_SERVICE_URL=http://intervals-service:8080
       - FITNESS_SUMMARY_TIME=${FITNESS_SUMMARY_TIME:-21:00}
       - FITNESS_SUMMARY_ZONE=${FITNESS_SUMMARY_ZONE:-Europe/Berlin}
       # Ziel beim delivery-service; "fitness" braucht dort DELIVERY_DISCORD_DESTINATIONS_FITNESS
       - FITNESS_TARGETS=${FITNESS_TARGETS:-DISCORD:fitness}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     depends_on:
       mosquitto:
+        condition: service_healthy
+      intervals-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # recommendation-service: berechnet die Tagesempfehlung (Daten vom intervals-service, Text vom ai-service),
+  # liefert sie per REST an die Overview (/api/recommendation) und schickt sie morgens an den delivery-service.
+  recommendation-service:
+    build:
+      context: .
+      dockerfile: recommendation-service/Dockerfile
+    container_name: cycling-recommendation
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - INTERVALS_SERVICE_URL=http://intervals-service:8080
+      - RECOMMENDATION_ZONE=${RECOMMENDATION_ZONE:-Europe/Berlin}
+      - RECOMMENDATION_REFRESH_CRON=${RECOMMENDATION_REFRESH_CRON:-0 0 */4 * * *}
+      - RECOMMENDATION_DAILY_TIME=${RECOMMENDATION_DAILY_TIME:-09:00}
+      - RECOMMENDATION_DAILY_CATCH_UP_UNTIL=${RECOMMENDATION_DAILY_CATCH_UP_UNTIL:-12:00}
+      # Ziel beim delivery-service; "recommendation" braucht dort DELIVERY_DISCORD_DESTINATIONS_RECOMMENDATION
+      - RECOMMENDATION_TARGETS=${RECOMMENDATION_TARGETS:-DISCORD:recommendation}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      intervals-service:
         condition: service_healthy
     restart: unless-stopped
 
@@ -142,11 +172,14 @@ services:
       # Weitere logische Ziele (leer = nicht konfiguriert)
       - DELIVERY_DISCORD_DESTINATIONS_REPORTS=${DELIVERY_DISCORD_DESTINATIONS_REPORTS:-}
       - DELIVERY_DISCORD_DESTINATIONS_FITNESS=${DELIVERY_DISCORD_DESTINATIONS_FITNESS:-}
+      - DELIVERY_DISCORD_DESTINATIONS_RECOMMENDATION=${DELIVERY_DISCORD_DESTINATIONS_RECOMMENDATION:-}
     depends_on:
       mosquitto:
         condition: service_healthy
     restart: unless-stopped
 
+  # frontend: Angular-App hinter nginx; /api/reports, /api/fitness und /api/recommendation gehen
+  # direkt an den jeweiligen Service (siehe frontend/nginx.conf).
   frontend:
     build:
       context: ./frontend
@@ -155,11 +188,16 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - backend
+      report-service:
+        condition: service_healthy
+      fitness-service:
+        condition: service_healthy
+      recommendation-service:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  cycling-data:
+  report-data:
     driver: local
   mosquitto-data:
     driver: local

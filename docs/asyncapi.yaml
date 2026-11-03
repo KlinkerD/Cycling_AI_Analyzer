@@ -1,0 +1,593 @@
+asyncapi: 3.0.0
+info:
+  title: Cycling – MQTT-Nachrichten
+  version: 1.0.0
+  description: |
+    Alle MQTT-Nachrichten zwischen den Services. Quelle der Wahrheit im Code:
+    `cycling-messaging` (`Topics` und `com.cycling.messaging.contract`).
+
+    **Lesart:** Die Spec beschreibt das ganze System, nicht einen einzelnen Service. Jede Operation
+    gehört zu genau einem Service (Tag und `x-service`): `send` = dieser Service veröffentlicht,
+    `receive` = dieser Service abonniert.
+
+    **Regeln für alle Nachrichten**
+    - Payload ist JSON (Jackson, Datumswerte als ISO-String, Bilder als Base64), unbekannte Felder werden ignoriert.
+    - QoS 1, persistente Sessions (Clean Start aus, Session-Ablauf Standard 1 Tag): Nachrichten für einen
+      kurz abwesenden Service hält der Broker vor.
+    - Zustellung „mindestens einmal“: Empfänger deduplizieren über `requestId`, `activityId` bzw. `messageId`.
+    - REST-Aufrufe (Frontend → Services, Services → intervals-service) stehen nicht hier, sondern in den
+      OpenAPI-Specs unter `frontend/openapi/` bzw. in `intervals-api` (siehe `docs/datenfluesse.md`).
+  tags:
+    - name: intervals-service
+      description: Einzige Anbindung an intervals.icu; meldet neue Fahrten und Fitness-Änderungen.
+    - name: report-service
+      description: Analysiert Fahrten (KI), speichert sie, versendet Reports.
+    - name: fitness-service
+      description: Abends eine Fitness-Zusammenfassung.
+    - name: recommendation-service
+      description: Tagesempfehlung, morgens per Discord.
+    - name: ai-service
+      description: Gemini; beantwortet Analyse- und Empfehlungsaufträge.
+    - name: delivery-service
+      description: Versand per Mail und Discord für alle Quellen.
+
+defaultContentType: application/json
+
+servers:
+  mosquitto:
+    host: mosquitto:1883
+    protocol: mqtt
+    protocolVersion: '5'
+    description: Eclipse Mosquitto im Compose-Netz; lokal unter localhost:1883.
+    bindings:
+      mqtt:
+        cleanSession: false
+        keepAlive: 30
+        sessionExpiryInterval: 86400
+        bindingVersion: 0.2.0
+
+channels:
+  activityDetected:
+    address: cycling/intervals/activity/detected
+    title: Neue Rad-Aktivität
+    description: |
+      Bei jeder Abfrage (alle `INTERVALS_POLL_INTERVAL`, Standard 15 min) alle Rad-Fahrten der letzten 2 Tage.
+      Mehrfaches Melden ist gewollt: der report-service überspringt Fahrten mit Report oder laufendem Job und
+      startet so fehlgeschlagene Analysen erneut.
+    messages:
+      activityDetected:
+        $ref: '#/components/messages/ActivityDetected'
+
+  wellnessUpdated:
+    address: cycling/intervals/wellness/updated
+    title: Fitness-Werte geändert (retained)
+    description: |
+      Heutige CTL/ATL/Form/Ramp plus Vortag, sobald sich ein Wert (auf eine Nachkommastelle) ändert.
+      Retained: neue Abonnenten bekommen sofort den letzten Stand.
+    messages:
+      wellnessUpdated:
+        $ref: '#/components/messages/WellnessUpdated'
+
+  aiAnalysisRequest:
+    address: cycling/ai/analysis/request
+    title: KI-Auftrag Analyse
+    messages:
+      analysisRequest:
+        $ref: '#/components/messages/AnalysisRequest'
+
+  aiAnalysisResult:
+    address: cycling/ai/analysis/result
+    title: KI-Ergebnis Analyse
+    messages:
+      analysisResult:
+        $ref: '#/components/messages/AnalysisResult'
+
+  aiRecommendationRequest:
+    address: cycling/ai/recommendation/request
+    title: KI-Auftrag Empfehlungstext
+    messages:
+      recommendationTextRequest:
+        $ref: '#/components/messages/RecommendationTextRequest'
+
+  aiRecommendationResult:
+    address: cycling/ai/recommendation/result
+    title: KI-Ergebnis Empfehlungstext
+    messages:
+      recommendationTextResult:
+        $ref: '#/components/messages/RecommendationTextResult'
+
+  deliveryRequest:
+    address: cycling/delivery/request/{source}
+    title: Versandauftrag
+    description: |
+      Neutrale Nachricht an den delivery-service. Der letzte Topic-Teil ist die Quelle; der delivery-service
+      abonniert `cycling/delivery/request/+`. Neue Absender brauchen keine Änderung am delivery-service.
+    parameters:
+      source:
+        $ref: '#/components/parameters/source'
+    messages:
+      deliveryMessage:
+        $ref: '#/components/messages/DeliveryMessage'
+
+  deliveryStatus:
+    address: cycling/delivery/status
+    title: Status des delivery-service (retained)
+    description: |
+      Aktive Kanäle und online/offline. Nach jedem Verbindungsaufbau retained mit `online=true`;
+      fällt der Service unerwartet weg, setzt der Broker per Last Will `online=false`.
+    messages:
+      deliveryServiceStatus:
+        $ref: '#/components/messages/DeliveryServiceStatus'
+
+operations:
+  # ---- intervals-service ---------------------------------------------------------------
+  intervalsPublishActivityDetected:
+    action: send
+    channel:
+      $ref: '#/channels/activityDetected'
+    summary: Meldet Rad-Fahrten der letzten 2 Tage.
+    tags:
+      - name: intervals-service
+    x-service: intervals-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: false
+        bindingVersion: 0.2.0
+
+  intervalsPublishWellnessUpdated:
+    action: send
+    channel:
+      $ref: '#/channels/wellnessUpdated'
+    summary: Meldet geänderte Fitness-Werte (retained).
+    tags:
+      - name: intervals-service
+    x-service: intervals-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+        bindingVersion: 0.2.0
+
+  # ---- report-service ------------------------------------------------------------------
+  reportReceiveActivityDetected:
+    action: receive
+    channel:
+      $ref: '#/channels/activityDetected'
+    summary: Startet die Analyse für Fahrten ohne Report und ohne laufenden Job.
+    tags:
+      - name: report-service
+    x-service: report-service
+
+  reportSendAnalysisRequest:
+    action: send
+    channel:
+      $ref: '#/channels/aiAnalysisRequest'
+    summary: KI-Auftrag; requestId = ID des Analyse-Jobs.
+    description: |
+      Abbruch, wenn nach `ANALYSIS_JOB_TIMEOUT` (Standard 15 min) keine Antwort kommt; ein später
+      eintreffendes Ergebnis wird trotzdem übernommen.
+    tags:
+      - name: report-service
+    x-service: report-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: false
+        bindingVersion: 0.2.0
+    reply:
+      channel:
+        $ref: '#/channels/aiAnalysisResult'
+
+  reportReceiveAnalysisResult:
+    action: receive
+    channel:
+      $ref: '#/channels/aiAnalysisResult'
+    summary: Speichert die Analyse und versendet den Report (idempotent je Job).
+    tags:
+      - name: report-service
+    x-service: report-service
+
+  reportReceiveDeliveryStatus:
+    action: receive
+    channel:
+      $ref: '#/channels/deliveryStatus'
+    summary: Merkt sich die aktiven Kanäle für „Erneut senden“ (409/503 ohne Rundreise).
+    tags:
+      - name: report-service
+    x-service: report-service
+
+  reportSendDeliveryMessage:
+    action: send
+    channel:
+      $ref: '#/channels/deliveryRequest'
+    summary: Report mit Charts als DeliveryMessage (Quelle `report`).
+    description: |
+      messageId = Job-ID (nach Analyse) bzw. neue UUID (je Klick auf „Erneut senden“).
+      Schlägt Rendern oder Senden fehl, wird nach 1, 5 und 15 Minuten wiederholt.
+    tags:
+      - name: report-service
+    x-service: report-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: false
+        bindingVersion: 0.2.0
+
+  # ---- fitness-service -----------------------------------------------------------------
+  fitnessReceiveWellnessUpdated:
+    action: receive
+    channel:
+      $ref: '#/channels/wellnessUpdated'
+    summary: Hält den letzten Stand für die Tageszusammenfassung.
+    tags:
+      - name: fitness-service
+    x-service: fitness-service
+
+  fitnessSendDeliveryMessage:
+    action: send
+    channel:
+      $ref: '#/channels/deliveryRequest'
+    summary: Tageszusammenfassung ab `FITNESS_SUMMARY_TIME` (Quelle `fitness`).
+    description: messageId `fitness-daily-<datum>`, damit pro Tag nur eine Nachricht verschickt wird.
+    tags:
+      - name: fitness-service
+    x-service: fitness-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: false
+        bindingVersion: 0.2.0
+
+  # ---- recommendation-service ----------------------------------------------------------
+  recommendationSendTextRequest:
+    action: send
+    channel:
+      $ref: '#/channels/aiRecommendationRequest'
+    summary: KI-Text zur berechneten Kategorie anfragen (höchstens 90 s warten).
+    tags:
+      - name: recommendation-service
+    x-service: recommendation-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: false
+        bindingVersion: 0.2.0
+    reply:
+      channel:
+        $ref: '#/channels/aiRecommendationResult'
+
+  recommendationReceiveTextResult:
+    action: receive
+    channel:
+      $ref: '#/channels/aiRecommendationResult'
+    summary: Ersetzt den Fallback-Text; Antworten auf ältere Berechnungen werden ignoriert.
+    tags:
+      - name: recommendation-service
+    x-service: recommendation-service
+
+  recommendationSendDeliveryMessage:
+    action: send
+    channel:
+      $ref: '#/channels/deliveryRequest'
+    summary: Morgen-Nachricht ab `RECOMMENDATION_DAILY_TIME` (Quelle `recommendation`).
+    description: messageId `recommendation-daily-<datum>`.
+    tags:
+      - name: recommendation-service
+    x-service: recommendation-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: false
+        bindingVersion: 0.2.0
+
+  # ---- ai-service ----------------------------------------------------------------------
+  aiReceiveAnalysisRequest:
+    action: receive
+    channel:
+      $ref: '#/channels/aiAnalysisRequest'
+    summary: Bewertet die Fahrt mit Gemini.
+    tags:
+      - name: ai-service
+    x-service: ai-service
+
+  aiSendAnalysisResult:
+    action: send
+    channel:
+      $ref: '#/channels/aiAnalysisResult'
+    summary: Ergebnis oder Fehler (success=false) mit derselben requestId.
+    tags:
+      - name: ai-service
+    x-service: ai-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: false
+        bindingVersion: 0.2.0
+
+  aiReceiveRecommendationRequest:
+    action: receive
+    channel:
+      $ref: '#/channels/aiRecommendationRequest'
+    summary: Formuliert den Empfehlungstext.
+    tags:
+      - name: ai-service
+    x-service: ai-service
+
+  aiSendRecommendationResult:
+    action: send
+    channel:
+      $ref: '#/channels/aiRecommendationResult'
+    summary: Text oder Fehler (success=false) mit derselben requestId.
+    tags:
+      - name: ai-service
+    x-service: ai-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: false
+        bindingVersion: 0.2.0
+
+  # ---- delivery-service ----------------------------------------------------------------
+  deliveryReceiveDeliveryMessage:
+    action: receive
+    channel:
+      $ref: '#/channels/deliveryRequest'
+    summary: Speichert und versendet per Mail/Discord (Abo `cycling/delivery/request/+`).
+    description: |
+      Doppelte messageId wird verworfen. Wiederholung alle 15 Minuten (höchstens 5×, 2 Tage);
+      unbekannte Ziele gelten sofort als fehlgeschlagen.
+    tags:
+      - name: delivery-service
+    x-service: delivery-service
+
+  deliverySendStatus:
+    action: send
+    channel:
+      $ref: '#/channels/deliveryStatus'
+    summary: Status retained nach jedem Verbindungsaufbau; Last Will mit online=false.
+    tags:
+      - name: delivery-service
+    x-service: delivery-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+        bindingVersion: 0.2.0
+
+components:
+  parameters:
+    source:
+      description: Absender des Versandauftrags.
+      enum:
+        - report
+        - fitness
+        - recommendation
+
+  messages:
+    ActivityDetected:
+      name: ActivityDetected
+      title: Neue Rad-Aktivität
+      summary: Zusammenfassung der Fahrt, damit die Analyse ohne weiteren Abruf starten kann.
+      payload:
+        $ref: '#/components/schemas/ActivityDetected'
+    WellnessUpdated:
+      name: WellnessUpdated
+      title: Fitness-Werte heute und gestern
+      payload:
+        $ref: '#/components/schemas/WellnessUpdated'
+    AnalysisRequest:
+      name: AnalysisRequest
+      title: Training bewerten
+      correlationId:
+        $ref: '#/components/correlationIds/requestId'
+      payload:
+        $ref: '#/components/schemas/AnalysisRequest'
+    AnalysisResult:
+      name: AnalysisResult
+      title: Bewertung eines Trainings
+      correlationId:
+        $ref: '#/components/correlationIds/requestId'
+      payload:
+        $ref: '#/components/schemas/AnalysisResult'
+    RecommendationTextRequest:
+      name: RecommendationTextRequest
+      title: Empfehlungstext formulieren
+      correlationId:
+        $ref: '#/components/correlationIds/requestId'
+      payload:
+        $ref: '#/components/schemas/RecommendationTextRequest'
+    RecommendationTextResult:
+      name: RecommendationTextResult
+      title: Formulierter Empfehlungstext
+      correlationId:
+        $ref: '#/components/correlationIds/requestId'
+      payload:
+        $ref: '#/components/schemas/RecommendationTextResult'
+    DeliveryMessage:
+      name: DeliveryMessage
+      title: Neutrale Nachricht für Mail/Discord
+      payload:
+        $ref: '#/components/schemas/DeliveryMessage'
+    DeliveryServiceStatus:
+      name: DeliveryServiceStatus
+      title: Status des delivery-service
+      payload:
+        $ref: '#/components/schemas/DeliveryServiceStatus'
+
+  correlationIds:
+    requestId:
+      description: Antworten tragen dieselbe requestId wie der Auftrag.
+      location: $message.payload#/requestId
+
+  schemas:
+    ActivityDetected:
+      type: object
+      required: [activityId]
+      properties:
+        activityId: { type: string, examples: [i123456] }
+        name: { type: [string, 'null'] }
+        startDateLocal: { type: [string, 'null'], description: 'Lokale Startzeit, z. B. 2026-11-01T08:30:00' }
+        type: { type: [string, 'null'], examples: [Ride, VirtualRide] }
+        distance: { type: [number, 'null'], description: Meter }
+        movingTime: { type: [integer, 'null'], description: Sekunden }
+        elapsedTime: { type: [integer, 'null'], description: Sekunden }
+        averageWatts: { type: [number, 'null'] }
+        normalizedPower: { type: [number, 'null'] }
+        maxWatts: { type: [number, 'null'] }
+        averageHeartrate: { type: [number, 'null'] }
+        maxHeartrate: { type: [number, 'null'] }
+        averageSpeed: { type: [number, 'null'], description: m/s }
+        totalElevationGain: { type: [number, 'null'], description: Meter }
+
+    WellnessValues:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        ctl: { type: [number, 'null'], description: Fitness }
+        atl: { type: [number, 'null'], description: Fatigue }
+        form: { type: [number, 'null'], description: CTL - ATL }
+        rampRate: { type: [number, 'null'], description: Ramp laut intervals.icu }
+
+    WellnessUpdated:
+      type: object
+      required: [today]
+      properties:
+        today:
+          $ref: '#/components/schemas/WellnessValues'
+        previousDay:
+          description: null, wenn intervals.icu für gestern keine Werte hat
+          oneOf:
+            - $ref: '#/components/schemas/WellnessValues'
+            - type: 'null'
+
+    WorkoutData:
+      type: object
+      description: Kennzahlen einer Fahrt für Bewertung und Vergleich; alle Werte optional.
+      properties:
+        activityName: { type: [string, 'null'] }
+        activityDate: { type: [string, 'null'], description: ISO-Datum/Zeit }
+        indoor: { type: [boolean, 'null'] }
+        distanceKm: { type: [number, 'null'] }
+        durationSeconds: { type: [integer, 'null'] }
+        avgPowerWatts: { type: [number, 'null'] }
+        maxPowerWatts: { type: [number, 'null'] }
+        avgHeartRate: { type: [number, 'null'] }
+        maxHeartRate: { type: [number, 'null'] }
+        avgSpeedKmh: { type: [number, 'null'] }
+        elevationGainM: { type: [number, 'null'] }
+        avgCadenceRpm: { type: [number, 'null'] }
+        ftpUsed: { type: [integer, 'null'] }
+        intensityFactor: { type: [number, 'null'] }
+        overallScore: { type: [integer, 'null'] }
+
+    ZoneShare:
+      type: object
+      properties:
+        zoneName: { type: string, examples: [Z2] }
+        zoneLabel: { type: string, examples: [Ausdauer] }
+        percentage: { type: number, description: Anteil der Fahrzeit in Prozent }
+
+    AnalysisRequest:
+      type: object
+      required: [requestId, workout, ftp, maxHr]
+      properties:
+        requestId: { type: string, description: ID des Analyse-Jobs }
+        workout:
+          $ref: '#/components/schemas/WorkoutData'
+        powerZones:
+          type: array
+          items: { $ref: '#/components/schemas/ZoneShare' }
+        hrZones:
+          type: array
+          items: { $ref: '#/components/schemas/ZoneShare' }
+        previous:
+          type: array
+          description: bis zu 3 vorherige Fahrten, neueste zuerst
+          items: { $ref: '#/components/schemas/WorkoutData' }
+        ftp: { type: integer }
+        maxHr: { type: integer }
+
+    AnalysisResult:
+      type: object
+      required: [requestId, success]
+      properties:
+        requestId: { type: string }
+        success: { type: boolean }
+        error: { type: [string, 'null'], description: Grund bei success=false }
+        score: { type: integer, minimum: 0, maximum: 10 }
+        strengths: { type: [string, 'null'] }
+        anomalies: { type: [string, 'null'] }
+        progress: { type: [string, 'null'] }
+        summary: { type: [string, 'null'] }
+
+    RecommendationTextRequest:
+      type: object
+      required: [requestId, categoryLabel]
+      properties:
+        requestId: { type: string }
+        categoryLabel: { type: string, description: 'Feste Kategorie, z. B. Tempo / Sweet Spot; die KI darf sie nicht ändern' }
+        form: { type: number }
+        rampRate: { type: number }
+        rampCapped: { type: boolean, description: wegen zu schnellem Aufbau eine Stufe lockerer }
+        last7DaysSummary: { type: string, description: 'Zeilen "- dd.MM. Name, TSS, IF, km"; leer = keine Fahrten' }
+
+    RecommendationTextResult:
+      type: object
+      required: [requestId, success]
+      properties:
+        requestId: { type: string }
+        success: { type: boolean }
+        error: { type: [string, 'null'] }
+        text: { type: [string, 'null'] }
+
+    DeliveryMessage:
+      type: object
+      required: [messageId, title]
+      properties:
+        messageId: { type: string, description: eindeutig; doppelte IDs werden nur einmal versendet }
+        title: { type: string, examples: ['🚴 Morgenrunde'] }
+        subtitle: { type: [string, 'null'] }
+        color: { type: [string, 'null'], pattern: '^#[0-9a-fA-F]{6}$' }
+        fields:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              value: { type: string }
+        sections:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              text: { type: string }
+              color: { type: [string, 'null'] }
+        attachments:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string, description: 'stabile Kennung, wird Dateiname bzw. Mail-CID' }
+              title: { type: [string, 'null'] }
+              png: { type: string, contentEncoding: base64 }
+        footer: { type: [string, 'null'] }
+        targets:
+          type: array
+          description: leer = Ziel "default" jedes aktiven Kanals
+          items:
+            type: object
+            properties:
+              channel: { type: string, enum: [MAIL, DISCORD] }
+              destination: { type: string, examples: [default, reports, fitness, recommendation] }
+
+    DeliveryServiceStatus:
+      type: object
+      required: [online, channels]
+      properties:
+        online: { type: boolean }
+        channels:
+          type: array
+          description: aktive Kanäle; leer = Versand abgeschaltet
+          items: { type: string, enum: [MAIL, DISCORD] }

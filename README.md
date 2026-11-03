@@ -331,6 +331,13 @@ Das Rohformat von intervals.icu (z. B. Streams als Array von `{type, data}` oder
 
 ---
 
+## 🔀 Datenflüsse
+
+Überblick und Abläufe (Analyse, Versand, Übersicht) mit Diagrammen: [`docs/datenfluesse.md`](docs/datenfluesse.md).
+Alle MQTT-Topics und Payloads als AsyncAPI-Spec: [`docs/asyncapi.yaml`](docs/asyncapi.yaml).
+
+---
+
 ## 🔌 API-Client (OpenAPI)
 
 Die Angular-Models und -Services für die REST-APIs werden generiert, nicht von Hand geschrieben – ein Client pro Service:
@@ -370,6 +377,7 @@ cycling/
 ├── ai-service/                 # Gemini: beantwortet Analyse-/Empfehlungs-Aufträge über MQTT
 ├── delivery-service/           # Mail + Discord für alle Quellen, eigene H2 für Nachrichten + Versandstatus
 ├── mosquitto/config/           # Broker-Konfiguration
+├── docs/                       # Datenflüsse (Markdown + Mermaid) und AsyncAPI-Spec der MQTT-Topics
 ├── frontend/                   # Angular 17
 │   ├── openapi/                # OpenAPI-Specs der Services (Quelle für die API-Clients)
 │   └── src/app/

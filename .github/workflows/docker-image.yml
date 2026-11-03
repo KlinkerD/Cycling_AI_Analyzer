@@ -42,6 +42,10 @@ jobs:
             context: .
             dockerfile: ./fitness-service/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/cycling-fitness
+          - name: recommendation-service
+            context: .
+            dockerfile: ./recommendation-service/Dockerfile
+            image: ghcr.io/${{ github.repository_owner }}/cycling-recommendation
           - name: frontend
             context: ./frontend
             dockerfile: ./frontend/Dockerfile

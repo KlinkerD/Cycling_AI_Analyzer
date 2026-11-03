@@ -3,6 +3,8 @@ package com.cycling.messaging;
 import com.cycling.messaging.contract.ActivityDetected;
 import com.cycling.messaging.contract.AnalysisRequest;
 import com.cycling.messaging.contract.WellnessUpdated;
+import com.cycling.messaging.contract.RecommendationRefreshRequest;
+import com.cycling.messaging.contract.RecommendationUpdated;
 import com.cycling.messaging.contract.AnalysisResult;
 import com.cycling.messaging.contract.ReportContent;
 import com.cycling.messaging.contract.ReportDeliveryRequest;
@@ -11,6 +13,7 @@ import com.cycling.messaging.contract.ZoneShare;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -32,6 +35,30 @@ class MessageCodecTest {
         AnalysisRequest decoded = codec.decode(codec.encode(request), AnalysisRequest.class);
 
         assertThat(decoded).isEqualTo(request);
+    }
+
+    @Test
+    void recommendationUpdatedSurvivesRoundTrip() {
+        RecommendationUpdated update = new RecommendationUpdated("r1", "TEMPO", "Tempo / Sweet Spot", "#ff9800",
+                "Heute Sweet Spot.", 8.0, 4.2, false, LocalDate.of(2026, 11, 3),
+                LocalDateTime.of(2026, 11, 3, 9, 0, 5), true, true);
+
+        assertThat(codec.decode(codec.encode(update), RecommendationUpdated.class)).isEqualTo(update);
+    }
+
+    @Test
+    void recommendationWithoutDataSurvivesRoundTrip() {
+        RecommendationUpdated update = new RecommendationUpdated("r2", "INSUFFICIENT_DATA", "Nicht genug Daten",
+                "#bdbdbd", "Keine Daten.", null, null, false, null, LocalDateTime.of(2026, 11, 3, 9, 0), false, false);
+
+        assertThat(codec.decode(codec.encode(update), RecommendationUpdated.class)).isEqualTo(update);
+    }
+
+    @Test
+    void recommendationRefreshSurvivesRoundTrip() {
+        RecommendationRefreshRequest request = new RecommendationRefreshRequest("r3");
+
+        assertThat(codec.decode(codec.encode(request), RecommendationRefreshRequest.class)).isEqualTo(request);
     }
 
     @Test

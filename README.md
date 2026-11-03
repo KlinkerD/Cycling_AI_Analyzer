@@ -6,7 +6,7 @@ Analysiere deine Radtrainings aus **intervals.icu** mit **Google Gemini AI** und
 
 | Schicht | Technologie |
 |---|---|
-| Backend | Spring Boot 4 + Java 25, aufgeteilt in analysis-service, intervals-service, ai-service, report-service, fitness-service, delivery-service |
+| Backend | Spring Boot 4 + Java 25, aufgeteilt in analysis-service, intervals-service, ai-service, report-service, fitness-service, recommendation-service, delivery-service |
 | Messaging | MQTT (Eclipse Mosquitto, Paho-v5-Client) |
 | API-Vertrag | OpenAPI (springdoc) → OpenAPI Generator (typescript-angular) |
 | Frontend | Angular 17 + Angular Material |
@@ -62,7 +62,7 @@ docker compose up -d mosquitto
 # und MQTT_BROKER_URL=tcp://localhost:<port> für die Services setzen.
 ```
 
-**intervals-service, Backend, ai-service, report-service, fitness-service, delivery-service** (jeweils in eigenem Terminal):
+**intervals-service, Backend, ai-service, report-service, fitness-service, recommendation-service, delivery-service** (jeweils in eigenem Terminal):
 ```bash
 mvn install -DskipTests                       # einmalig, baut auch cycling-messaging und intervals-api
 mvn -pl intervals-service spring-boot:run     # http://localhost:8081, braucht INTERVALS_API_KEY/INTERVALS_ATHLETE_ID
@@ -70,6 +70,7 @@ mvn -pl backend spring-boot:run               # http://localhost:8080, Swagger-U
 mvn -pl ai-service spring-boot:run            # braucht GEMINI_API_KEY
 mvn -pl report-service spring-boot:run
 mvn -pl fitness-service spring-boot:run
+mvn -pl recommendation-service spring-boot:run
 mvn -pl delivery-service spring-boot:run
 ```
 
@@ -170,6 +171,8 @@ Absender bauen den Inhalt, der delivery-service stellt zu:
   danach hilft „Erneut senden“.
 - **fitness-service** schickt einmal am Tag eine Fitness-Zusammenfassung auf `cycling/delivery/request/fitness`
   (siehe unten).
+- **recommendation-service** schickt einmal am Tag die Tagesempfehlung auf `cycling/delivery/request/recommendation`
+  (siehe unten).
 - **delivery-service** abonniert `cycling/delivery/request/+` (letzter Teil = Quelle, z. B. `report`),
   speichert die Nachricht und versendet sie per Mail/Discord – mit Wiederholung alle 15 Minuten (max. 5×, 2 Tage).
   Bilder werden nach 7 Tagen gelöscht, Statuszeilen nach 90 Tagen.
@@ -187,6 +190,7 @@ delivery-service:
 | `DELIVERY_MAIL_DESTINATIONS_<NAME>` | weiteres Mail-Ziel |
 | `REPORT_TARGETS` (report-service) | wohin Reports gehen, z. B. `DISCORD:reports,MAIL:default`; leer = `default` jedes aktiven Kanals |
 | `FITNESS_TARGETS` (fitness-service) | wohin die Fitness-Zusammenfassung geht; Default `DISCORD:fitness` (braucht `DELIVERY_DISCORD_DESTINATIONS_FITNESS`) |
+| `RECOMMENDATION_TARGETS` (recommendation-service) | wohin die Tagesempfehlung geht; Default `DISCORD:recommendation` (braucht `DELIVERY_DISCORD_DESTINATIONS_RECOMMENDATION`) |
 
 Unbekannte Ziele werden sofort als fehlgeschlagen markiert.
 
@@ -213,6 +217,34 @@ Kein eigener Speicher: Der letzte Stand liegt im Speicher, nach einem Start lief
 Liegt um 21:00 noch kein Stand von heute vor, wird gewartet und bis Mitternacht nachgeholt (Prüfung jede Minute).
 Die messageId `fitness-daily-<datum>` sorgt dafür, dass der delivery-service eine zweite Nachricht für denselben Tag
 (z. B. nach einem Neustart) verwirft.
+
+### Tagesempfehlung (recommendation-service)
+
+Der **recommendation-service** berechnet die Trainingsempfehlung für die Overview-Karte und für Discord.
+Er hat keinen Webserver und keinen Speicher.
+
+- **Regeln:** Kategorie aus der Form (TSB) des jüngsten Wellness-Punkts (> +15 harte Intervalle, +5 … +15 Tempo,
+  −10 … +5 Grundlage, −25 … −10 locker, < −25 Ruhetag). Steigt die CTL in 7 Tagen um mehr als 6, wird eine Stufe
+  lockerer empfohlen. Daten: Wellness (21 Tage) und Fahrten (7 Tage, mit TSS/IF von intervals.icu) per REST vom
+  intervals-service.
+- **Text:** sofort ein fester Text pro Kategorie, den formulierten Text liefert der ai-service nach
+  (`cycling/ai/recommendation/request|result`, höchstens 90 s Wartezeit).
+- **Veröffentlichung:** `cycling/recommendation/updated` (retained, `RecommendationUpdated`), pro Berechnung zweimal
+  mit derselben `requestId`: erst mit festem Text (`textPending=true`), dann mit KI-Text – oder, wenn die KI ausfällt,
+  noch einmal mit festem Text (`textPending=false`). Ist der intervals-service nicht erreichbar, bleibt der letzte Stand.
+- **Wann:** alle 4 Stunden (`RECOMMENDATION_REFRESH_CRON`), auf Auftrag des backends (Refresh-Button,
+  `cycling/recommendation/refresh`) und morgens für Discord.
+
+**Morgen-Nachricht:** ab 09:00 (`RECOMMENDATION_DAILY_TIME`, Zeitzone `RECOMMENDATION_ZONE`, Default `Europe/Berlin`)
+wird frisch gerechnet und mit KI-Text verschickt, spätestens nach 2 Minuten mit festem Text (Fußzeile
+„KI-Text nicht verfügbar“). Scheitert die Berechnung oder die Übergabe, folgt der nächste Versuch eine Minute später.
+Nach einem Neustart wird nur bis 12:00 (`RECOMMENDATION_DAILY_CATCH_UP_UNTIL`) nachgeholt. Die messageId
+`recommendation-daily-<datum>` verhindert doppelte Nachrichten.
+
+**backend:** abonniert `cycling/recommendation/updated` und hält den letzten Stand im Speicher; `GET` und
+`POST /api/overview/recommendation[/refresh]` bleiben unverändert. Der Refresh-Button schickt einen Auftrag und wartet
+bis zu 10 s (`RECOMMENDATION_REFRESH_TIMEOUT`) auf die Antwort mit seiner `requestId`, sonst gilt der letzte Stand.
+Gibt es noch gar keinen Stand und keine Antwort, kommt 503 (`RECOMMENDATION_UNAVAILABLE`).
 
 ---
 
@@ -278,10 +310,11 @@ cycling/
 ├── cycling-messaging/          # MQTT-Topics, Nachrichten-Verträge, MQTT-Client (geteilt)
 ├── intervals-api/              # REST-Vertrag des intervals-service (Pfade + Records), geteilt mit backend
 ├── intervals-service/          # einzige intervals.icu-Anbindung: REST mit Cache, meldet Aktivitäten/Fitness per MQTT
-├── backend/                    # analysis-service: REST-API, Analysen, Tagesempfehlung, H2
+├── backend/                    # analysis-service: REST-API, Analysen, zeigt die Tagesempfehlung an, H2
 ├── ai-service/                 # Gemini: beantwortet Analyse-/Empfehlungs-Aufträge über MQTT
 ├── report-service/             # Report -> DeliveryMessage (Charts via QuickChart), ohne Speicher
 ├── fitness-service/            # tägliche Fitness-Zusammenfassung (CTL/ATL/Form/Ramp) -> DeliveryMessage, ohne Speicher
+├── recommendation-service/     # Tagesempfehlung: MQTT für die Overview-Karte, morgens -> DeliveryMessage, ohne Speicher
 ├── delivery-service/           # Mail + Discord für alle Quellen, eigene H2 für Nachrichten + Versandstatus
 ├── mosquitto/config/           # Broker-Konfiguration
 ├── frontend/                   # Angular 17

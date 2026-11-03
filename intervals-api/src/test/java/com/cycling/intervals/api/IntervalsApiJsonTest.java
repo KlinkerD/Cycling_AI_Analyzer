@@ -20,7 +20,7 @@ class IntervalsApiJsonTest {
     @Test
     void activitySurvivesRoundTrip() throws Exception {
         IntervalsActivity activity = new IntervalsActivity("i1", "Runde", "2026-11-01T08:30:00", "Ride",
-                42000.0, 5400, 5600, 180.0, 195.0, 600.0, 140.0, 175.0, 7.8, 350.0);
+                42000.0, 5400, 5600, 180.0, 195.0, 600.0, 140.0, 175.0, 7.8, 350.0, 85.0, 0.78);
 
         assertThat(roundTrip(activity, IntervalsActivity.class)).isEqualTo(activity);
     }

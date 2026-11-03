@@ -6,13 +6,13 @@ import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.ActivityDetected;
 import com.cycling.messaging.contract.AnalysisResult;
 import com.cycling.messaging.contract.DeliveryServiceStatus;
-import com.cycling.messaging.contract.RecommendationTextResult;
+import com.cycling.messaging.contract.RecommendationUpdated;
 import com.cycling.repository.ActivityAnalysisRepository;
 import com.cycling.repository.AnalysisJobRepository;
 import com.cycling.service.ActivityDetectedHandler;
 import com.cycling.service.AnalysisJobService;
 import com.cycling.service.AnalysisService;
-import com.cycling.service.RecommendationService;
+import com.cycling.service.RecommendationStore;
 import com.cycling.service.ReportResendService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +24,7 @@ import org.springframework.context.event.EventListener;
 import java.time.Clock;
 import java.time.Duration;
 
-/** MQTT-Anbindung an intervals-service, ai-service, report-service und delivery-service. */
+/** MQTT-Anbindung an intervals-service, ai-service, recommendation-service, report-service und delivery-service. */
 @Configuration
 public class MessagingConfig {
 
@@ -54,6 +54,12 @@ public class MessagingConfig {
     }
 
     @Bean
+    public RecommendationStore recommendationStore(MqttMessaging messaging, Clock clock,
+                                                   @Value("${recommendation.refresh-timeout:10s}") Duration refreshTimeout) {
+        return new RecommendationStore(messaging, clock, refreshTimeout);
+    }
+
+    @Bean
     public ActivityDetectedHandler activityDetectedHandler(AnalysisJobService jobService,
                                                            ActivityAnalysisRepository repository) {
         return new ActivityDetectedHandler(jobService, repository);
@@ -65,13 +71,13 @@ public class MessagingConfig {
         var context = event.getApplicationContext();
         MqttMessaging messaging = context.getBean(MqttMessaging.class);
         AnalysisJobService jobs = context.getBean(AnalysisJobService.class);
-        RecommendationService recommendations = context.getBean(RecommendationService.class);
+        RecommendationStore recommendations = context.getBean(RecommendationStore.class);
         ReportResendService resend = context.getBean(ReportResendService.class);
         ActivityDetectedHandler detected = context.getBean(ActivityDetectedHandler.class);
 
         messaging.subscribe(Topics.INTERVALS_ACTIVITY_DETECTED, ActivityDetected.class, detected::onActivityDetected);
         messaging.subscribe(Topics.AI_ANALYSIS_RESULT, AnalysisResult.class, jobs::complete);
-        messaging.subscribe(Topics.AI_RECOMMENDATION_RESULT, RecommendationTextResult.class, recommendations::applyText);
+        messaging.subscribe(Topics.RECOMMENDATION_UPDATED, RecommendationUpdated.class, recommendations::onUpdate);
         messaging.subscribe(Topics.DELIVERY_STATUS, DeliveryServiceStatus.class, resend::updateStatus);
         messaging.start();
     }

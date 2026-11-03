@@ -1,4 +1,4 @@
-package com.cycling.model;
+package com.cycling.recommendation;
 
 /**
  * Tagesempfehlungs-Kategorie. Die Reihenfolge {@link #level} laeuft von locker (0) nach hart (4);

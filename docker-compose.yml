@@ -1,7 +1,8 @@
 
 services:
 
-  # MQTT-Broker: verbindet backend, intervals-service, ai-service, report-service, fitness-service und delivery-service.
+  # MQTT-Broker: verbindet backend, intervals-service, ai-service, report-service, fitness-service,
+  # recommendation-service und delivery-service.
   mosquitto:
     image: eclipse-mosquitto:2.0.20
     container_name: cycling-mosquitto
@@ -44,7 +45,8 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # analysis-service: REST-API, Analysen, Tagesempfehlung. intervals.icu-Daten ueber den intervals-service.
+  # analysis-service: REST-API und Analysen. intervals.icu-Daten ueber den intervals-service,
+  # die Tagesempfehlung kommt per MQTT vom recommendation-service.
   backend:
     build:
       context: .
@@ -118,6 +120,29 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # recommendation-service: berechnet die Tagesempfehlung (Daten vom intervals-service, Text vom ai-service),
+  # veroeffentlicht sie retained fuer das backend und schickt sie morgens an den delivery-service. Kein Speicher.
+  recommendation-service:
+    build:
+      context: .
+      dockerfile: recommendation-service/Dockerfile
+    container_name: cycling-recommendation
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - INTERVALS_SERVICE_URL=http://intervals-service:8080
+      - RECOMMENDATION_ZONE=${RECOMMENDATION_ZONE:-Europe/Berlin}
+      - RECOMMENDATION_REFRESH_CRON=${RECOMMENDATION_REFRESH_CRON:-0 0 */4 * * *}
+      - RECOMMENDATION_DAILY_TIME=${RECOMMENDATION_DAILY_TIME:-09:00}
+      - RECOMMENDATION_DAILY_CATCH_UP_UNTIL=${RECOMMENDATION_DAILY_CATCH_UP_UNTIL:-12:00}
+      # Ziel beim delivery-service; "recommendation" braucht dort DELIVERY_DISCORD_DESTINATIONS_RECOMMENDATION
+      - RECOMMENDATION_TARGETS=${RECOMMENDATION_TARGETS:-DISCORD:recommendation}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      intervals-service:
+        condition: service_healthy
+    restart: unless-stopped
+
   # delivery-service: versendet Nachrichten aller Quellen per Mail/Discord, mit Wiederholung
   delivery-service:
     build:
@@ -142,6 +167,7 @@ services:
       # Weitere logische Ziele (leer = nicht konfiguriert)
       - DELIVERY_DISCORD_DESTINATIONS_REPORTS=${DELIVERY_DISCORD_DESTINATIONS_REPORTS:-}
       - DELIVERY_DISCORD_DESTINATIONS_FITNESS=${DELIVERY_DISCORD_DESTINATIONS_FITNESS:-}
+      - DELIVERY_DISCORD_DESTINATIONS_RECOMMENDATION=${DELIVERY_DISCORD_DESTINATIONS_RECOMMENDATION:-}
     depends_on:
       mosquitto:
         condition: service_healthy

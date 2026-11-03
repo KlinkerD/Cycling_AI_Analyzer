@@ -75,6 +75,24 @@ class IntervalsParserTest {
         assertThat(ride.averageWatts()).isEqualTo(195.0);
     }
 
+    @Test
+    void readsTrainingLoadAndIntensityAsFactor() throws Exception {
+        IntervalsActivity ride = IntervalsParser.activity(json("""
+                {"id":"i1","type":"Ride","icu_training_load":85,"icu_intensity":78.4}"""));
+
+        assertThat(ride.trainingLoad()).isEqualTo(85.0);
+        assertThat(ride.intensityFactor()).isCloseTo(0.784, org.assertj.core.data.Offset.offset(1e-9));
+    }
+
+    @Test
+    void missingTrainingLoadAndIntensityStayNull() throws Exception {
+        IntervalsActivity ride = IntervalsParser.activity(json("""
+                {"id":"i1","type":"Ride"}"""));
+
+        assertThat(ride.trainingLoad()).isNull();
+        assertThat(ride.intensityFactor()).isNull();
+    }
+
     // ---- Streams -------------------------------------------------------------------------------
 
     @Test

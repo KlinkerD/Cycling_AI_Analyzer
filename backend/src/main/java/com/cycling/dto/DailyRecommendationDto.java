@@ -1,14 +1,15 @@
 package com.cycling.dto;
 
 import com.cycling.config.ApiNonNull;
-import com.cycling.model.DailyRecommendation;
+import com.cycling.messaging.contract.RecommendationUpdated;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Tagesempfehlung fuer das Frontend (Overview-Karte unter dem Fitness-Chart).
+ * Tagesempfehlung fuer das Frontend (Overview-Karte unter dem Fitness-Chart). Berechnet wird sie im
+ * recommendation-service, das backend reicht sie nur durch (siehe {@code RecommendationStore}).
  */
 public record DailyRecommendationDto(
         @Schema(allowableValues = {"REST", "EASY", "ENDURANCE", "TEMPO", "HARD_INTERVALS", "INSUFFICIENT_DATA"})
@@ -26,20 +27,18 @@ public record DailyRecommendationDto(
     /** So lange wartet das Frontend hoechstens auf den KI-Text, danach bleibt der Fallback stehen. */
     public static final java.time.Duration TEXT_WAIT = java.time.Duration.ofMinutes(2);
 
-    public static DailyRecommendationDto from(DailyRecommendation r) {
-        boolean textPending = r.getPendingTextRequestId() != null
-                && r.getComputedAt() != null
-                && r.getComputedAt().isAfter(LocalDateTime.now().minus(TEXT_WAIT));
+    /** @param textPending ob das Frontend noch auf den KI-Text warten soll (backend begrenzt auf {@link #TEXT_WAIT}) */
+    public static DailyRecommendationDto from(RecommendationUpdated r, boolean textPending) {
         return new DailyRecommendationDto(
-                r.getCategory().name(),
-                r.getCategory().getLabel(),
-                r.getCategory().getColor(),
-                r.getText(),
-                r.getForm(),
-                r.getRampRate(),
-                r.isRampCapped(),
-                r.getRefDate(),
-                r.getComputedAt(),
+                r.category(),
+                r.categoryLabel(),
+                r.color(),
+                r.text(),
+                r.form(),
+                r.rampRate(),
+                r.rampCapped(),
+                r.refDate(),
+                r.computedAt(),
                 textPending
         );
     }

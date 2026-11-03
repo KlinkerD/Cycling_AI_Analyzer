@@ -14,6 +14,7 @@ COPY intervals-service/pom.xml ./intervals-service/pom.xml
 COPY report-service/pom.xml ./report-service/pom.xml
 COPY delivery-service/pom.xml ./delivery-service/pom.xml
 COPY fitness-service ./fitness-service
+COPY recommendation-service/pom.xml ./recommendation-service/pom.xml
 COPY backend/pom.xml ./backend/pom.xml
 COPY ai-service/pom.xml ./ai-service/pom.xml
 

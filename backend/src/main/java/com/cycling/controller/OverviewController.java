@@ -4,7 +4,7 @@ import com.cycling.dto.AthleteZonesDto;
 import com.cycling.dto.DailyRecommendationDto;
 import com.cycling.dto.WellnessPointDto;
 import com.cycling.service.IntervalsClient;
-import com.cycling.service.RecommendationService;
+import com.cycling.service.RecommendationStore;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,12 +30,12 @@ import java.util.List;
 public class OverviewController {
 
     private final IntervalsClient intervalsClient;
-    private final RecommendationService recommendationService;
+    private final RecommendationStore recommendationStore;
 
     public OverviewController(IntervalsClient intervalsClient,
-                              RecommendationService recommendationService) {
+                              RecommendationStore recommendationStore) {
         this.intervalsClient = intervalsClient;
-        this.recommendationService = recommendationService;
+        this.recommendationStore = recommendationStore;
     }
 
     @GetMapping("/wellness")
@@ -61,15 +61,15 @@ public class OverviewController {
         return ResponseEntity.ok(intervalsClient.getAthleteZones());
     }
 
-    /** Aktuelle Tagesempfehlung (wird bei Kaltstart einmalig synchron berechnet). */
+    /** Aktuelle Tagesempfehlung vom recommendation-service (bei Kaltstart wird einmal neu angefragt). */
     @GetMapping("/recommendation")
     public ResponseEntity<DailyRecommendationDto> getRecommendation() {
-        return ResponseEntity.ok(recommendationService.getCurrent());
+        return ResponseEntity.ok(recommendationStore.current());
     }
 
-    /** Erzwingt eine sofortige Neuberechnung (Refresh-Button) – gleicher Code-Pfad wie der Scheduler. */
+    /** Laesst den recommendation-service sofort neu rechnen (Refresh-Button) und wartet kurz auf das Ergebnis. */
     @PostMapping("/recommendation/refresh")
     public ResponseEntity<DailyRecommendationDto> refreshRecommendation() {
-        return ResponseEntity.ok(recommendationService.computeAndStore());
+        return ResponseEntity.ok(recommendationStore.refresh());
     }
 }

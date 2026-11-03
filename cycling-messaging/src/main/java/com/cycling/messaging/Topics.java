@@ -13,10 +13,18 @@ public final class Topics {
     /** ai-service -> analysis-service: Ergebnis der Analyse ({@code AnalysisResult}). */
     public static final String AI_ANALYSIS_RESULT = ROOT + "ai/analysis/result";
 
-    /** analysis-service -> ai-service: Text fuer die Tagesempfehlung ({@code RecommendationTextRequest}). */
+    /** recommendation-service -> ai-service: Text fuer die Tagesempfehlung ({@code RecommendationTextRequest}). */
     public static final String AI_RECOMMENDATION_REQUEST = ROOT + "ai/recommendation/request";
-    /** ai-service -> analysis-service: Text der Tagesempfehlung ({@code RecommendationTextResult}). */
+    /** ai-service -> recommendation-service: Text der Tagesempfehlung ({@code RecommendationTextResult}). */
     public static final String AI_RECOMMENDATION_RESULT = ROOT + "ai/recommendation/result";
+
+    /**
+     * recommendation-service -> alle: aktuelle Tagesempfehlung ({@code RecommendationUpdated}).
+     * Retained, damit das backend nach einem Neustart sofort den letzten Stand hat.
+     */
+    public static final String RECOMMENDATION_UPDATED = ROOT + "recommendation/updated";
+    /** backend -> recommendation-service: sofort neu berechnen ({@code RecommendationRefreshRequest}). */
+    public static final String RECOMMENDATION_REFRESH = ROOT + "recommendation/refresh";
 
     /** analysis-service -> report-service: Analyse fertig, Report versenden ({@code ReportDeliveryRequest} inkl. Report). */
     public static final String REPORT_READY = ROOT + "report/ready";

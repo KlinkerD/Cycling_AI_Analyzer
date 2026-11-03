@@ -3,7 +3,8 @@ package com.cycling.config;
 import com.cycling.controller.OverviewController;
 import com.cycling.service.IntervalsClient;
 import com.cycling.service.IntervalsUnavailableException;
-import com.cycling.service.RecommendationService;
+import com.cycling.service.RecommendationStore;
+import com.cycling.service.RecommendationUnavailableException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
@@ -22,8 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ApiExceptionHandlerTest {
 
     private final IntervalsClient intervals = mock(IntervalsClient.class);
+    private final RecommendationStore recommendations = mock(RecommendationStore.class);
     private final MockMvc mvc = MockMvcBuilders
-            .standaloneSetup(new OverviewController(intervals, mock(RecommendationService.class)))
+            .standaloneSetup(new OverviewController(intervals, recommendations))
             .setControllerAdvice(new ApiExceptionHandler())
             .build();
 
@@ -53,5 +55,15 @@ class ApiExceptionHandlerTest {
         mvc.perform(get("/api/overview/zones").param("refresh", "true")).andExpect(status().isOk());
 
         verify(intervals).evictCaches();
+    }
+
+    @Test
+    void missingRecommendationIsServiceUnavailableWithMessage() throws Exception {
+        when(recommendations.current()).thenThrow(new RecommendationUnavailableException("noch nicht da"));
+
+        mvc.perform(get("/api/overview/recommendation"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("RECOMMENDATION_UNAVAILABLE"))
+                .andExpect(jsonPath("$.message").value("noch nicht da"));
     }
 }

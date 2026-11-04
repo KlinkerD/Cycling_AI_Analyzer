@@ -1,89 +1,336 @@
 @use '@angular/material' as mat;
 
-@include mat.core();
+// ============================================================================
+//  Design-Tokens – einzige Quelle für Farben, Abstände und Radien.
+//  Die Charts lesen die Messgrößen-Farben zur Laufzeit hier aus (shared/theme.ts).
+// ============================================================================
+:root {
+  // Flächen
+  --bg: #0d1016;
+  --surface: #151a22;
+  --surface-2: #1b212b;
+  --surface-3: #232a36;
+  --border: #262e3a;
+  --border-strong: #343d4c;
 
-$cycling-primary: mat.define-palette(mat.$indigo-palette, 700);
-$cycling-accent: mat.define-palette(mat.$orange-palette, A400);
-$cycling-warn: mat.define-palette(mat.$red-palette);
+  // Text
+  --text: #e7e9ee;
+  --text-muted: #8d96a5;
+  --text-faint: #5d6675;
 
-$cycling-theme: mat.define-light-theme((
-  color: (
-    primary: $cycling-primary,
-    accent: $cycling-accent,
-    warn: $cycling-warn,
-  ),
-  typography: mat.define-typography-config(),
-  density: 0
-));
+  // Akzent der App (bewusst keine Messgrößen-Farbe)
+  --accent: #c5f04a;
+  --accent-soft: rgba(197, 240, 74, 0.12);
+  --on-accent: #12160a;
 
-$cycling-dark-theme: mat.define-dark-theme((
-  color: (
-    primary: $cycling-primary,
-    accent: $cycling-accent,
-    warn: $cycling-warn,
-  ),
-  typography: mat.define-typography-config(),
-  density: 0
-));
+  // Messgrößen – überall gleich
+  --c-power: #a78bfa;
+  --c-hr: #f87171;
+  --c-cadence: #2dd4bf;
+  --c-speed: #60a5fa;
+  --c-altitude: #6b7280;
+  --c-score: #fbbf24;
+  --c-fitness: #38bdf8;
+  --c-fatigue: #f472b6;
+  --c-form: #e5e7eb;
 
-@include mat.all-component-themes($cycling-theme);
+  // Status
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --bad: #f87171;
 
-// Dunkles Theme – aktiv, wenn <body> die Klasse .dark-theme trägt
-.dark-theme {
-  @include mat.all-component-colors($cycling-dark-theme);
+  // Chart-Raster
+  --grid: rgba(255, 255, 255, 0.06);
+
+  // Maße
+  --radius: 12px;
+  --radius-sm: 8px;
+  --gap: 16px;
+  --sidebar-w: 232px;
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html {
+  color-scheme: dark;
+
+  @include mat.theme((
+    color: (
+      theme-type: dark,
+      primary: mat.$chartreuse-palette,
+      tertiary: mat.$violet-palette,
+    ),
+    typography: (
+      plain-family: 'Inter',
+      brand-family: 'Inter',
+    ),
+    density: 0,
+  ));
+
+  // Material-Flächen auf unsere Tokens legen
+  --mat-sys-surface: var(--bg);
+  --mat-sys-surface-container-lowest: var(--bg);
+  --mat-sys-surface-container-low: var(--surface);
+  --mat-sys-surface-container: var(--surface-2);
+  --mat-sys-surface-container-high: var(--surface-2);
+  --mat-sys-surface-container-highest: var(--surface-3);
+  --mat-sys-on-surface: var(--text);
+  --mat-sys-on-surface-variant: var(--text-muted);
+  --mat-sys-outline: var(--border-strong);
+  --mat-sys-outline-variant: var(--border);
+  --mat-sys-primary: var(--accent);
+  --mat-sys-on-primary: var(--on-accent);
 }
 
 * {
   box-sizing: border-box;
+}
+
+html, body {
   margin: 0;
-  padding: 0;
+  min-height: 100%;
 }
 
 body {
-  font-family: Roboto, "Helvetica Neue", sans-serif;
-  background: #f5f5f5;
-  color: #212121;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
 }
 
-body.dark-theme {
-  background: #121212;
-  color: #e0e0e0;
+h1, h2, h3, h4, p {
+  margin: 0;
 }
 
-.page-container {
-  max-width: 1200px;
+a {
+  color: inherit;
+}
+
+// ============================================================================
+//  Bausteine, die alle Seiten nutzen
+// ============================================================================
+
+// Seitenrahmen
+.page {
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 24px 16px;
-}
+  padding: 28px 32px 48px;
 
-.mat-card-elevated {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12) !important;
-}
-
-canvas {
-  max-height: 280px;
-}
-
-// ============================================================================
-//  Dark-Mode-Overrides für hartkodierte Komponentenfarben
-//  (höhere Spezifität durch body.dark-theme, um Component-Styles zu überschreiben)
-// ============================================================================
-body.dark-theme {
-
-  // ----- Material Card-Titel & -Untertitel ----------------------------------
-  // (werden vom Dark-Theme nicht automatisch aufgehellt)
-  .mat-mdc-card-title,
-  mat-card-title {
-    color: #e0e0e0;
-  }
-  .mat-mdc-card-subtitle,
-  mat-card-subtitle {
-    color: rgba(255, 255, 255, 0.7);
+  @media (max-width: 720px) {
+    padding: 16px 16px 40px;
   }
 }
 
-// Hinweis: Komponentenspezifische Dark-Mode-Overrides (Report, Übersicht,
-// Aktivitätsliste) liegen in den jeweiligen *.component.scss via
-// :host-context(.dark-theme) — dort gewinnen sie die Spezifität gegen die
-// View-encapsulierten Component-Styles.
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .sub {
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  .spacer {
+    flex: 1;
+  }
+}
+
+// Fläche mit Rahmen
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  min-width: 0;
+
+  @media (max-width: 720px) {
+    padding: 14px;
+  }
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  min-height: 28px;
+
+  h2, h3 {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .hint {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .spacer {
+    flex: 1;
+  }
+
+  .mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: var(--text-muted);
+  }
+}
+
+// Kennzahl-Kachel
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 10px;
+}
+
+.kpi {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  min-width: 0;
+
+  .kpi-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .kpi-value {
+    display: block;
+    font-size: 20px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+    white-space: nowrap;
+  }
+
+  .kpi-unit {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-left: 3px;
+  }
+
+  // Farbiger Strich links für Messgrößen
+  &[data-metric] {
+    border-left: 3px solid var(--metric, var(--border));
+  }
+  &[data-metric='power'] { --metric: var(--c-power); }
+  &[data-metric='hr'] { --metric: var(--c-hr); }
+  &[data-metric='cadence'] { --metric: var(--c-cadence); }
+  &[data-metric='speed'] { --metric: var(--c-speed); }
+  &[data-metric='altitude'] { --metric: var(--c-altitude); }
+  &[data-metric='score'] { --metric: var(--c-score); }
+  &[data-metric='fitness'] { --metric: var(--c-fitness); }
+  &[data-metric='fatigue'] { --metric: var(--c-fatigue); }
+  &[data-metric='form'] { --metric: var(--c-form); }
+}
+
+// Kleine Markierung
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  white-space: nowrap;
+
+  .mat-icon {
+    font-size: 13px;
+    width: 13px;
+    height: 13px;
+  }
+
+  &.ai {
+    background: rgba(251, 191, 36, 0.14);
+    color: var(--c-score);
+  }
+}
+
+// Chart-Fläche mit fester Höhe
+.chart-box {
+  position: relative;
+  height: 280px;
+
+  &.sm { height: 180px; }
+  &.lg { height: 340px; }
+
+  @media (max-width: 720px) {
+    height: 220px;
+    &.sm { height: 150px; }
+    &.lg { height: 260px; }
+  }
+}
+
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 16px;
+  color: var(--text-muted);
+  text-align: center;
+
+  .mat-icon {
+    font-size: 40px;
+    width: 40px;
+    height: 40px;
+    opacity: 0.5;
+  }
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+// Material-Feinschliff
+.mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: var(--surface-3);
+  --mdc-snackbar-supporting-text-color: var(--text);
+}
+
+.mat-mdc-menu-panel.activity-popover {
+  max-width: 320px;
+  min-width: 260px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 8px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

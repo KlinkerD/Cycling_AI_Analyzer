@@ -1,10 +1,10 @@
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription, switchMap, take, takeWhile, timer } from 'rxjs';
-import { CommonModule } from '@angular/common';
+import { DecimalPipe, SlicePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -12,17 +12,22 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDividerModule } from '@angular/material/divider';
 import { BaseChartDirective } from 'ng2-charts';
-import { ChartConfiguration, ChartData } from 'chart.js';
+import { ChartData, ChartOptions } from 'chart.js';
 import { OverviewService } from '../../services/overview.service';
-import { AthleteZonesDto, DailyRecommendationDto, WellnessPointDto, ZoneDto } from '../../api/training';
+import { AthleteStore } from '../../services/athlete.store';
+import { DailyRecommendationDto, WellnessPointDto, ZoneDto } from '../../api/training';
+import { ZoomGroup } from '../../shared/charts/zoom-group';
+import { RangeSliderComponent, SparkPoint } from '../../shared/charts/range-slider.component';
+import { alpha, metricColor, token } from '../../shared/theme';
+import { addDays } from '../../shared/format';
 
-/** Nachfrage-Takt fuer den asynchron nachgelieferten KI-Empfehlungstext (5 s x 24 = 2 Min.). */
+/** Nachfrage-Takt für den asynchron nachgelieferten KI-Empfehlungstext (5 s x 24 = 2 Min.). */
 const RECOMMENDATION_POLL_MS = 5000;
 const RECOMMENDATION_POLL_MAX = 24;
+const DAY_MS = 864e5;
 
-type RangeKey = '7d' | '1m' | '3m' | '6m' | '1y' | 'custom';
+type RangeKey = '1m' | '3m' | '6m' | '1y' | 'custom';
 
 interface RangeOption {
   key: RangeKey;
@@ -30,68 +35,69 @@ interface RangeOption {
   days: number;
 }
 
+interface FormStatus {
+  label: string;
+  color: string;
+  hint: string;
+}
+
+type Pt = { x: number; y: number };
+
 @Component({
   selector: 'app-overview',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule,
-    MatTooltipModule, MatFormFieldModule, MatInputModule, MatDatepickerModule,
-    MatSnackBarModule, MatDividerModule,
-    BaseChartDirective
+    DecimalPipe, SlicePipe, FormsModule,
+    MatButtonModule, MatButtonToggleModule, MatIconModule, MatProgressSpinnerModule,
+    MatTooltipModule, MatFormFieldModule, MatInputModule, MatDatepickerModule, MatSnackBarModule,
+    BaseChartDirective, RangeSliderComponent
   ],
   templateUrl: './overview.component.html',
   styleUrl: './overview.component.scss'
 })
 export class OverviewComponent implements OnInit {
+  private readonly overviewService = inject(OverviewService);
+  private readonly store = inject(AthleteStore);
+  private readonly snackBar = inject(MatSnackBar);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly ranges: RangeOption[] = [
-    { key: '7d', label: '7 Tage',   days: 7 },
-    { key: '1m', label: '1 Monat',  days: 30 },
-    { key: '3m', label: '3 Monate', days: 90 },
-    { key: '6m', label: '6 Monate', days: 180 },
-    { key: '1y', label: '1 Jahr',   days: 365 }
+    { key: '1m', label: '1 M', days: 30 },
+    { key: '3m', label: '3 M', days: 90 },
+    { key: '6m', label: '6 M', days: 180 },
+    { key: '1y', label: '1 J', days: 365 }
   ];
 
   selectedRange: RangeKey = '3m';
-  from: Date;
-  to: Date;
+  from: Date = addDays(new Date(), -90);
+  to: Date = new Date();
 
-  loadingWellness = false;
-  loadingZones = false;
-  loadingRecommendation = false;
-  wellness: WellnessPointDto[] = [];
-  zones: AthleteZonesDto | null = null;
-  recommendation: DailyRecommendationDto | null = null;
+  readonly loadingWellness = signal(false);
+  /** Zonen und Schwellenwerte teilt sich die Übersicht mit der Seitenleiste (dort auch bearbeitbar). */
+  readonly loadingZones = this.store.loading;
+  readonly zones = this.store.zones;
+  readonly loadingRecommendation = signal(false);
+  readonly wellness = signal<WellnessPointDto[]>([]);
+  readonly recommendation = signal<DailyRecommendationDto | null>(null);
   private textPollSub?: Subscription;
-  private readonly destroyRef = inject(DestroyRef);
-  sortedPowerZonesForBar: ZoneDto[] = []; // für Stacked-Bar Visualisierung
 
-  // ---- Chart-Konfiguration -------------------------------------------------
-  fitnessChartData: ChartData<'line'> = { labels: [], datasets: [] };
-  fitnessChartOptions: ChartConfiguration<'line'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: { position: 'top' },
-      tooltip: { mode: 'index', intersect: false }
-    },
-    scales: {
-      x: { ticks: { maxTicksLimit: 12, autoSkip: true } },
-      y:    { position: 'left',  title: { display: true, text: 'Fitness / Ermüdung' } },
-      yTsb: { position: 'right', title: { display: true, text: 'Form (TSB)' }, grid: { drawOnChartArea: false } }
-    },
-    elements: { point: { radius: 0 }, line: { tension: 0.25, borderWidth: 2 } }
-  };
+  /** Letzter Tag mit Werten und derselbe Tag eine Woche davor. */
+  readonly today = computed(() => {
+    const list = this.wellness().filter(w => w.ctl != null);
+    const last = list[list.length - 1] ?? null;
+    if (!last) return null;
+    const weekAgoDate = Date.parse(last.date) - 7 * DAY_MS;
+    const weekAgo = [...list].reverse().find(w => Date.parse(w.date) <= weekAgoDate) ?? null;
+    return { last, weekAgo, status: this.formStatus(last.form) };
+  });
 
-  constructor(
-    private overviewService: OverviewService,
-    private snackBar: MatSnackBar
-  ) {
-    this.to = new Date();
-    this.from = this.subDays(this.to, 90);
-  }
+  readonly sortedPowerZones = computed(() => this.sortedZonesForBar(this.zones()?.powerZones ?? []));
+
+  // Fitness-Chart
+  readonly fitnessGroup = new ZoomGroup();
+  fitnessData: ChartData<'line', Pt[]> = { datasets: [] };
+  fitnessSpark: SparkPoint[] = [];
+  readonly fitnessOptions: ChartOptions<'line'> = this.buildFitnessOptions();
 
   ngOnInit(): void {
     this.loadAll();
@@ -102,7 +108,7 @@ export class OverviewComponent implements OnInit {
     if (!opt) return;
     this.selectedRange = key;
     this.to = new Date();
-    this.from = this.subDays(this.to, opt.days);
+    this.from = addDays(this.to, -opt.days);
     this.loadWellness();
   }
 
@@ -123,40 +129,33 @@ export class OverviewComponent implements OnInit {
   }
 
   /**
-   * Laedt die Tagesempfehlung. Bei {@code refresh=true} (Button) wird serverseitig neu berechnet
+   * Lädt die Tagesempfehlung. Bei {@code refresh=true} wird serverseitig neu berechnet
    * (POST; den KI-Text liefert der ai-service nach), sonst nur der gespeicherte Stand geholt (GET).
    */
   private loadRecommendation(refresh = false): void {
-    this.loadingRecommendation = true;
+    this.loadingRecommendation.set(true);
     this.textPollSub?.unsubscribe();
-    const req = refresh
-      ? this.overviewService.refreshRecommendation()
-      : this.overviewService.getRecommendation();
+    const req = refresh ? this.overviewService.refreshRecommendation() : this.overviewService.getRecommendation();
     req.subscribe({
-      next: (data) => {
-        this.recommendation = data;
-        this.loadingRecommendation = false;
-        if (data.textPending) {
-          this.pollRecommendationText();
-        }
+      next: data => {
+        this.recommendation.set(data);
+        this.loadingRecommendation.set(false);
+        if (data.textPending) this.pollRecommendationText();
       },
-      error: (err) => {
-        this.loadingRecommendation = false;
+      error: err => {
+        this.loadingRecommendation.set(false);
         this.snackBar.open('Fehler beim Laden der Empfehlung: ' + (err.error?.message || err.message), 'OK', { duration: 5000 });
       }
     });
   }
 
-  /**
-   * Der KI-Text kommt asynchron aus dem ai-service. Bis dahin steht der Fallback-Text da;
-   * wir fragen einige Male nach, bis das Backend nicht mehr "textPending" meldet (max. ~2 Min.).
-   */
+  /** Der KI-Text kommt asynchron; bis dahin steht der Fallback-Text da (max. ~2 Min. nachfragen). */
   private pollRecommendationText(): void {
     this.textPollSub = timer(RECOMMENDATION_POLL_MS, RECOMMENDATION_POLL_MS).pipe(
       take(RECOMMENDATION_POLL_MAX),
       switchMap(() => this.overviewService.getRecommendation()),
       takeWhile(data => {
-        this.recommendation = data;
+        this.recommendation.set(data);
         return data.textPending;
       }),
       takeUntilDestroyed(this.destroyRef)
@@ -164,100 +163,133 @@ export class OverviewComponent implements OnInit {
   }
 
   private loadWellness(refresh = false): void {
-    this.loadingWellness = true;
+    this.loadingWellness.set(true);
     this.overviewService.getWellness(this.from, this.to, refresh).subscribe({
-      next: (data) => {
-        this.wellness = data;
-        this.buildFitnessChart();
-        this.loadingWellness = false;
+      next: data => {
+        this.wellness.set(data);
+        this.buildFitnessChart(data);
+        this.loadingWellness.set(false);
       },
-      error: (err) => {
-        this.loadingWellness = false;
+      error: err => {
+        this.loadingWellness.set(false);
         this.snackBar.open('Fehler beim Laden der Fitness-Daten: ' + (err.error?.message || err.message), 'OK', { duration: 5000 });
       }
     });
   }
 
   private loadZones(refresh = false): void {
-    this.loadingZones = true;
-    this.overviewService.getAthlete(refresh).subscribe({
-      next: (data) => {
-        this.zones = data;
-        this.sortedPowerZonesForBar = this.sortedZonesForBar(data.powerZones);
-        this.loadingZones = false;
-      },
-      error: (err) => {
-        this.loadingZones = false;
-        this.snackBar.open('Fehler beim Laden der Zonen: ' + (err.error?.message || err.message), 'OK', { duration: 5000 });
-      }
+    // Beim ersten Öffnen hat die Seitenleiste die Daten meist schon geladen
+    if (!refresh && (this.zones() || this.loadingZones())) return;
+    this.store.load(refresh).subscribe({
+      error: err => this.snackBar.open('Fehler beim Laden der Zonen: ' + (err.error?.message || err.message), 'OK', { duration: 5000 })
     });
   }
 
-  private buildFitnessChart(): void {
-    const labels = this.wellness.map(w => this.formatChartLabel(w.date));
-    const ctl  = this.wellness.map(w => w.ctl);
-    const atl  = this.wellness.map(w => w.atl);
-    const form = this.wellness.map(w => w.form);
+  // ---- Fitness-Chart ---------------------------------------------------------
 
-    this.fitnessChartData = {
-      labels,
+  private buildFitnessChart(points: WellnessPointDto[]): void {
+    const pts = (pick: (w: WellnessPointDto) => number | null): Pt[] =>
+      points.flatMap(w => {
+        const v = pick(w);
+        const x = Date.parse(w.date);
+        return v == null || isNaN(x) ? [] : [{ x, y: v }];
+      });
+
+    const ctl = pts(w => w.ctl);
+    const fitness = metricColor('fitness');
+    const fatigue = metricColor('fatigue');
+    const form = metricColor('form');
+
+    this.fitnessData = {
       datasets: [
         {
-          label: 'Fitness (CTL)',
-          data: ctl as number[],
-          borderColor: '#42a5f5',
-          backgroundColor: 'rgba(66,165,245,0.15)',
-          fill: true,
-          yAxisID: 'y'
+          label: 'Fitness (CTL)', data: ctl, yAxisID: 'y',
+          borderColor: fitness, backgroundColor: alpha(fitness, 0.14), fill: 'start'
         },
         {
-          label: 'Ermüdung (ATL)',
-          data: atl as number[],
-          borderColor: '#e91e63',
-          backgroundColor: 'rgba(233,30,99,0.10)',
-          fill: false,
-          yAxisID: 'y'
+          label: 'Ermüdung (ATL)', data: pts(w => w.atl), yAxisID: 'y',
+          borderColor: fatigue, backgroundColor: fatigue, fill: false, borderWidth: 1.5
         },
         {
-          label: 'Form (TSB)',
-          data: form as number[],
-          borderColor: '#9e9e9e',
-          backgroundColor: 'rgba(158,158,158,0.10)',
-          fill: false,
-          borderDash: [4, 4],
-          yAxisID: 'yTsb'
+          label: 'Form (TSB)', data: pts(w => w.form), yAxisID: 'yTsb',
+          borderColor: alpha(form, 0.8), backgroundColor: form, fill: false, borderDash: [4, 4], borderWidth: 1.5
         }
       ]
     };
+    this.fitnessSpark = ctl;
+    if (ctl.length > 1) this.fitnessGroup.setBounds(ctl[0].x, ctl[ctl.length - 1].x);
   }
 
-  // ---- Stacked-Bar fuer Zonen ---------------------------------------------
+  private buildFitnessOptions(): ChartOptions<'line'> {
+    const dateShort = (ms: number) => new Date(ms).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    const dateLong = (ms: number) => new Date(ms).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+    return {
+      interaction: { mode: 'index', intersect: false },
+      elements: { point: { radius: 0, hoverRadius: 4 }, line: { tension: 0.25, borderWidth: 2 } },
+      plugins: {
+        ...(this.fitnessGroup.pluginOptions() as object),
+        legend: { position: 'top', align: 'end' },
+        tooltip: {
+          callbacks: {
+            title: items => items.length ? dateLong(Number(items[0].parsed.x)) : '',
+            label: item => ` ${item.dataset.label}: ${item.parsed.y?.toFixed(1)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          grid: { display: false },
+          ticks: { maxTicksLimit: 10, maxRotation: 0, callback: v => dateShort(Number(v)) }
+        },
+        y: {
+          position: 'left',
+          grid: { color: token('--grid') },
+          border: { display: false },
+          title: { display: true, text: 'Fitness / Ermüdung' }
+        },
+        yTsb: {
+          position: 'right',
+          grid: { display: false },
+          border: { display: false },
+          title: { display: true, text: 'Form' }
+        }
+      }
+    } as ChartOptions<'line'>;
+  }
 
-  /**
-   * Sortiert Power-Zonen für Stacked-Bar: Sweet Spot (SS, Index 8) wird zwischen Z3 und Z4
-   * eingeordnet, damit die Bar visuell dem Leistungsbereich entspricht.
-   */
-  sortedZonesForBar(zones: ZoneDto[]): ZoneDto[] {
-    if (!zones || zones.length === 0) return [];
+  // ---- Form-Status ----------------------------------------------------------
+
+  /** Einordnung der Form (TSB) wie bei intervals.icu. */
+  formStatus(form: number | null): FormStatus | null {
+    if (form == null) return null;
+    if (form > 25) return { label: 'Übergang', color: '#fbbf24', hint: 'Lange erholt, Fitness sinkt' };
+    if (form > 5) return { label: 'Frisch', color: '#60a5fa', hint: 'Gut erholt, bereit für Leistung' };
+    if (form >= -10) return { label: 'Neutral', color: '#8d96a5', hint: 'Weder Aufbau noch Erholung' };
+    if (form >= -30) return { label: 'Optimal', color: '#4ade80', hint: 'Produktiver Trainingsreiz' };
+    return { label: 'Überlastet', color: '#f87171', hint: 'Hohe Ermüdung, Erholung einplanen' };
+  }
+
+  delta(now: number | null, before: number | null | undefined): number | null {
+    if (now == null || before == null) return null;
+    return Math.round((now - before) * 10) / 10;
+  }
+
+  // ---- Zonen ----------------------------------------------------------------
+
+  /** Sweet Spot (Index 8) wird zwischen Z3 und Z4 eingeordnet, damit der Balken dem Leistungsbereich folgt. */
+  private sortedZonesForBar(zones: ZoneDto[]): ZoneDto[] {
+    if (!zones.length) return [];
     const regular = zones.filter(z => z.index <= 7);
     const ss = zones.find(z => z.index === 8);
     if (!ss) return regular;
-    // SS (84-97%) liegt zwischen Z3 (76-90%) und Z4 (91-105%) → nach Z3 einfügen
     const result = [...regular];
-    const z3Idx = result.findIndex(z => z.index === 3);
-    if (z3Idx >= 0) {
-      result.splice(z3Idx + 1, 0, ss);
-    } else {
-      result.push(ss);
-    }
+    const z3 = result.findIndex(z => z.index === 3);
+    result.splice(z3 >= 0 ? z3 + 1 : result.length, 0, ss);
     return result;
   }
 
-  /**
-   * Berechnet die Breite (in %) eines Segments fuer den Stacked-Bar.
-   * Die Skala laeuft von 0 bis upperOfLastZoneWithBound; die letzte (open-ended) ZoneDto
-   * bekommt eine sinnvolle visuelle Breite (proportional zur vorletzten).
-   */
+  /** Breite (in %) eines Segments im Zonen-Balken; die offene Top-Zone bekommt 1,3x der vorletzten Grenze. */
   zoneSegmentWidth(zones: ZoneDto[], zone: ZoneDto): number {
     const total = this.scaleMax(zones);
     if (total <= 0) return 0;
@@ -268,11 +300,9 @@ export class OverviewComponent implements OnInit {
 
   private scaleMax(zones: ZoneDto[]): number {
     if (!zones.length) return 0;
-    const last = zones[zones.length - 1];
-    return last.upperValue ?? this.openEndedUpper(zones);
+    return zones[zones.length - 1].upperValue ?? this.openEndedUpper(zones);
   }
 
-  /** Heuristik fuer die Breite der open-ended Top-ZoneDto: 1.3x der vorletzten Obergrenze. */
   private openEndedUpper(zones: ZoneDto[]): number {
     for (let i = zones.length - 1; i >= 0; i--) {
       if (zones[i].upperValue != null) return Math.round(zones[i].upperValue! * 1.3);
@@ -280,49 +310,41 @@ export class OverviewComponent implements OnInit {
     return 100;
   }
 
-  // ---- Helpers -------------------------------------------------------------
+  zoneLabel(z: ZoneDto): string {
+    return z.index === 8 ? 'SS' : 'Z' + z.index;
+  }
 
   formatPct(p: number | null): string {
-    if (p == null) return '–';
-    return Math.round(p * 100) + ' %';
+    return p == null ? '–' : Math.round(p * 100) + ' %';
   }
 
-  formatRange(zone: ZoneDto, unit: string): string {
-    const lo = zone.lowerValue != null ? zone.lowerValue : '–';
-    const hi = zone.upperValue != null ? zone.upperValue : '∞';
-    return `${lo} – ${hi} ${unit}`;
+  formatRange(zone: ZoneDto): string {
+    const lo = zone.lowerValue ?? '–';
+    const hi = zone.upperValue ?? '∞';
+    return `${lo} – ${hi}`;
   }
 
-  /** Zonengrenzen in Watt fuer eine andere FTP (z. B. Indoor), gerundet wie im Backend. */
-  formatScaledRange(zone: ZoneDto, ftp: number, unit: string): string {
+  /** Zonengrenzen in Watt für eine andere FTP (Indoor), gerundet wie im Backend. */
+  formatScaledRange(zone: ZoneDto, ftp: number): string {
     const lo = zone.lowerPct != null ? Math.round(zone.lowerPct * ftp) : '–';
     const hi = zone.upperPct != null ? Math.round(zone.upperPct * ftp) : '∞';
-    return `${lo} – ${hi} ${unit}`;
+    return `${lo} – ${hi}`;
   }
 
   hrReferenceLabel(): string {
-    if (!this.zones) return '';
-    return this.zones.hrReference === 'max_hr' ? 'HFmax' : 'LTHR';
+    return this.zones()?.hrReference === 'max_hr' ? 'HFmax' : 'LTHR';
   }
 
-  private subDays(d: Date, days: number): Date {
-    const out = new Date(d);
-    out.setDate(out.getDate() - days);
-    return out;
+  hrReferenceValue(): number | null {
+    const z = this.zones();
+    if (!z) return null;
+    return z.hrReference === 'max_hr' ? z.thresholds.maxHr : z.thresholds.lthr;
   }
 
-  /** "Stand: HH:MM Uhr" aus dem computedAt-Zeitstempel der Empfehlung. */
   recommendationStand(): string {
-    if (!this.recommendation?.computedAt) return '';
-    const d = new Date(this.recommendation.computedAt);
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
-  }
-
-  private formatChartLabel(date: string): string {
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return date;
-    return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    const at = this.recommendation()?.computedAt;
+    if (!at) return '';
+    const d = new Date(at);
+    return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
   }
 }
-

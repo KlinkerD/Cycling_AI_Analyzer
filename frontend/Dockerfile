@@ -1,5 +1,5 @@
 # Multi-Stage Build für Angular Frontend
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Der OpenAPI Generator (API-Clients aus openapi/*-api.yaml) laeuft auf Java.

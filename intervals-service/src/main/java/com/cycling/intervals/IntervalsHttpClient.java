@@ -4,6 +4,7 @@ import com.cycling.intervals.api.IntervalsErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
@@ -14,9 +15,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.concurrent.Semaphore;
+import java.util.function.Supplier;
 
 /**
- * GET-Aufrufe an intervals.icu mit Basic Auth, Wiederholungen und begrenzter Parallelitaet.
+ * GET- und PUT-Aufrufe an intervals.icu mit Basic Auth, Wiederholungen und begrenzter Parallelitaet.
  *
  * <ul>
  *   <li>Wiederholt bei 429, 5xx und Netzwerkfehlern hoechstens {@code maxRetries}-mal (nach 1 s, 3 s, ...).
@@ -59,13 +61,37 @@ public class IntervalsHttpClient {
      * @throws IntervalsApiException bei fehlender Konfiguration oder wenn intervals.icu nicht liefert
      */
     public String get(String path) {
+        return send(path, () -> restClient.get()
+                .uri(properties.baseUrl() + path)
+                .header(HttpHeaders.AUTHORIZATION, basicAuth())
+                .retrieve()
+                .body(String.class));
+    }
+
+    /**
+     * Schreibt {@code json} per PUT nach {@code path} und liefert die Antwort als JSON-Text.
+     * PUT ist idempotent, deshalb gelten dieselben Wiederholungen wie bei {@link #get(String)}.
+     *
+     * @throws IntervalsApiException bei fehlender Konfiguration oder wenn intervals.icu ablehnt
+     */
+    public String put(String path, String json) {
+        return send(path, () -> restClient.put()
+                .uri(properties.baseUrl() + path)
+                .header(HttpHeaders.AUTHORIZATION, basicAuth())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(json)
+                .retrieve()
+                .body(String.class));
+    }
+
+    private String send(String path, Supplier<String> call) {
         if (!properties.isConfigured()) {
             throw new IntervalsApiException(IntervalsErrorCode.INTERVALS_NOT_CONFIGURED,
                     "intervals.icu ist nicht konfiguriert: INTERVALS_API_KEY und INTERVALS_ATHLETE_ID setzen.");
         }
         for (int attempt = 0; ; attempt++) {
             try {
-                return execute(path);
+                return execute(call);
             } catch (HttpClientErrorException e) {
                 int status = e.getStatusCode().value();
                 if (status == 401 || status == 403) {
@@ -105,7 +131,7 @@ public class IntervalsHttpClient {
         }
     }
 
-    private String execute(String path) {
+    private String execute(Supplier<String> call) {
         try {
             permits.acquire();
         } catch (InterruptedException e) {
@@ -113,11 +139,7 @@ public class IntervalsHttpClient {
             throw new IntervalsApiException(IntervalsErrorCode.INTERVALS_UNAVAILABLE, "Abruf abgebrochen.", null, e);
         }
         try {
-            String body = restClient.get()
-                    .uri(properties.baseUrl() + path)
-                    .header(HttpHeaders.AUTHORIZATION, basicAuth())
-                    .retrieve()
-                    .body(String.class);
+            String body = call.get();
             return body != null ? body : "";
         } finally {
             permits.release();

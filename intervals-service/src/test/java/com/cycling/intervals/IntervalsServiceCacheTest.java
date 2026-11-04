@@ -67,6 +67,39 @@ class IntervalsServiceCacheTest {
     }
 
     @Test
+    void updateEvictsDependentCachesAndCachesFreshZones() {
+        IntervalsAthleteZones fresh = new IntervalsAthleteZones(
+                new IntervalsAthleteThresholds("Dan", 280, null, 170, 190, null), List.of(), List.of(), "lthr");
+        when(gateway.athleteZones()).thenReturn(ZONES);
+        when(gateway.activityZones(any(), any()))
+                .thenReturn(new IntervalsActivityZones(List.of(), List.of(), false, 250));
+        var update = new com.cycling.intervals.api.IntervalsThresholdsUpdate(280, null, null, null, null);
+        when(gateway.updateThresholds(update)).thenReturn(fresh);
+        service.activityZones("i1");
+
+        assertThat(service.updateThresholds(update)).isSameAs(fresh);
+        assertThat(service.thresholds().ftp()).isEqualTo(280);
+        service.activityZones("i1");
+
+        verify(gateway, times(1)).athleteZones();          // frische Zonen kamen aus dem Update
+        verify(gateway, times(2)).activityZones(any(), any()); // Zonenzeiten wurden neu geholt
+    }
+
+    @Test
+    void failedUpdateStillEvictsCaches() {
+        when(gateway.athleteZones()).thenReturn(ZONES);
+        var update = new com.cycling.intervals.api.IntervalsThresholdsUpdate(null, null, null, null, 74.0);
+        when(gateway.updateThresholds(update))
+                .thenThrow(new IntervalsApiException(IntervalsErrorCode.INTERVALS_UNAVAILABLE, "weg"));
+        service.athleteZones();
+
+        assertThatThrownBy(() -> service.updateThresholds(update)).isInstanceOf(IntervalsApiException.class);
+        service.athleteZones();
+
+        verify(gateway, times(2)).athleteZones();
+    }
+
+    @Test
     void errorsAreNotCached() {
         when(gateway.athleteZones())
                 .thenThrow(new IntervalsApiException(IntervalsErrorCode.INTERVALS_UNAVAILABLE, "weg"))

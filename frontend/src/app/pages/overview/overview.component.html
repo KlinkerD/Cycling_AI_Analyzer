@@ -1,264 +1,243 @@
-<div class="overview-container">
+<div class="page">
+  <header class="page-header">
+    <h1>Übersicht</h1>
+    <span class="sub">Fitness, Form und Zonen aus intervals.icu</span>
+    <span class="spacer"></span>
+    <button mat-icon-button (click)="refresh()"
+            matTooltip="Neu laden (Cache umgehen, Empfehlung neu berechnen)"
+            [disabled]="loadingWellness() || loadingZones() || loadingRecommendation()">
+      <mat-icon>refresh</mat-icon>
+    </button>
+  </header>
 
-  <!-- ============= Fitness & Form ============= -->
-  <mat-card class="section">
-    <mat-card-header>
-      <mat-card-title>
-        <mat-icon>insights</mat-icon> Fitness, Ermüdung &amp; Form
-      </mat-card-title>
-      <mat-card-subtitle>
-        CTL / ATL / TSB aus intervals.icu
-      </mat-card-subtitle>
-      <button mat-icon-button class="refresh-btn"
-              (click)="refresh()"
-              matTooltip="Daten neu laden (Cache umgehen, Empfehlung neu berechnen)"
-              [disabled]="loadingWellness || loadingZones || loadingRecommendation">
-        <mat-icon>refresh</mat-icon>
-      </button>
-    </mat-card-header>
-
-    <mat-card-content>
-      <div class="range-toolbar">
-        <div class="quick-ranges">
-          @for (r of ranges; track r.key) {
-            <button mat-stroked-button
-                    [color]="selectedRange === r.key ? 'primary' : ''"
-                    (click)="selectRange(r.key)">
-              {{ r.label }}
-            </button>
-          }
-        </div>
-        <div class="custom-range">
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Zeitraum</mat-label>
-            <mat-date-range-input [rangePicker]="picker">
-              <input matStartDate placeholder="Von" [(ngModel)]="from" (dateChange)="onCustomDateChange()">
-              <input matEndDate   placeholder="Bis" [(ngModel)]="to"   (dateChange)="onCustomDateChange()">
-            </mat-date-range-input>
-            <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
-            <mat-date-range-picker #picker></mat-date-range-picker>
-          </mat-form-field>
-        </div>
-      </div>
-
-      <div class="chart-wrapper">
-        @if (loadingWellness) {
-          <div class="loading-overlay">
-            <mat-spinner diameter="40"></mat-spinner>
-          </div>
-        }
-        @if (wellness.length > 0) {
-          <canvas baseChart
-                  [data]="fitnessChartData"
-                  [options]="fitnessChartOptions"
-                  type="line">
-          </canvas>
-        } @else if (!loadingWellness) {
-          <p class="empty">Keine Wellness-Daten für diesen Zeitraum verfügbar.</p>
+  <!-- Heute: Kacheln + Empfehlung -->
+  <div class="top-grid">
+    <section class="panel today">
+      <div class="panel-head">
+        <mat-icon>today</mat-icon>
+        <h2>Aktueller Stand</h2>
+        @if (today(); as t) {
+          <span class="hint">{{ t.last.date | slice:8:10 }}.{{ t.last.date | slice:5:7 }}.</span>
         }
       </div>
-    </mat-card-content>
-  </mat-card>
 
-  <!-- ============= Tagesempfehlung ============= -->
-  <mat-card class="section recommendation-card"
-            [style.border-left-color]="recommendation?.color || '#bdbdbd'">
-    <mat-card-header>
-      <mat-card-title>
-        <mat-icon>tips_and_updates</mat-icon> Empfehlung für heute
-      </mat-card-title>
-      <mat-card-subtitle>
-        @if (recommendation?.computedAt) {
-          Stand: {{ recommendationStand() }}
-        }
-      </mat-card-subtitle>
-    </mat-card-header>
-
-    <mat-card-content>
-      @if (loadingRecommendation) {
-        <mat-spinner diameter="32"></mat-spinner>
-      } @else if (recommendation) {
-        <div class="rec-badge"
-             [style.background]="recommendation.color">
-          {{ recommendation.categoryLabel }}
-        </div>
-        <p class="rec-text">{{ recommendation.text }}</p>
-        @if (recommendation.category !== 'INSUFFICIENT_DATA') {
-          <div class="rec-metrics">
-            @if (recommendation.form != null) {
-              <span>Form {{ recommendation.form > 0 ? '+' : '' }}{{ recommendation.form }}</span>
+      @if (today(); as t) {
+        <div class="kpi-row three">
+          <div class="kpi" data-metric="fitness" matTooltip="Chronic Training Load: langfristige Belastung (42 Tage)">
+            <span class="kpi-label">Fitness</span>
+            <span class="kpi-value">{{ t.last.ctl | number:'1.0-0' }}</span>
+            @if (delta(t.last.ctl, t.weekAgo?.ctl); as d) {
+              <span class="delta" [class.up]="d > 0" [class.down]="d < 0">{{ d > 0 ? '+' : '' }}{{ d | number:'1.0-1' }} / 7 T.</span>
             }
-            @if (recommendation.rampRate != null) {
-              <span [class.warn]="recommendation.rampCapped">
-                Ramp Rate {{ recommendation.rampRate > 0 ? '+' : '' }}{{ recommendation.rampRate }} CTL/Woche
+          </div>
+          <div class="kpi" data-metric="fatigue" matTooltip="Acute Training Load: kurzfristige Belastung (7 Tage)">
+            <span class="kpi-label">Ermüdung</span>
+            <span class="kpi-value">{{ t.last.atl | number:'1.0-0' }}</span>
+            @if (delta(t.last.atl, t.weekAgo?.atl); as d) {
+              <span class="delta">{{ d > 0 ? '+' : '' }}{{ d | number:'1.0-1' }} / 7 T.</span>
+            }
+          </div>
+          <div class="kpi form-kpi" [style.--metric]="t.status?.color" data-metric
+               [matTooltip]="t.status?.hint ?? ''">
+            <span class="kpi-label">Form</span>
+            <span class="kpi-value">{{ (t.last.form ?? 0) > 0 ? '+' : '' }}{{ t.last.form | number:'1.0-0' }}</span>
+            @if (t.status; as s) {
+              <span class="status" [style.color]="s.color">
+                <span class="status-dot" [style.background]="s.color"></span>{{ s.label }}
+              </span>
+            }
+          </div>
+        </div>
+      } @else if (loadingWellness()) {
+        <div class="loading-state small"><mat-spinner diameter="28" /></div>
+      } @else {
+        <p class="muted">Keine Fitness-Daten verfügbar.</p>
+      }
+    </section>
+
+    <section class="panel rec" [style.--rec]="recommendation()?.color || 'var(--border-strong)'">
+      <div class="panel-head">
+        <mat-icon>tips_and_updates</mat-icon>
+        <h2>Empfehlung für heute</h2>
+        <span class="spacer"></span>
+        @if (recommendation()?.computedAt) {
+          <span class="hint">Stand {{ recommendationStand() }}</span>
+        }
+      </div>
+
+      @if (loadingRecommendation()) {
+        <div class="loading-state small"><mat-spinner diameter="28" /></div>
+      } @else if (recommendation(); as rec) {
+        <span class="rec-badge" [style.background]="rec.color">{{ rec.categoryLabel }}</span>
+        <p class="rec-text">
+          {{ rec.text }}
+          @if (rec.textPending) {
+            <span class="pending"><mat-spinner diameter="12" /> KI-Text folgt…</span>
+          }
+        </p>
+        @if (rec.category !== 'INSUFFICIENT_DATA') {
+          <div class="rec-metrics num">
+            @if (rec.form != null) {
+              <span>Form {{ rec.form > 0 ? '+' : '' }}{{ rec.form }}</span>
+            }
+            @if (rec.rampRate != null) {
+              <span [class.warn]="rec.rampCapped"
+                    [matTooltip]="rec.rampCapped ? 'Ramp Rate zu hoch, Empfehlung wurde gedeckelt' : ''">
+                Ramp Rate {{ rec.rampRate > 0 ? '+' : '' }}{{ rec.rampRate }} CTL/Woche
               </span>
             }
           </div>
         }
       } @else {
-        <p class="empty">Keine Empfehlung verfügbar.</p>
+        <p class="muted">Keine Empfehlung verfügbar.</p>
       }
-    </mat-card-content>
-  </mat-card>
+    </section>
+  </div>
 
-  <!-- ============= Schwellenwerte ============= -->
-  @if (zones?.thresholds) {
-    <mat-card class="section thresholds-card">
-      <mat-card-header>
-        <mat-card-title><mat-icon>tune</mat-icon> Schwellenwerte</mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="threshold-grid">
-          <div class="threshold-item">
-            <span class="label">FTP</span>
-            <span class="value">{{ zones?.thresholds?.ftp ?? '–' }} W</span>
-          </div>
-          @if (zones?.thresholds?.indoorFtp) {
-            <div class="threshold-item">
-              <span class="label">FTP Indoor</span>
-              <span class="value">{{ zones?.thresholds?.indoorFtp }} W</span>
-            </div>
-          }
-          <div class="threshold-item">
-            <span class="label">LTHR</span>
-            <span class="value">{{ zones?.thresholds?.lthr ?? '–' }} bpm</span>
-          </div>
-          <div class="threshold-item">
-            <span class="label">HFmax</span>
-            <span class="value">{{ zones?.thresholds?.maxHr ?? '–' }} bpm</span>
-          </div>
-          <div class="threshold-item">
-            <span class="label">Gewicht</span>
-            <span class="value">{{ zones?.thresholds?.weight ?? '–' }} kg</span>
-          </div>
-        </div>
-      </mat-card-content>
-    </mat-card>
-  }
-
-  <!-- ============= Leistungs-Zonen ============= -->
-  <mat-card class="section">
-    <mat-card-header>
-      <mat-card-title>
-        <mat-icon>bolt</mat-icon> Leistungs-Zonen
-      </mat-card-title>
-      <mat-card-subtitle>
-        @if (zones?.thresholds?.ftp) {
-          Bezogen auf FTP {{ zones?.thresholds?.ftp }} W
-          @if (zones?.thresholds?.indoorFtp) {
-            (Indoor {{ zones?.thresholds?.indoorFtp }} W)
-          }
+  <!-- Fitness-Verlauf -->
+  <section class="panel">
+    <div class="panel-head fitness-head">
+      <mat-icon>insights</mat-icon>
+      <h2>Fitness, Ermüdung &amp; Form</h2>
+      <span class="spacer"></span>
+      <mat-button-toggle-group class="ranges" hideSingleSelectionIndicator
+                               [value]="selectedRange" (change)="selectRange($event.value)"
+                               aria-label="Zeitraum">
+        @for (r of ranges; track r.key) {
+          <mat-button-toggle [value]="r.key">{{ r.label }}</mat-button-toggle>
         }
-      </mat-card-subtitle>
-    </mat-card-header>
+      </mat-button-toggle-group>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="date-range">
+        <mat-date-range-input [rangePicker]="picker">
+          <input matStartDate placeholder="Von" [(ngModel)]="from" (dateChange)="onCustomDateChange()">
+          <input matEndDate placeholder="Bis" [(ngModel)]="to" (dateChange)="onCustomDateChange()">
+        </mat-date-range-input>
+        <mat-datepicker-toggle matIconSuffix [for]="picker" />
+        <mat-date-range-picker #picker />
+      </mat-form-field>
+    </div>
 
-    <mat-card-content>
-      @if (loadingZones) {
-        <mat-spinner diameter="32"></mat-spinner>
-      } @else if (zones && zones.powerZones.length > 0) {
-        <div class="stacked-bar">
-          @for (z of sortedPowerZonesForBar; track z.index) {
-            <div class="segment"
-                 [style.flex-basis.%]="zoneSegmentWidth(sortedPowerZonesForBar, z)"
-                 [style.background]="z.color"
-                 [matTooltip]="z.name + ' • ' + formatRange(z, 'W')">
-              <span class="segment-label">{{ z.index === 8 ? 'SS' : 'Z' + z.index }}</span>
-            </div>
-          }
-        </div>
+    <div class="chart-box lg">
+      @if (loadingWellness()) {
+        <div class="chart-loading"><mat-spinner diameter="32" /></div>
+      }
+      @if (wellness().length > 0) {
+        <canvas baseChart type="line" [data]="fitnessData" [options]="fitnessOptions"></canvas>
+      } @else if (!loadingWellness()) {
+        <div class="empty-state">Keine Wellness-Daten für diesen Zeitraum.</div>
+      }
+    </div>
+    @if (wellness().length > 1) {
+      <app-range-slider [group]="fitnessGroup" [points]="fitnessSpark" [color]="'#38bdf8'" />
+    }
+  </section>
 
-        <table class="zones-table">
-          <thead>
-            <tr>
-              <th>#</th><th>Name</th><th>% FTP</th>
-              @if (zones.thresholds.indoorFtp) {
-                <th>Watt Outdoor</th><th>Watt Indoor</th>
-              } @else {
-                <th>Watt</th>
-              }
-            </tr>
-          </thead>
-          <tbody>
-            @for (z of zones.powerZones; track z.index) {
+  <!-- Zonen -->
+  <div class="zone-grid">
+    <section class="panel">
+      <div class="panel-head">
+        <mat-icon>bolt</mat-icon>
+        <h2>Leistungszonen</h2>
+        <span class="spacer"></span>
+        @if (zones()?.thresholds?.ftp; as ftp) {
+          <span class="hint">FTP {{ ftp }} W@if (zones()?.thresholds?.indoorFtp; as indoor) { · Indoor {{ indoor }} W}</span>
+        }
+      </div>
+
+      @if (loadingZones()) {
+        <div class="loading-state small"><mat-spinner diameter="28" /></div>
+      } @else if (zones(); as z) {
+        @if (z.powerZones.length) {
+          <div class="stacked-bar">
+            @for (zone of sortedPowerZones(); track zone.index) {
+              <div class="segment"
+                   [style.flex-basis.%]="zoneSegmentWidth(sortedPowerZones(), zone)"
+                   [style.background]="zone.color"
+                   [matTooltip]="zone.name + ' · ' + formatRange(zone) + ' W'">
+                <span>{{ zoneLabel(zone) }}</span>
+              </div>
+            }
+          </div>
+          <table class="zones-table num">
+            <thead>
               <tr>
-                <td>
-                  <span class="zone-dot" [style.background]="z.color"></span>
-                  {{ z.index === 8 ? 'SS' : 'Z' + z.index }}
-                </td>
-                <td>{{ z.name }}</td>
-                <td>{{ formatPct(z.lowerPct) }} – {{ z.upperPct == null ? '∞' : formatPct(z.upperPct) }}</td>
-                <td>{{ formatRange(z, 'W') }}</td>
-                @if (zones.thresholds.indoorFtp) {
-                  <td>{{ formatScaledRange(z, zones.thresholds.indoorFtp, 'W') }}</td>
+                <th>Zone</th>
+                <th>% FTP</th>
+                <th>{{ z.thresholds.indoorFtp ? 'Outdoor' : 'Watt' }}</th>
+                @if (z.thresholds.indoorFtp) {
+                  <th>Indoor</th>
                 }
               </tr>
-            }
-          </tbody>
-        </table>
-      } @else {
-        <p class="empty">Keine Leistungs-Zonen konfiguriert.</p>
-      }
-    </mat-card-content>
-  </mat-card>
-
-  <!-- ============= HF-Zonen ============= -->
-  <mat-card class="section">
-    <mat-card-header>
-      <mat-card-title>
-        <mat-icon>favorite</mat-icon> Herzfrequenz-Zonen
-      </mat-card-title>
-      <mat-card-subtitle>
-        @if (zones) {
-          Bezogen auf {{ hrReferenceLabel() }}
-          @if (zones.hrReference === 'lthr' && zones.thresholds.lthr) {
-            ({{ zones.thresholds.lthr }} bpm)
-          } @else if (zones.hrReference === 'max_hr' && zones.thresholds.maxHr) {
-            ({{ zones.thresholds.maxHr }} bpm)
-          }
+            </thead>
+            <tbody>
+              @for (zone of z.powerZones; track zone.index) {
+                <tr>
+                  <td>
+                    <span class="zone-dot" [style.background]="zone.color"></span>
+                    <strong>{{ zoneLabel(zone) }}</strong>
+                    <span class="zone-name">{{ zone.name }}</span>
+                  </td>
+                  <td>{{ formatPct(zone.lowerPct) }} – {{ zone.upperPct == null ? '∞' : formatPct(zone.upperPct) }}</td>
+                  <td>{{ formatRange(zone) }} W</td>
+                  @if (z.thresholds.indoorFtp; as indoor) {
+                    <td>{{ formatScaledRange(zone, indoor) }} W</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <p class="muted">Keine Leistungszonen konfiguriert.</p>
         }
-      </mat-card-subtitle>
-    </mat-card-header>
-
-    <mat-card-content>
-      @if (loadingZones) {
-        <mat-spinner diameter="32"></mat-spinner>
-      } @else if (zones && zones.hrZones.length > 0) {
-        <div class="stacked-bar">
-          @for (z of zones.hrZones; track z.index) {
-            <div class="segment"
-                 [style.flex-basis.%]="zoneSegmentWidth(zones.hrZones, z)"
-                 [style.background]="z.color"
-                 [matTooltip]="z.name + ' • ' + formatRange(z, 'bpm')">
-              <span class="segment-label">Z{{ z.index }}</span>
-            </div>
-          }
-        </div>
-
-        <table class="zones-table">
-          <thead>
-            <tr>
-              <th>#</th><th>Name</th><th>% {{ hrReferenceLabel() }}</th><th>BPM</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (z of zones.hrZones; track z.index) {
-              <tr>
-                <td>
-                  <span class="zone-dot" [style.background]="z.color"></span>
-                  Z{{ z.index }}
-                </td>
-                <td>{{ z.name }}</td>
-                <td>{{ formatPct(z.lowerPct) }} – {{ z.upperPct == null ? '∞' : formatPct(z.upperPct) }}</td>
-                <td>{{ formatRange(z, 'bpm') }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      } @else {
-        <p class="empty">Keine HF-Zonen konfiguriert.</p>
       }
-    </mat-card-content>
-  </mat-card>
+    </section>
 
+    <section class="panel">
+      <div class="panel-head">
+        <mat-icon>favorite</mat-icon>
+        <h2>Herzfrequenzzonen</h2>
+        <span class="spacer"></span>
+        @if (hrReferenceValue(); as ref) {
+          <span class="hint">{{ hrReferenceLabel() }} {{ ref }} bpm</span>
+        }
+      </div>
+
+      @if (loadingZones()) {
+        <div class="loading-state small"><mat-spinner diameter="28" /></div>
+      } @else if (zones(); as z) {
+        @if (z.hrZones.length) {
+          <div class="stacked-bar">
+            @for (zone of z.hrZones; track zone.index) {
+              <div class="segment"
+                   [style.flex-basis.%]="zoneSegmentWidth(z.hrZones, zone)"
+                   [style.background]="zone.color"
+                   [matTooltip]="zone.name + ' · ' + formatRange(zone) + ' bpm'">
+                <span>Z{{ zone.index }}</span>
+              </div>
+            }
+          </div>
+          <table class="zones-table num">
+            <thead>
+              <tr><th>Zone</th><th>% {{ hrReferenceLabel() }}</th><th>bpm</th></tr>
+            </thead>
+            <tbody>
+              @for (zone of z.hrZones; track zone.index) {
+                <tr>
+                  <td>
+                    <span class="zone-dot" [style.background]="zone.color"></span>
+                    <strong>Z{{ zone.index }}</strong>
+                    <span class="zone-name">{{ zone.name }}</span>
+                  </td>
+                  <td>{{ formatPct(zone.lowerPct) }} – {{ zone.upperPct == null ? '∞' : formatPct(zone.upperPct) }}</td>
+                  <td>{{ formatRange(zone) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <p class="muted">Keine HF-Zonen konfiguriert.</p>
+        }
+      }
+    </section>
+  </div>
 </div>
-

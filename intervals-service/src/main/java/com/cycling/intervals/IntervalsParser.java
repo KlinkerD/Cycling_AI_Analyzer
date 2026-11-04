@@ -184,6 +184,17 @@ public final class IntervalsParser {
         return new IntervalsAthleteZones(thresholds, powerZones, hrZones, hrReference);
     }
 
+    /**
+     * ID des sportSettings-Eintrags fuer Rad (dieselbe Auswahl wie beim Lesen der Schwellenwerte);
+     * null, wenn es keinen gibt.
+     */
+    public static String rideSettingId(JsonNode athlete) {
+        JsonNode setting = rideSetting(athlete);
+        if (setting == null) return null;
+        JsonNode id = setting.path("id");
+        return id.isNumber() || id.isTextual() ? id.asText() : null;
+    }
+
     /** Erster sportSettings-Eintrag fuer Ride oder VirtualRide; null, wenn keiner. */
     private static JsonNode rideSetting(JsonNode athlete) {
         JsonNode sportSettings = athlete.path("sportSettings");

@@ -179,6 +179,39 @@ class IntervalsClientTest {
     }
 
     @Test
+    void updateThresholdsPutsUpdateAndReadsFreshValues() {
+        server.expect(requestTo(BASE + "/api/intervals/athlete/thresholds"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.content()
+                        .json("{\"ftp\":280,\"indoorFtp\":null,\"lthr\":168,\"maxHr\":null,\"weight\":null}"))
+                .andRespond(withSuccess("""
+                        {"name":"Dan","ftp":280,"indoorFtp":235,"lthr":168,"maxHr":190,"weight":72.5}""",
+                        MediaType.APPLICATION_JSON));
+
+        IntervalsAthleteThresholds fresh = client.updateThresholds(
+                new com.cycling.intervals.api.IntervalsThresholdsUpdate(280, null, 168, null, null));
+
+        assertThat(fresh.ftp()).isEqualTo(280);
+        assertThat(fresh.lthr()).isEqualTo(168);
+        server.verify();
+    }
+
+    @Test
+    void badRequestFromServiceStaysBadRequest() {
+        server.expect(requestTo(BASE + "/api/intervals/athlete/thresholds"))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                        .body("{\"detail\":\"LTHR muss unter HFmax liegen.\",\"code\":\"BAD_REQUEST\"}"));
+
+        assertThatThrownBy(() -> client.updateThresholds(
+                new com.cycling.intervals.api.IntervalsThresholdsUpdate(null, null, 190, 185, null)))
+                .isInstanceOfSatisfying(IntervalsUnavailableException.class, e -> {
+                    assertThat(e.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(e.code()).isEqualTo("BAD_REQUEST");
+                    assertThat(e.getMessage()).isEqualTo("LTHR muss unter HFmax liegen.");
+                });
+    }
+
+    @Test
     void evictPostsToService() {
         server.expect(requestTo(BASE + "/api/intervals/cache/evict"))
                 .andExpect(method(HttpMethod.POST))

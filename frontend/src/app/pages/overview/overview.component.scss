@@ -1,230 +1,238 @@
-.overview-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+:host {
+  display: block;
 }
 
-.section {
-  mat-card-header {
-    align-items: center;
-    position: relative;
+.page > .panel,
+.top-grid,
+.zone-grid {
+  margin-bottom: var(--gap);
+}
 
-    mat-card-title {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-  }
+.loading-state.small {
+  padding: 20px 0;
+}
 
-  .refresh-btn {
-    position: absolute;
-    right: 8px;
-    top: 8px;
+// ---- Oben: Stand + Empfehlung ----------------------------------------------
+.top-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--gap);
+
+  @media (max-width: 960px) {
+    grid-template-columns: 1fr;
   }
 }
 
-// ----- Range-Toolbar ----------------------------------------------------
-.range-toolbar {
+.kpi-row.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  .kpi-value {
+    font-size: 26px;
+  }
+}
+
+.delta {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.rec {
+  border-left: 3px solid var(--rec);
+}
+
+.rec-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0d1016;
+  margin-bottom: 10px;
+}
+
+.rec-text {
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.rec-metrics {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  align-items: center;
-  margin-bottom: 12px;
+  gap: 6px 16px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
 
-  .quick-ranges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .custom-range mat-form-field {
-    width: 280px;
+  .warn {
+    color: var(--warn);
   }
 }
 
-// ----- Chart ------------------------------------------------------------
-.chart-wrapper {
-  position: relative;
-  height: 380px;
-
-  .loading-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.6);
-    z-index: 5;
-  }
-
-  .empty {
-    text-align: center;
-    color: rgba(0, 0, 0, 0.55);
-    padding-top: 40px;
-  }
+// ---- Fitness-Chart --------------------------------------------------------
+.fitness-head {
+  flex-wrap: wrap;
+  row-gap: 10px;
 }
 
-// ----- Schwellenwerte ---------------------------------------------------
-.threshold-grid {
+.ranges {
+  --mat-standard-button-toggle-height: 32px;
+  --mat-standard-button-toggle-shape: 8px;
+  --mat-standard-button-toggle-divider-color: var(--border);
+  --mat-standard-button-toggle-selected-state-background-color: var(--accent-soft);
+  --mat-standard-button-toggle-selected-state-text-color: var(--accent);
+  --mat-standard-button-toggle-text-color: var(--text-muted);
+  --mat-standard-button-toggle-label-text-size: 12px;
+  border-color: var(--border);
+}
+
+.date-range {
+  width: 230px;
+  --mat-form-field-container-height: 36px;
+  --mat-form-field-container-vertical-padding: 6px;
+  --mat-form-field-container-text-size: 13px;
+  font-size: 13px;
+}
+
+.chart-loading {
+  position: absolute;
+  inset: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
+  place-items: center;
+  background: rgba(21, 26, 34, 0.6);
+  z-index: 1;
+}
 
-  .threshold-item {
-    display: flex;
-    flex-direction: column;
-    background: rgba(0, 0, 0, 0.04);
-    border-radius: 8px;
-    padding: 12px 14px;
+// ---- Zonen ----------------------------------------------------------------
+.zone-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
 
-    .label {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: rgba(0, 0, 0, 0.55);
-    }
-    .value {
-      font-size: 1.25rem;
-      font-weight: 600;
-    }
+  @media (max-width: 960px) {
+    grid-template-columns: 1fr;
   }
 }
 
-// ----- Stacked-Bar ------------------------------------------------------
 .stacked-bar {
   display: flex;
-  width: 100%;
-  height: 38px;
+  height: 26px;
   border-radius: 6px;
   overflow: hidden;
-  margin-bottom: 16px;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  margin-bottom: 14px;
+  gap: 2px;
 
   .segment {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    display: grid;
+    place-items: center;
     min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
     cursor: default;
-    transition: filter 0.15s ease;
 
-    &:hover { filter: brightness(1.1); }
-
-    .segment-label {
-      padding: 0 4px;
+    span {
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(0, 0, 0, 0.7);
+      overflow: hidden;
     }
   }
 }
 
-// ----- Zonen-Tabelle ----------------------------------------------------
 .zones-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: 12px;
 
-  th, td {
-    padding: 8px 10px;
-    text-align: left;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  }
   th {
+    text-align: left;
+    font-size: 10px;
     font-weight: 600;
-    color: rgba(0, 0, 0, 0.65);
-    background: rgba(0, 0, 0, 0.03);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    padding: 0 8px 6px 0;
   }
+
+  td {
+    padding: 6px 8px 6px 0;
+    border-top: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
   td:first-child {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 600;
-  }
-
-  .zone-dot {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    flex: 0 0 auto;
+    white-space: normal;
   }
 }
 
-.empty {
-  color: rgba(0, 0, 0, 0.55);
-  font-style: italic;
+.zone-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 6px;
 }
 
-// ----- Tagesempfehlung --------------------------------------------------
-.recommendation-card {
-  border-left: 4px solid #bdbdbd;
+.zone-name {
+  color: var(--text-muted);
+  margin-left: 6px;
+}
 
-  .rec-badge {
-    display: inline-block;
-    color: #fff;
-    font-weight: 600;
-    font-size: 0.85rem;
-    padding: 4px 12px;
-    border-radius: 14px;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    margin-bottom: 10px;
+// ---- Handy ----------------------------------------------------------------
+@media (max-width: 720px) {
+  .kpi-row.three .kpi-value {
+    font-size: 22px;
   }
 
-  .rec-text {
-    margin: 0 0 12px;
-    font-size: 1rem;
-    line-height: 1.5;
-  }
+  .fitness-head {
+    .spacer {
+      display: none;
+    }
 
-  .rec-metrics {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    font-size: 0.8rem;
-    color: rgba(0, 0, 0, 0.6);
+    .ranges,
+    .date-range {
+      width: 100%;
+    }
 
-    span.warn {
-      color: #e65100;
-      font-weight: 600;
+    .ranges mat-button-toggle {
+      flex: 1;
     }
   }
-}
 
-// ----- Dark Mode ------------------------------------------------------------
-:host-context(.dark-theme) {
-  .chart-wrapper .loading-overlay {
-    background: rgba(0, 0, 0, 0.5);
+  .zone-name {
+    display: block;
+    margin: 0 0 0 14px;
   }
-  .chart-wrapper .empty,
-  .empty {
-    color: rgba(255, 255, 255, 0.55);
-  }
-  .threshold-grid .threshold-item {
-    background: rgba(255, 255, 255, 0.06);
-    .label { color: rgba(255, 255, 255, 0.6); }
-  }
-  .stacked-bar {
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
-  }
+
   .zones-table {
-    th, td {
-      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 11px;
+
+    th,
+    td {
+      white-space: normal;
+      padding-right: 6px;
     }
-    th {
-      color: rgba(255, 255, 255, 0.75);
-      background: rgba(255, 255, 255, 0.05);
-    }
-  }
-  .recommendation-card .rec-metrics {
-    color: rgba(255, 255, 255, 0.6);
-    span.warn { color: #ffb74d; }
   }
 }
-

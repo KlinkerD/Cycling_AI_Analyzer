@@ -6,6 +6,7 @@ import com.cycling.intervals.api.IntervalsAthleteThresholds;
 import com.cycling.intervals.api.IntervalsAthleteZones;
 import com.cycling.intervals.api.IntervalsPowerCurve;
 import com.cycling.intervals.api.IntervalsStreams;
+import com.cycling.intervals.api.IntervalsThresholdsUpdate;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -70,6 +71,23 @@ public class IntervalsService {
 
     public IntervalsPowerCurve powerCurve(String activityId) {
         return powerCurves.get(activityId, gateway::powerCurve);
+    }
+
+    /**
+     * Schreibt neue Schwellenwerte nach intervals.icu. Danach sind alle Caches leer (Zonen, Zonenzeiten
+     * und Power-Curves haengen an FTP/LTHR) und die frischen Athleten-Zonen liegen im Cache.
+     */
+    public IntervalsAthleteZones updateThresholds(IntervalsThresholdsUpdate update) {
+        try {
+            IntervalsAthleteZones fresh = gateway.updateThresholds(update);
+            evictAll();
+            athleteZones.put(ATHLETE_KEY, fresh);
+            return fresh;
+        } catch (RuntimeException e) {
+            // auch ein teilweise geglueckter Schreibvorgang darf keinen alten Stand im Cache lassen
+            evictAll();
+            throw e;
+        }
     }
 
     /** Leert alle Caches, z. B. nach einer FTP-Aenderung in intervals.icu. */

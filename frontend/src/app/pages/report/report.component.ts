@@ -1,707 +1,332 @@
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
-import { MatCardModule } from '@angular/material/card';
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatDividerModule } from '@angular/material/divider';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ActivityService } from '../../services/activity.service';
-import { ReportDto, ZoneDistributionDto, PowerCurveSetDto } from '../../api/report';
+import { PowerCurveSetDto, ReportDto, TrendDataDto, ZoneDistributionDto } from '../../api/report';
+import { ZoomGroup } from '../../shared/charts/zoom-group';
+import { RangeSliderComponent, SparkPoint } from '../../shared/charts/range-slider.component';
+import { alpha, metricColor, scoreColor, token } from '../../shared/theme';
+import { formatCurveDuration, formatDuration, shortDate } from '../../shared/format';
+import { Pt, StreamCharts, buildStreamCharts } from './stream-charts';
+
+interface ZoneRow {
+  name: string;
+  label: string;
+  color: string;
+  pct: number;
+  seconds: number;
+}
 
 @Component({
   selector: 'app-report',
   standalone: true,
   imports: [
-    CommonModule,
-    MatCardModule,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatDividerModule,
-    MatChipsModule,
-    MatSnackBarModule,
-    MatProgressBarModule,
-    BaseChartDirective
+    DatePipe, DecimalPipe, NgTemplateOutlet, RouterLink,
+    MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule,
+    MatTabsModule, MatTooltipModule,
+    BaseChartDirective, RangeSliderComponent
   ],
   templateUrl: './report.component.html',
   styleUrl: './report.component.scss'
 })
 export class ReportComponent implements OnInit {
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly activityService = inject(ActivityService);
+  private readonly snackBar = inject(MatSnackBar);
 
-  report: ReportDto | null = null;
-  loading = true;
-  resending = false;
-  activityId!: string;
+  readonly report = signal<ReportDto | null>(null);
+  readonly loading = signal(true);
+  readonly resending = signal(false);
+  activityId = '';
 
-  // Chart: Leistung & Herzfrequenz (kombiniert, Doppel-Y-Achse)
-  powerHrChartData!: ChartData<'line'>;
-  powerHrChartOptions!: ChartOptions<'line'>;
+  readonly formatDuration = formatDuration;
+  readonly scoreColor = scoreColor;
 
-  // Chart: Geschwindigkeit & Höhe (kombiniert, Doppel-Y-Achse)
-  speedChartData!: ChartData<'line'>;
-  speedChartOptions!: ChartOptions<'line'>;
+  // Verläufe
+  readonly streamGroup = new ZoomGroup();
+  streams: StreamCharts | null = null;
 
-  // Chart: Kadenz vs. Distanz
-  cadenceChartData!: ChartData<'line'>;
-  cadenceChartOptions: ChartOptions<'line'> = this.lineChartOptions('Kadenz (rpm)');
+  // Zonen
+  powerZones: ZoneRow[] = [];
+  hrZones: ZoneRow[] = [];
 
-  // Chart: Power Zones
-  powerZoneChartData!: ChartData<'doughnut'>;
-  powerZoneChartOptions: ChartOptions<'doughnut'> = this.zoneChartOptions();
+  // Power-Curve
+  readonly curveGroup = new ZoomGroup(true);
+  curveData: ChartData<'line', Pt[]> | null = null;
+  curveOptions!: ChartOptions<'line'>;
+  curveSpark: SparkPoint[] = [];
 
-  // Chart: HR Zones
-  hrZoneChartData!: ChartData<'doughnut'>;
-  hrZoneChartOptions: ChartOptions<'doughnut'> = this.zoneChartOptions();
-
-  // Chart: Trend (letzte Trainings)
-  trendChartData!: ChartData<'line'>;
-  trendChartOptions: ChartOptions<'line'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: { display: true, position: 'top' },
-      tooltip: {
-        callbacks: {
-          label: (item) => {
-            const label = item.dataset.label ?? '';
-            const val = item.raw as number;
-            if (label.includes('Score')) return ` Score: ${val}/10`;
-            if (label.includes('km/h')) return ` Ø Geschw.: ${val.toFixed(1)} km/h`;
-            if (label.includes('Leistung')) return ` Ø Leistung: ${val.toFixed(0)} W`;
-            if (label.includes('HF')) return ` Ø HF: ${val.toFixed(0)} bpm`;
-            return ` ${label}: ${val}`;
-          }
-        }
-      }
-    },
-    scales: {
-      x: { grid: { display: false } },
-      yScore: {
-        type: 'linear',
-        position: 'left',
-        min: 0, max: 10,
-        title: { display: true, text: 'Score' },
-        grid: { color: 'rgba(255,152,0,0.1)' },
-        ticks: { color: '#FF9800' }
-      },
-      ySpeed: {
-        type: 'linear',
-        position: 'right',
-        title: { display: true, text: 'km/h' },
-        grid: { display: false },
-        ticks: { color: '#4CAF50' }
-      },
-      yPower: {
-        type: 'linear',
-        position: 'right',
-        title: { display: true, text: 'Watt' },
-        grid: { display: false },
-        ticks: { color: '#3F51B5' }
-      },
-      yHr: {
-        type: 'linear',
-        position: 'left',
-        title: { display: true, text: 'bpm' },
-        grid: { display: false },
-        ticks: { color: '#E53935' }
-      }
-    }
-  };
-
-  // Chart: Bestleistungs-Kurve (Mean Maximal Power)
-  powerCurveChartData: ChartData<'line'> | null = null;
-  powerCurveChartOptions: ChartOptions<'line'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: { display: true, position: 'bottom', labels: { font: { size: 11 }, boxWidth: 16 } },
-      tooltip: {
-        callbacks: {
-          title: (items) => 'Dauer: ' + this.formatPowerCurveDuration(Number(items[0].parsed.x)),
-          label: (item) => {
-            const label = item.dataset.label ?? '';
-            const v = item.parsed.y;
-            return ` ${label}: ${v == null ? '–' : v.toFixed(0) + ' W'}`;
-          }
-        }
-      }
-    },
-    scales: {
-      x: {
-        type: 'logarithmic',
-        title: { display: true, text: 'Dauer' },
-        ticks: {
-          autoSkip: true,
-          maxTicksLimit: 12,
-          callback: (value: any) => this.formatPowerCurveDuration(Number(value))
-        }
-      },
-      y: {
-        title: { display: true, text: 'Leistung (W)' },
-        beginAtZero: false
-      }
-    }
-  };
-
-  constructor(
-    private route: ActivatedRoute,
-    private router: Router,
-    private activityService: ActivityService,
-    private snackBar: MatSnackBar
-  ) {}
+  // Trend
+  readonly trendGroup = new ZoomGroup();
+  trendData: ChartData<'line', Pt[]> | null = null;
+  trendOptions!: ChartOptions<'line'>;
+  trendSpark: SparkPoint[] = [];
+  private trend: TrendDataDto[] = [];
 
   ngOnInit(): void {
-    this.activityId = this.route.snapshot.paramMap.get('id')!;
-    this.loadReport();
+    this.route.paramMap.subscribe(params => {
+      this.activityId = params.get('id') ?? '';
+      this.load();
+    });
   }
 
-  loadReport(): void {
-    this.loading = true;
+  private load(): void {
+    this.loading.set(true);
     this.activityService.getReport(this.activityId).subscribe({
-      next: (report) => {
-        const normalizedReport = this.normalizeReportText(report);
-        this.report = normalizedReport;
-        this.buildCharts(normalizedReport);
-        this.loading = false;
+      next: raw => {
+        const report = this.normalize(raw);
+        this.build(report);
+        this.report.set(report);
+        this.loading.set(false);
       },
       error: () => {
-        this.loading = false;
-        this.snackBar.open('ReportDto nicht gefunden. Bitte zuerst analysieren.', 'OK', { duration: 4000 });
+        this.loading.set(false);
+        this.snackBar.open('Report nicht gefunden. Bitte die Fahrt zuerst analysieren.', 'OK', { duration: 4000 });
         this.router.navigate(['/']);
       }
     });
   }
 
-  private buildCharts(report: ReportDto): void {
-    const streams = report.streams;
-    const distKm = (streams.distance || []).map(d => +(d / 1000).toFixed(2));
-
-    // Downsampling für Performance (max 500 Punkte)
-    const step = Math.max(1, Math.floor(distKm.length / 500));
-    const sampledDist = distKm.filter((_, i) => i % step === 0);
-    const sampledWatts = (streams.watts || []).filter((_, i) => i % step === 0);
-    const sampledHr = (streams.heartrate || []).filter((_, i) => i % step === 0);
-    const sampledCadence = (streams.cadence || []).filter((_, i) => i % step === 0);
-
-    // Geschwindigkeit + Höhe (m/s -> km/h, Bucket-Mittelwert; Höhe als Fläche auf 2. Achse)
-    const velocityMs = streams.velocity || [];
-    if (velocityMs.length > 0) {
-      const targetPoints = Math.min(500, distKm.length);
-      const speedDist = this.bucketAverage(distKm, targetPoints)
-        .map(v => v != null ? +v.toFixed(2) : null);
-      const speedKmh = this.bucketAverage(velocityMs.map(v => v != null ? v * 3.6 : null), targetPoints)
-        .map(v => v != null ? +v.toFixed(1) : null);
-
-      const altitude = streams.altitude || [];
-      const hasAltitude = this.hasVariation(altitude, 2);
-      const speedDatasets: any[] = [];
-
-      // Höhe zuerst -> wird als Fläche hinter der Geschwindigkeitslinie gezeichnet
-      if (hasAltitude) {
-        const altSampled = this.bucketAverage(altitude.map(v => v != null ? v : null), targetPoints)
-          .map(v => v != null ? +v.toFixed(0) : null);
-        speedDatasets.push({
-          label: 'Höhe (m)',
-          data: altSampled,
-          borderColor: 'rgba(120,120,120,0.5)',
-          backgroundColor: 'rgba(120,120,120,0.18)',
-          borderWidth: 1,
-          pointRadius: 0,
-          fill: true,
-          tension: 0.3,
-          spanGaps: true,
-          yAxisID: 'yAlt',
-          order: 2
-        });
-      }
-      speedDatasets.push({
-        label: 'Geschwindigkeit (km/h)',
-        data: speedKmh,
-        borderColor: '#FF9800',
-        backgroundColor: 'rgba(255,152,0,0.08)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: !hasAltitude,
-        tension: 0.25,
-        spanGaps: true,
-        yAxisID: 'ySpeed',
-        order: 1
-      });
-
-      this.speedChartData = { labels: speedDist, datasets: speedDatasets };
-      this.speedChartOptions = this.buildSpeedAltOptions(hasAltitude, this.minValue(altitude));
-    }
-
-    // Leistung + Herzfrequenz (kombiniert, Doppel-Y-Achse)
-    const hasWatts = (streams.watts || []).some(v => v != null);
-    const hasHr = (streams.heartrate || []).some(v => v != null);
-    if (hasWatts || hasHr) {
-      const phDatasets: any[] = [];
-      if (hasWatts) {
-        phDatasets.push({
-          label: 'Leistung (W)',
-          data: sampledWatts,
-          borderColor: '#3F51B5',
-          backgroundColor: 'rgba(63,81,181,0.12)',
-          borderWidth: 1.5,
-          pointRadius: 0,
-          fill: true,
-          tension: 0.2,
-          yAxisID: 'yPower',
-          order: 2
-        });
-      }
-      if (hasHr) {
-        phDatasets.push({
-          label: 'Herzfrequenz (bpm)',
-          data: sampledHr,
-          borderColor: '#F44336',
-          backgroundColor: 'rgba(0,0,0,0)',
-          borderWidth: 2,
-          pointRadius: 0,
-          fill: false,
-          tension: 0.2,
-          yAxisID: 'yHr',
-          order: 1
-        });
-      }
-      this.powerHrChartData = { labels: sampledDist, datasets: phDatasets };
-      this.powerHrChartOptions = this.buildPowerHrOptions(hasWatts, hasHr);
-    }
-
-    // Cadence Chart
-    this.cadenceChartData = {
-      labels: sampledDist,
-      datasets: [{
-        label: 'Kadenz (rpm)',
-        data: sampledCadence,
-        borderColor: '#4CAF50',
-        backgroundColor: 'rgba(76,175,80,0.08)',
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: true,
-        tension: 0.2
-      }]
-    };
-
-    // Power Zones Chart
-    this.powerZoneChartData = this.buildZoneChartData(report.powerZones);
-
-    // HR Zones Chart
-    this.hrZoneChartData = this.buildZoneChartData(report.hrZones);
-
-    // Trend Chart
-    const trend = [...(report.trend || [])].reverse();
-    this.trendChartData = {
-      labels: trend.map(t => t.activityDate
-        ? new Date(t.activityDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
-        : '?'),
-      datasets: [
-        {
-          label: 'Score (1-10)',
-          data: trend.map(t => t.overallScore ?? null),
-          borderColor: '#FF9800',
-          backgroundColor: 'rgba(255,152,0,0.1)',
-          borderWidth: 2,
-          pointRadius: 5,
-          fill: false,
-          tension: 0.3,
-          yAxisID: 'yScore'
-        },
-        {
-          label: 'Ø Geschw. (km/h)',
-          data: trend.map(t => t.avgSpeedKmh != null ? +t.avgSpeedKmh.toFixed(1) : null),
-          borderColor: '#4CAF50',
-          backgroundColor: 'rgba(76,175,80,0.1)',
-          borderWidth: 2,
-          pointRadius: 5,
-          fill: false,
-          tension: 0.3,
-          yAxisID: 'ySpeed'
-        },
-        {
-          label: 'Ø Leistung (W)',
-          data: trend.map(t => t.avgPowerWatts != null ? +t.avgPowerWatts.toFixed(0) : null),
-          borderColor: '#3F51B5',
-          backgroundColor: 'rgba(63,81,181,0.1)',
-          borderWidth: 2,
-          pointRadius: 5,
-          fill: false,
-          tension: 0.3,
-          yAxisID: 'yPower'
-        },
-        {
-          label: 'Ø HF (bpm)',
-          data: trend.map(t => t.avgHeartRate != null ? +t.avgHeartRate.toFixed(0) : null),
-          borderColor: '#E53935',
-          backgroundColor: 'rgba(229,57,53,0.1)',
-          borderWidth: 2,
-          pointRadius: 5,
-          fill: false,
-          tension: 0.3,
-          yAxisID: 'yHr'
-        }
-      ]
-    };
-
-    // Power-Curve-Chart
-    this.powerCurveChartData = this.buildPowerCurveData(report.powerCurveSet);
+  private build(report: ReportDto): void {
+    this.streams = buildStreamCharts(report.streams, this.streamGroup);
+    this.powerZones = this.zoneRows(report.powerZones);
+    this.hrZones = this.zoneRows(report.hrZones);
+    this.buildCurve(report.powerCurveSet);
+    this.buildTrend(report.trend ?? []);
   }
 
-  private buildPowerCurveData(set: PowerCurveSetDto | null | undefined): ChartData<'line'> | null {
-    if (!set || !set.current || !set.current.points || set.current.points.length === 0) {
-      return null;
-    }
+  // ---- Zonen ----------------------------------------------------------------
 
-    type Pt = { x: number; y: number | null };
+  private zoneRows(zones: ZoneDistributionDto[]): ZoneRow[] {
+    return (zones ?? []).map(z => ({
+      name: z.zoneName,
+      label: z.zoneLabel,
+      color: z.color,
+      pct: z.percentage,
+      seconds: z.seconds
+    }));
+  }
+
+  zoneBarWidth(rows: ZoneRow[], row: ZoneRow): number {
+    const max = Math.max(...rows.map(r => r.pct), 1);
+    return (row.pct / max) * 100;
+  }
+
+  // ---- Power-Curve ----------------------------------------------------------
+
+  private buildCurve(set: PowerCurveSetDto | null | undefined): void {
+    this.curveData = null;
+    if (!set?.current?.points?.length) return;
+
     const toPts = (points: { durationSeconds: number; watts: number | null }[]): Pt[] =>
-      points.map(p => ({ x: p.durationSeconds, y: p.watts }));
+      points.filter(p => p.watts != null && p.durationSeconds > 0).map(p => ({ x: p.durationSeconds, y: p.watts! }));
 
-    const datasets: any[] = [];
+    const current = toPts(set.current.points);
+    if (current.length < 2) return;
 
-    // Vorherige Trainings zuerst (damit aktuelle obenauf liegt). Aelter = blasser.
-    const alphas = [0.45, 0.30, 0.18];
-    (set.previous || []).forEach((prev, idx) => {
-      if (idx >= alphas.length) return;
-      const dateLabel = prev.activityDate
-        ? new Date(prev.activityDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
-        : '';
+    const power = metricColor('power');
+    const muted = token('--text-muted');
+    const datasets: ChartData<'line', Pt[]>['datasets'] = [];
+
+    // Ältere Trainings zuerst, damit das aktuelle obenauf liegt; älter = blasser
+    const alphas = [0.55, 0.35, 0.2];
+    (set.previous ?? []).slice(0, alphas.length).forEach((prev, i) => {
       datasets.push({
-        label: (dateLabel ? dateLabel + ' ' : '') + this.shortName(prev.activityName),
+        label: `${shortDate(prev.activityDate)} ${this.shortName(prev.activityName)}`.trim(),
         data: toPts(prev.points),
-        borderColor: `rgba(120,120,120,${alphas[idx]})`,
-        backgroundColor: 'rgba(0,0,0,0)',
+        borderColor: alpha('#8d96a5', alphas[i]),
+        backgroundColor: 'transparent',
         borderWidth: 1.5,
         pointRadius: 0,
         pointHoverRadius: 3,
-        tension: 0.35,
-        spanGaps: true,
-        fill: false
+        tension: 0.3,
+        spanGaps: true
       });
     });
 
-    // Aktuelle Aktivitaet (deutlich)
-    const curDateLabel = set.current.activityDate
-      ? new Date(set.current.activityDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
-      : '';
     datasets.push({
-      label: (curDateLabel ? curDateLabel + ' ' : '') + this.shortName(set.current.activityName),
-      data: toPts(set.current.points),
-      borderColor: '#3F51B5',
-      backgroundColor: 'rgba(63,81,181,0.08)',
+      label: `${shortDate(set.current.activityDate)} ${this.shortName(set.current.activityName)}`.trim() || 'Diese Fahrt',
+      data: current,
+      borderColor: power,
+      backgroundColor: alpha(power, 0.12),
+      fill: 'start',
       borderWidth: 2.5,
       pointRadius: 2,
+      pointBackgroundColor: power,
       pointHoverRadius: 5,
-      tension: 0.35,
-      spanGaps: true,
-      fill: false
+      tension: 0.3,
+      spanGaps: true
     });
 
-    // FTP-Reflinie (gestrichelt)
     if (set.ftpWatts && set.ftpWatts > 0) {
       const ftp = set.ftpWatts;
       datasets.push({
         label: `FTP ${ftp} W`,
-        data: set.current.points.map(p => ({ x: p.durationSeconds, y: ftp })),
-        borderColor: 'rgba(120,120,120,0.7)',
-        backgroundColor: 'rgba(0,0,0,0)',
+        data: [{ x: current[0].x, y: ftp }, { x: current[current.length - 1].x, y: ftp }],
+        borderColor: alpha('#e7e9ee', 0.5),
+        backgroundColor: 'transparent',
         borderWidth: 1,
         borderDash: [6, 4],
         pointRadius: 0,
         pointHoverRadius: 0,
-        tension: 0,
-        fill: false
+        tension: 0
       });
     }
 
-    return { datasets };
-  }
-
-  private shortName(name: string | null | undefined, max = 24): string {
-    if (!name) return '';
-    return name.length <= max ? name : name.substring(0, max - 1) + '…';
-  }
-
-  formatPowerCurveDuration(seconds: number): string {
-    if (!isFinite(seconds) || seconds <= 0) return '';
-    if (seconds < 60) return `${Math.round(seconds)}s`;
-    if (seconds < 3600) {
-      const m = seconds / 60;
-      return (m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)) + 'm';
-    }
-    const h = seconds / 3600;
-    return (h % 1 === 0 ? h.toFixed(0) : h.toFixed(1)) + 'h';
-  }
-
-  private normalizeReportText(report: ReportDto): ReportDto {
-    return {
-      ...report,
-      analysis: {
-        ...report.analysis,
-        strengths: this.cleanAiText(report.analysis.strengths),
-        anomalies: this.cleanAiText(report.analysis.anomalies),
-        progress: this.cleanAiText(report.analysis.progress),
-        summary: this.cleanAiText(report.analysis.summary)
-      }
-    };
-  }
-
-  private cleanAiText(text: string | null | undefined): string {
-    if (!text) {
-      return '';
-    }
-
-    return text
-      .replace(/\r\n/g, '\n')
-      .replace(/^\s*(ÜBERSCHRIFT|HEADING|TITLE|BULLETS?|STICHPUNKTE)\s*:\s*/gim, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-  }
-
-  /**
-   * Bucket-Mittelwert-Downsampling: teilt die Quelle in {@code maxPoints} gleich grosse
-   * Buckets und mittelt nicht-null Werte pro Bucket. Liefert eine ruhigere Linie als
-   * striktes Subsampling – wichtig bei Geschwindigkeit (Stops/Sprints).
-   */
-  private bucketAverage(src: (number | null)[], maxPoints: number): (number | null)[] {
-    if (!src || src.length === 0) return [];
-    const n = src.length;
-    if (n <= maxPoints) return src.slice();
-    const step = n / maxPoints;
-    const out: (number | null)[] = new Array(maxPoints);
-    for (let i = 0; i < maxPoints; i++) {
-      const from = Math.floor(i * step);
-      let to = Math.floor((i + 1) * step);
-      if (to <= from) to = from + 1;
-      if (to > n) to = n;
-      let sum = 0;
-      let count = 0;
-      for (let j = from; j < to; j++) {
-        const v = src[j];
-        if (v != null && !isNaN(v as number)) {
-          sum += v as number;
-          count++;
-        }
-      }
-      out[i] = count > 0 ? sum / count : null;
-    }
-    return out;
-  }
-
-  private buildZoneChartData(zones: ZoneDistributionDto[]): ChartData<'doughnut'> {
-    return {
-      labels: zones.map(z => `${z.zoneName} – ${z.zoneLabel}`),
-      datasets: [{
-        data: zones.map(z => z.percentage),
-        backgroundColor: zones.map(z => z.color),
-        borderWidth: 2,
-        borderColor: '#fff'
-      }]
-    };
-  }
-
-  /** Prüft, ob eine Serie eine sinnvolle Spannweite hat (z. B. Höhe auf Indoor-Fahrten ist konstant). */
-  private hasVariation(src: (number | null)[] | undefined, minRange: number): boolean {
-    if (!src || src.length === 0) return false;
-    let min = Infinity, max = -Infinity, count = 0;
-    for (const v of src) {
-      if (v != null && !isNaN(v)) {
-        if (v < min) min = v;
-        if (v > max) max = v;
-        count++;
-      }
-    }
-    return count > 0 && (max - min) >= minRange;
-  }
-
-  private minValue(src: (number | null)[] | undefined): number | null {
-    if (!src || src.length === 0) return null;
-    let min = Infinity, found = false;
-    for (const v of src) {
-      if (v != null && !isNaN(v) && v < min) { min = v; found = true; }
-    }
-    return found ? min : null;
-  }
-
-  /** Optionen für den kombinierten Speed+Höhe-Chart (Speed links/Linie, Höhe rechts/Fläche ab Min-Höhe). */
-  private buildSpeedAltOptions(hasAltitude: boolean, altMin: number | null): ChartOptions<'line'> {
-    const scales: any = {
-      x: {
-        title: { display: true, text: 'Distanz (km)' },
-        grid: { display: false },
-        ticks: { maxTicksLimit: 10 }
-      },
-      ySpeed: {
-        type: 'linear',
-        position: 'left',
-        title: { display: true, text: 'km/h' },
-        beginAtZero: false,
-        grid: { color: 'rgba(0,0,0,0.05)' },
-        ticks: { color: '#FF9800' }
-      }
-    };
-    if (hasAltitude) {
-      scales.yAlt = {
-        type: 'linear',
-        position: 'right',
-        title: { display: true, text: 'Höhe (m)' },
-        grid: { display: false },
-        ticks: { color: '#888' }
-      };
-      if (altMin != null) scales.yAlt.min = Math.floor(altMin);
-    }
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
+    this.curveGroup.setBounds(current[0].x, current[current.length - 1].x);
+    this.curveSpark = current;
+    this.curveData = { datasets };
+    this.curveOptions = {
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
       plugins: {
-        legend: { display: hasAltitude, position: 'top' },
+        ...(this.curveGroup.pluginOptions() as object),
+        legend: { position: 'bottom', labels: { color: muted } },
         tooltip: {
-          mode: 'index',
-          intersect: false,
-          callbacks: { title: (items) => `${items[0].label} km` }
-        }
-      },
-      scales
-    };
-  }
-
-  /** Optionen für den kombinierten Leistung+HF-Chart (Watt links/Fläche, HF rechts/Linie). */
-  private buildPowerHrOptions(hasWatts: boolean, hasHr: boolean): ChartOptions<'line'> {
-    const scales: any = {
-      x: {
-        title: { display: true, text: 'Distanz (km)' },
-        grid: { display: false },
-        ticks: { maxTicksLimit: 10 }
-      }
-    };
-    if (hasWatts) {
-      scales.yPower = {
-        type: 'linear',
-        position: 'left',
-        title: { display: true, text: 'Watt' },
-        beginAtZero: false,
-        grid: { color: 'rgba(0,0,0,0.05)' },
-        ticks: { color: '#3F51B5' }
-      };
-    }
-    if (hasHr) {
-      scales.yHr = {
-        type: 'linear',
-        position: 'right',
-        title: { display: true, text: 'bpm' },
-        beginAtZero: false,
-        grid: { display: false },
-        ticks: { color: '#F44336' }
-      };
-    }
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: hasWatts && hasHr, position: 'top' },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          callbacks: { title: (items) => `${items[0].label} km` }
-        }
-      },
-      scales
-    };
-  }
-
-  private lineChartOptions(yLabel: string): ChartOptions<'line'> {
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
           callbacks: {
-            title: (items) => `${items[0].label} km`
+            title: items => items.length ? 'Dauer ' + formatCurveDuration(Number(items[0].parsed.x)) : '',
+            label: item => ` ${item.dataset.label}: ${item.parsed.y == null ? '–' : item.parsed.y.toFixed(0) + ' W'}`
           }
         }
       },
       scales: {
         x: {
-          title: { display: true, text: 'Distanz (km)' },
-          grid: { display: false },
-          ticks: { maxTicksLimit: 10 }
+          type: 'logarithmic',
+          grid: { color: token('--grid') },
+          // feste, "runde" Dauern statt der automatischen Log-Ticks
+          afterBuildTicks: scale => {
+            scale.ticks = [1, 5, 10, 30, 60, 300, 600, 1200, 3600, 7200]
+              .filter(v => v >= scale.min && v <= scale.max)
+              .map(value => ({ value }));
+          },
+          ticks: {
+            autoSkip: false,
+            maxRotation: 0,
+            callback: v => formatCurveDuration(Number(v))
+          },
+          title: { display: true, text: 'Dauer' }
         },
         y: {
-          title: { display: true, text: yLabel },
-          beginAtZero: false
+          title: { display: true, text: 'Watt', color: power },
+          ticks: { color: power },
+          grid: { color: token('--grid') },
+          border: { display: false }
         }
       }
-    };
+    } as ChartOptions<'line'>;
   }
 
-  private zoneChartOptions(): ChartOptions<'doughnut'> {
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
+  // ---- Trend ---------------------------------------------------------------
+
+  private buildTrend(trendDesc: TrendDataDto[]): void {
+    this.trendData = null;
+    this.trend = [...trendDesc].reverse();
+    if (this.trend.length < 2) return;
+
+    const pts = (pick: (t: TrendDataDto) => number | null): Pt[] =>
+      this.trend.flatMap((t, i) => {
+        const v = pick(t);
+        return v == null ? [] : [{ x: i, y: v }];
+      });
+
+    const ds = (label: string, data: Pt[], color: string, yAxisID: string, dashed = false) => ({
+      label, data, yAxisID,
+      borderColor: color,
+      backgroundColor: color,
+      borderWidth: 2,
+      borderDash: dashed ? [4, 4] : [],
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      cubicInterpolationMode: 'monotone' as const
+    });
+
+    const score = pts(t => t.overallScore);
+    this.trendData = {
+      datasets: [
+        ds('Score', score, metricColor('score'), 'yScore'),
+        ds('Ø Leistung', pts(t => t.avgPowerWatts != null ? Math.round(t.avgPowerWatts) : null), metricColor('power'), 'yPower'),
+        ds('Ø HF', pts(t => t.avgHeartRate != null ? Math.round(t.avgHeartRate) : null), metricColor('hr'), 'yHr', true),
+        ds('Ø Geschw.', pts(t => t.avgSpeedKmh != null ? +t.avgSpeedKmh.toFixed(1) : null), metricColor('speed'), 'ySpeed', true)
+      ]
+    };
+    this.trendSpark = score;
+    this.trendGroup.setBounds(0, this.trend.length - 1);
+
+    const units: Record<string, string> = { 'Score': '/10', 'Ø Leistung': ' W', 'Ø HF': ' bpm', 'Ø Geschw.': ' km/h' };
+    this.trendOptions = {
+      interaction: { mode: 'index', axis: 'x', intersect: false },
+      onClick: (_e, elements) => {
+        const hit = elements[0];
+        const pt = hit ? this.trendData?.datasets[hit.datasetIndex]?.data[hit.index] : null;
+        const target = pt ? this.trend[Math.round(pt.x)] : null;
+        if (target && target.activityId !== this.activityId) this.router.navigate(['/report', target.activityId]);
+      },
       plugins: {
-        legend: {
-          display: true,
-          position: 'right',
-          labels: { font: { size: 12 }, padding: 12 }
-        },
+        ...(this.trendGroup.pluginOptions() as object),
+        legend: { position: 'bottom' },
         tooltip: {
           callbacks: {
-            label: (item) => ` ${item.label}: ${(item.raw as number).toFixed(1)}%`
+            title: items => {
+              const t = items.length ? this.trend[Math.round(Number(items[0].parsed.x))] : null;
+              return t ? `${shortDate(t.activityDate)} · ${t.activityName ?? ''}` : '';
+            },
+            label: item => ` ${item.dataset.label}: ${item.parsed.y}${units[item.dataset.label ?? ''] ?? ''}`,
+            footer: () => 'Klick öffnet den Report'
           }
         }
-      }
-    };
-  }
-
-  getScoreColor(score: number | null): string {
-    if (score == null) return '#9E9E9E';
-    if (score >= 8) return '#4CAF50';
-    if (score >= 6) return '#FF9800';
-    return '#F44336';
-  }
-
-  formatDuration(seconds: number | null | undefined): string {
-    if (seconds == null || isNaN(seconds as number) || seconds <= 0) return '–';
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    return `${h}:${String(m).padStart(2, '0')} h`;
-  }
-
-  formatDate(dateStr: string | null): string {
-    if (!dateStr) return '–';
-    return new Date(dateStr).toLocaleDateString('de-DE', {
-      weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
-    });
-  }
-
-  goBack(): void {
-    this.router.navigate(['/']);
-  }
-
-  resendReport(): void {
-    if (this.resending) return;
-    this.resending = true;
-    this.activityService.resendReport(this.activityId).subscribe({
-      next: (res) => {
-        this.resending = false;
-        const labels = res.channels.map(c => c === 'MAIL' ? 'E-Mail' : 'Discord').join(' und ');
-        this.snackBar.open(`ReportDto-Versand an ${labels} angestoßen.`, 'OK', { duration: 4000 });
       },
-      error: (err) => {
-        this.resending = false;
+      scales: {
+        x: {
+          type: 'linear',
+          offset: true,
+          grid: { display: false },
+          ticks: {
+            stepSize: 1,
+            maxRotation: 0,
+            callback: v => Number.isInteger(Number(v)) ? shortDate(this.trend[Number(v)]?.activityDate) : ''
+          }
+        },
+        yScore: {
+          position: 'left', min: 0, max: 10,
+          ticks: { color: metricColor('score'), stepSize: 2 },
+          grid: { color: token('--grid') },
+          border: { display: false },
+          title: { display: true, text: 'Score', color: metricColor('score') }
+        },
+        yPower: {
+          position: 'right',
+          ticks: { color: metricColor('power') },
+          grid: { display: false },
+          border: { display: false },
+          title: { display: true, text: 'W', color: metricColor('power') }
+        },
+        yHr: { position: 'right', display: false },
+        ySpeed: { position: 'right', display: false }
+      }
+    } as ChartOptions<'line'>;
+  }
+
+  // ---- Aktionen -------------------------------------------------------------
+
+  resend(): void {
+    if (this.resending()) return;
+    this.resending.set(true);
+    this.activityService.resendReport(this.activityId).subscribe({
+      next: res => {
+        this.resending.set(false);
+        const labels = res.channels.map(c => c === 'MAIL' ? 'E-Mail' : 'Discord').join(' und ');
+        this.snackBar.open(`Report-Versand an ${labels} angestoßen.`, 'OK', { duration: 4000 });
+      },
+      error: err => {
+        this.resending.set(false);
         const message = err?.status === 409
           ? 'Kein Versandkanal aktiv (E-Mail und Discord sind ausgeschaltet).'
           : err?.status === 503
@@ -710,5 +335,47 @@ export class ReportComponent implements OnInit {
         this.snackBar.open(message, 'OK', { duration: 5000 });
       }
     });
+  }
+
+  // ---- Format ---------------------------------------------------------------
+
+  formatLongDate(iso: string | null): string {
+    if (!iso) return '';
+    return new Date(iso).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+
+  formatZoneTime(seconds: number): string {
+    const m = Math.round(seconds / 60);
+    return m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} h` : `${m} min`;
+  }
+
+  /** Umfang des Score-Rings (r = 34). */
+  scoreDash(score: number | null): string {
+    const c = 2 * Math.PI * 34;
+    const f = score == null ? 0 : Math.max(0, Math.min(1, score / 10));
+    return `${(c * f).toFixed(1)} ${c.toFixed(1)}`;
+  }
+
+  private shortName(name: string | null | undefined, max = 22): string {
+    if (!name) return '';
+    return name.length <= max ? name : name.substring(0, max - 1) + '…';
+  }
+
+  private normalize(report: ReportDto): ReportDto {
+    const clean = (text: string | null | undefined) => (text ?? '')
+      .replace(/\r\n/g, '\n')
+      .replace(/^\s*(ÜBERSCHRIFT|HEADING|TITLE|BULLETS?|STICHPUNKTE)\s*:\s*/gim, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    return {
+      ...report,
+      analysis: {
+        ...report.analysis,
+        strengths: clean(report.analysis.strengths),
+        anomalies: clean(report.analysis.anomalies),
+        progress: clean(report.analysis.progress),
+        summary: clean(report.analysis.summary)
+      }
+    };
   }
 }

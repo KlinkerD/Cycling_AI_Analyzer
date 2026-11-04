@@ -48,6 +48,34 @@ class IntervalsHttpClientTest {
     }
 
     @Test
+    void putSendsJsonBodyWithBasicAuth() {
+        server.expect(requestTo(URL + "/sport-settings/42?recalcHrZones=false"))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.method(
+                        org.springframework.http.HttpMethod.PUT))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Basic QVBJX0tFWTpzZWNyZXQ="))
+                .andExpect(header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.content()
+                        .json("{\"ftp\":280}"))
+                .andRespond(withSuccess("{\"id\":42,\"ftp\":280}", MediaType.APPLICATION_JSON));
+
+        assertThat(client("secret").put("/athlete/i1/sport-settings/42?recalcHrZones=false", "{\"ftp\":280}"))
+                .isEqualTo("{\"id\":42,\"ftp\":280}");
+        server.verify();
+    }
+
+    @Test
+    void putRejectedByIntervalsIsNotRetried() {
+        server.expect(times(1), requestTo(URL))
+                .andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY));
+
+        assertThatThrownBy(() -> client("secret").put("/athlete/i1", "{\"icu_weight\":-1}"))
+                .isInstanceOfSatisfying(IntervalsApiException.class,
+                        e -> assertThat(e.code()).isEqualTo(IntervalsErrorCode.INTERVALS_UNAVAILABLE));
+        assertThat(sleeps).isEmpty();
+        server.verify();
+    }
+
+    @Test
     void retriesRateLimitHonouringRetryAfter() {
         HttpHeaders retryAfter = new HttpHeaders();
         retryAfter.add(HttpHeaders.RETRY_AFTER, "2");

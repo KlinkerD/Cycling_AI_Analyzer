@@ -70,6 +70,36 @@ class FitnessControllerTest {
     }
 
     @Test
+    void updateThresholdsForwardsAndReturnsFreshZones() throws Exception {
+        var update = new com.cycling.intervals.api.IntervalsThresholdsUpdate(280, 265, null, null, 74.0);
+        when(intervals.athleteZones()).thenReturn(new IntervalsAthleteZones(
+                new IntervalsAthleteThresholds("Dan", 280, 265, 170, 190, 74.0),
+                List.of(new IntervalsZone(2, "Endurance", 0.56, 0.75, 157, 210, "#42a5f5")),
+                List.of(), "lthr"));
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/fitness/athlete/thresholds")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"ftp\":280,\"indoorFtp\":265,\"lthr\":null,\"maxHr\":null,\"weight\":74.0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.thresholds.ftp").value(280))
+                .andExpect(jsonPath("$.thresholds.weight").value(74.0))
+                .andExpect(jsonPath("$.powerZones[0].lowerValue").value(157));
+        verify(intervals).updateThresholds(update);
+    }
+
+    @Test
+    void implausibleThresholdsStayBadRequest() throws Exception {
+        when(intervals.updateThresholds(any())).thenThrow(new IntervalsUnavailableException(
+                HttpStatus.BAD_REQUEST, "BAD_REQUEST", "LTHR muss unter HFmax liegen.", null, null));
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/fitness/athlete/thresholds")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"lthr\":190,\"maxHr\":185}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("LTHR muss unter HFmax liegen."));
+    }
+
+    @Test
     void wellnessRateLimitIsServiceUnavailableWithRetryAfter() throws Exception {
         when(intervals.wellness(any(), any())).thenThrow(new IntervalsUnavailableException(
                 HttpStatus.SERVICE_UNAVAILABLE, "INTERVALS_RATE_LIMIT", "Rate-Limit", 30L, null));

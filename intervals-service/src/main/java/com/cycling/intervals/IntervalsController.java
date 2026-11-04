@@ -8,12 +8,15 @@ import com.cycling.intervals.api.IntervalsAthleteZones;
 import com.cycling.intervals.api.IntervalsErrorCode;
 import com.cycling.intervals.api.IntervalsPowerCurve;
 import com.cycling.intervals.api.IntervalsStreams;
+import com.cycling.intervals.api.IntervalsThresholdsUpdate;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -56,6 +59,16 @@ public class IntervalsController {
     @GetMapping(IntervalsApi.ATHLETE_THRESHOLDS)
     public IntervalsAthleteThresholds thresholds() {
         return intervals.thresholds();
+    }
+
+    /** Schreibt neue Schwellenwerte; liefert die frischen Werte aus intervals.icu. */
+    @PutMapping(IntervalsApi.ATHLETE_THRESHOLDS)
+    public IntervalsAthleteThresholds updateThresholds(@RequestBody IntervalsThresholdsUpdate update) {
+        List<String> problems = update.problems();
+        if (!problems.isEmpty()) {
+            throw new IntervalsApiException(IntervalsErrorCode.BAD_REQUEST, String.join(" ", problems));
+        }
+        return intervals.updateThresholds(update).thresholds();
     }
 
     @GetMapping(IntervalsApi.ATHLETE_ZONES)

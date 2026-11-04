@@ -9,7 +9,7 @@ Analysiere deine Radtrainings aus **intervals.icu** mit **Google Gemini AI** und
 | Backend | Spring Boot 4 + Java 25, aufgeteilt in intervals-service, report-service, training-service, ai-service, delivery-service |
 | Messaging | MQTT (Eclipse Mosquitto, Paho-v5-Client) |
 | API-Vertrag | OpenAPI (springdoc) je Service → OpenAPI Generator (typescript-angular), ein Client pro Service |
-| Frontend | Angular 17 + Angular Material |
+| Frontend | Angular 21 + Angular Material 3, Chart.js (mit Zoom-Plugin) |
 | KI | Google Gemini (Standard: gemini-2.5-flash) |
 | Datenbank | H2 (persistent, File-basiert), je eine für report-service und delivery-service |
 | Deployment | Docker Compose |
@@ -72,7 +72,7 @@ mvn -pl ai-service spring-boot:run            # braucht GEMINI_API_KEY
 mvn -pl delivery-service spring-boot:run
 ```
 
-**Frontend:**
+**Frontend** (braucht Node 20.19+ oder 22.12+):
 ```bash
 cd frontend
 npm install
@@ -244,7 +244,8 @@ Fitness-Chart und Athleten-Profil kommen vom intervals-service; mit `refresh=tru
 | Endpoint | Liefert |
 |---|---|
 | `GET /api/fitness/wellness?from&to[&refresh]` | Fitness (CTL), Fatigue (ATL), Form pro Tag |
-| `GET /api/fitness/athlete[?refresh]` | Schwellenwerte (Kopfzeile) und Power-/HF-Zonen (Übersicht); leer statt Fehler |
+| `GET /api/fitness/athlete[?refresh]` | Schwellenwerte (Seitenleiste) und Power-/HF-Zonen (Übersicht); leer statt Fehler |
+| `PUT /api/fitness/athlete/thresholds` | FTP outdoor/indoor, LTHR, HFmax, Gewicht nach intervals.icu schreiben (null = unverändert); liefert neue Zonen, 400 bei unplausiblen Werten |
 
 **Tageszusammenfassung:** Der training-service abonniert `cycling/intervals/wellness/updated` (retained, vom intervals-service) und schickt
 **einmal am Tag ab 21:00** (`FITNESS_SUMMARY_TIME`, Zeitzone `TRAINING_ZONE`, Default `Europe/Berlin`)
@@ -338,6 +339,7 @@ ProblemDetail mit `code`; alle nutzen den gemeinsamen `IntervalsClient` aus dems
 | `GET /api/intervals/activities/{id}/zones` | Zonenzeiten, Indoor-Kennung, `icu_ftp` |
 | `GET /api/intervals/activities/{id}/power-curve` | Power-Curve |
 | `GET /api/intervals/athlete/thresholds` · `/athlete/zones` | FTP, LTHR, Max-HF, Gewicht · Power-/HF-Zonen |
+| `PUT /api/intervals/athlete/thresholds` | schreibt die Rad-Einstellungen (`PUT /athlete/{id}/sport-settings/{id}`, HF-Zonen neu bei LTHR/HFmax) und `icu_weight` (`PUT /athlete/{id}`), leert danach die Caches |
 | `GET /api/intervals/wellness?from&to` | Fitness (CTL), Fatigue (ATL), Form, Ramp pro Tag |
 | `POST /api/intervals/cache/evict` | leert die Caches (z. B. nach FTP-Änderung; „Aktualisieren“ in der Übersicht) |
 
@@ -405,7 +407,7 @@ cycling/
 ├── delivery-service/           # Mail + Discord für alle Quellen, eigene H2 für Nachrichten + Versandstatus
 ├── mosquitto/config/           # Broker-Konfiguration
 ├── docs/                       # Datenflüsse (Markdown + Mermaid) und AsyncAPI-Spec der MQTT-Topics
-├── frontend/                   # Angular 17
+├── frontend/                   # Angular 21
 │   ├── openapi/                # OpenAPI-Specs der Services (Quelle für die API-Clients)
 │   └── src/app/
 │       ├── api/                # generiert (OpenAPI Generator), je Service ein Unterordner, nicht eingecheckt

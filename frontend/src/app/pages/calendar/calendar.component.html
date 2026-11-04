@@ -1,0 +1,126 @@
+<div class="page">
+  <span #top class="top-anchor"></span>
+
+  <header class="page-header">
+    <h1>Kalender</h1>
+    <span class="sub">Rad-Aktivitäten aus intervals.icu</span>
+    <span class="spacer"></span>
+    <button mat-stroked-button (click)="scrollToToday()">
+      <mat-icon>today</mat-icon>
+      Heute
+    </button>
+  </header>
+
+  <div class="weekday-row" aria-hidden="true">
+    @for (d of weekdays; track d) {
+      <span>{{ d }}</span>
+    }
+  </div>
+
+  @for (week of weeks(); track week.key) {
+    @if (week.monthLabel) {
+      <h2 class="month">{{ week.monthLabel }}</h2>
+    }
+
+    <section class="week" [class.empty]="week.empty">
+      <div class="week-label">{{ week.label }}</div>
+
+      @if (week.empty) {
+        <p class="week-empty">Keine Fahrten</p>
+      }
+
+      <div class="days">
+        @for (day of week.days; track day.iso) {
+          <div class="day"
+               [class.today]="day.today"
+               [class.future]="day.future"
+               [class.has-rides]="day.activities.length > 0">
+            <div class="day-head">
+              <span class="dow">{{ weekdays[$index] }}</span>
+              <span class="date">{{ day.date.getDate() }}</span>
+            </div>
+
+            @for (a of day.activities; track a.id) {
+              @if (a.analyzed) {
+                <button class="ride analyzed" (click)="open(a)"
+                        [matTooltip]="'Report öffnen'" matTooltipShowDelay="600">
+                  <ng-container *ngTemplateOutlet="rideBody; context: { $implicit: a }" />
+                </button>
+              } @else {
+                <button class="ride" [matMenuTriggerFor]="popover" [matMenuTriggerData]="{ a: a }"
+                        [class.busy]="isAnalyzing(a.id)">
+                  <ng-container *ngTemplateOutlet="rideBody; context: { $implicit: a }" />
+                </button>
+              }
+            }
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  <div #sentinel class="sentinel"></div>
+
+  @if (loading()) {
+    <div class="loading-state">
+      <mat-spinner diameter="32" />
+      <span>Lade Wochen…</span>
+    </div>
+  } @else if (exhausted()) {
+    <div class="end">
+      <span class="muted">Keine älteren Fahrten gefunden.</span>
+      <button mat-button (click)="loadMore(true)">
+        <mat-icon>expand_more</mat-icon>
+        Trotzdem weiter laden
+      </button>
+    </div>
+  }
+</div>
+
+<ng-template #rideBody let-a>
+  <span class="ride-top">
+    <mat-icon class="ride-icon">{{ isIndoor(a) ? 'home' : 'directions_bike' }}</mat-icon>
+    <span class="ride-name">{{ a.name || 'Fahrt' }}</span>
+    @if (a.analyzed) {
+      <mat-icon class="ai-icon" aria-label="KI-Analyse vorhanden">auto_awesome</mat-icon>
+    }
+    @if (isAnalyzing(a.id)) {
+      <mat-spinner diameter="12" class="ride-spinner" />
+    }
+  </span>
+  <span class="ride-stats num">
+    <span>{{ formatDuration(a.movingTime) }}</span>
+    <span>{{ km(a.distance) }} km</span>
+    @if (a.averageWatts != null) {
+      <span class="w">{{ a.averageWatts | number:'1.0-0' }} W</span>
+    }
+  </span>
+</ng-template>
+
+<mat-menu #popover="matMenu" class="activity-popover" xPosition="after">
+  <ng-template matMenuContent let-a="a">
+    <div class="pop" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+      <div class="pop-head">
+        <strong>{{ a.name || 'Fahrt' }}</strong>
+        <span class="muted">{{ startTime(a) }} Uhr · {{ isIndoor(a) ? 'Indoor' : 'Outdoor' }}</span>
+      </div>
+      <dl class="pop-stats num">
+        <div><dt>Dauer</dt><dd>{{ formatDuration(a.movingTime) }} h</dd></div>
+        <div><dt>Distanz</dt><dd>{{ km(a.distance) }} km</dd></div>
+        <div><dt>Ø Speed</dt><dd>{{ kmh(a.averageSpeed) }} km/h</dd></div>
+        <div><dt>Ø Leistung</dt><dd>{{ a.averageWatts != null ? (a.averageWatts | number:'1.0-0') + ' W' : '–' }}</dd></div>
+        <div><dt>NP</dt><dd>{{ a.normalizedPower != null ? (a.normalizedPower | number:'1.0-0') + ' W' : '–' }}</dd></div>
+        <div><dt>Ø HF</dt><dd>{{ a.averageHeartrate != null ? (a.averageHeartrate | number:'1.0-0') + ' bpm' : '–' }}</dd></div>
+        @if (a.totalElevationGain) {
+          <div><dt>Höhenmeter</dt><dd>{{ a.totalElevationGain | number:'1.0-0' }} m</dd></div>
+        }
+      </dl>
+    </div>
+    <div class="pop-actions">
+      <button mat-flat-button (click)="analyze(a)" [disabled]="isAnalyzing(a.id)">
+        <mat-icon>auto_awesome</mat-icon>
+        {{ isAnalyzing(a.id) ? 'Analysiere…' : 'Mit KI analysieren' }}
+      </button>
+    </div>
+  </ng-template>
+</mat-menu>

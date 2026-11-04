@@ -6,10 +6,12 @@ import com.cycling.intervals.api.IntervalsAthleteZones;
 import com.cycling.intervals.api.IntervalsErrorCode;
 import com.cycling.intervals.api.IntervalsPowerCurve;
 import com.cycling.intervals.api.IntervalsStreams;
+import com.cycling.intervals.api.IntervalsThresholdsUpdate;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.util.UriUtils;
@@ -45,6 +47,43 @@ public class IntervalsGateway {
     /** {@code GET /athlete/{id}}: Schwellenwerte und Zonen. */
     public IntervalsAthleteZones athleteZones() {
         return IntervalsParser.athleteZones(json(athletePath()));
+    }
+
+    /**
+     * Schreibt neue Schwellenwerte nach intervals.icu und liefert danach den frischen Stand.
+     * <ul>
+     *   <li>FTP, Indoor-FTP, LTHR, HFmax: {@code PUT /athlete/{id}/sport-settings/{settingId}} auf den
+     *       Rad-Eintrag, den auch das Lesen nutzt. HF-Zonen werden neu berechnet, wenn LTHR oder HFmax
+     *       mitkommen ({@code recalcHrZones}).</li>
+     *   <li>Gewicht: {@code PUT /athlete/{id}} mit {@code icu_weight}.</li>
+     * </ul>
+     * Nur gesetzte Felder werden geschickt.
+     */
+    public IntervalsAthleteZones updateThresholds(IntervalsThresholdsUpdate update) {
+        if (update.hasSportSettings()) {
+            String settingId = IntervalsParser.rideSettingId(json(athletePath()));
+            if (settingId == null) {
+                throw new IntervalsApiException(IntervalsErrorCode.NOT_FOUND,
+                        "In intervals.icu gibt es keine Rad-Einstellungen (Ride/VirtualRide) zum Aendern.");
+            }
+            ObjectNode body = mapper.createObjectNode();
+            putIfSet(body, "ftp", update.ftp());
+            putIfSet(body, "indoor_ftp", update.indoorFtp());
+            putIfSet(body, "lthr", update.lthr());
+            putIfSet(body, "max_hr", update.maxHr());
+            http.put(athletePath() + "/sport-settings/" + UriUtils.encodePathSegment(settingId, StandardCharsets.UTF_8)
+                    + "?recalcHrZones=" + update.changesHeartRate(), body.toString());
+        }
+        if (update.weight() != null) {
+            ObjectNode body = mapper.createObjectNode().put("icu_weight", update.weight());
+            http.put(athletePath(), body.toString());
+        }
+        log.info("Schwellenwerte in intervals.icu geaendert: {}", update);
+        return athleteZones();
+    }
+
+    private static void putIfSet(ObjectNode node, String field, Integer value) {
+        if (value != null) node.put(field, value);
     }
 
     /** Zonenzeiten aus dem Aktivitaets-Detail; Namen/Farben aus {@code athleteZones}. */

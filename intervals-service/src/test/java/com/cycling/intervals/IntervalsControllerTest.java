@@ -53,6 +53,41 @@ class IntervalsControllerTest {
     }
 
     @Test
+    void updatesThresholds() throws Exception {
+        var update = new com.cycling.intervals.api.IntervalsThresholdsUpdate(280, null, 168, null, null);
+        when(intervals.updateThresholds(update)).thenReturn(new com.cycling.intervals.api.IntervalsAthleteZones(
+                new com.cycling.intervals.api.IntervalsAthleteThresholds("Dan", 280, 235, 168, 190, 72.5),
+                List.of(), List.of(), "lthr"));
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/intervals/athlete/thresholds")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"ftp\":280,\"lthr\":168}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ftp").value(280))
+                .andExpect(jsonPath("$.lthr").value(168));
+    }
+
+    @Test
+    void implausibleThresholdsAreBadRequest() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/intervals/athlete/thresholds")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"ftp\":2000}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.detail").value("FTP outdoor muss zwischen 50 und 700 W liegen."));
+        org.mockito.Mockito.verifyNoInteractions(intervals);
+    }
+
+    @Test
+    void unreadableBodyIsBadRequest() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/intervals/athlete/thresholds")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"ftp\":\"viel\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
     void authProblemIsBadGateway() throws Exception {
         when(intervals.streams(anyString()))
                 .thenThrow(new IntervalsApiException(IntervalsErrorCode.INTERVALS_AUTH, "API-Key pruefen"));

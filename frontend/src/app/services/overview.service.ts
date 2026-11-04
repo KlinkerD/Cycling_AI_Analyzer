@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
-import { Observable, map } from 'rxjs';
+import { Observable } from 'rxjs';
 import {
-  AthleteThresholdsDto,
+  AthleteThresholdsUpdateDto,
   AthleteZonesDto,
   DailyRecommendationDto,
   FitnessApi,
@@ -28,9 +28,9 @@ export class OverviewService {
     return this.fitness.getAthlete(refresh || undefined);
   }
 
-  /** Schwellenwerte fuer die Kopfzeile. */
-  getAthleteThresholds(): Observable<AthleteThresholdsDto> {
-    return this.getAthlete().pipe(map(athlete => athlete.thresholds));
+  /** Schreibt FTP outdoor/indoor, LTHR, HFmax und Gewicht nach intervals.icu (null = unveraendert). */
+  updateThresholds(update: AthleteThresholdsUpdateDto): Observable<AthleteZonesDto> {
+    return this.fitness.updateThresholds(update);
   }
 
   getRecommendation(): Observable<DailyRecommendationDto> {

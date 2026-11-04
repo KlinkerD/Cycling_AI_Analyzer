@@ -7,6 +7,7 @@ import com.cycling.intervals.api.IntervalsAthleteThresholds;
 import com.cycling.intervals.api.IntervalsAthleteZones;
 import com.cycling.intervals.api.IntervalsPowerCurve;
 import com.cycling.intervals.api.IntervalsStreams;
+import com.cycling.intervals.api.IntervalsThresholdsUpdate;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +17,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.ResourceAccessException;
@@ -87,6 +89,25 @@ public class IntervalsClient {
 
     public IntervalsPowerCurve powerCurve(String activityId) {
         return get(IntervalsApi.ACTIVITY_POWER_CURVE, IntervalsPowerCurve.class, activityId);
+    }
+
+    /**
+     * Schreibt neue Schwellenwerte nach intervals.icu (null-Felder bleiben unverändert) und liefert
+     * die frischen Werte. Unplausible Werte kommen als {@link IntervalsUnavailableException} mit 400.
+     */
+    public IntervalsAthleteThresholds updateThresholds(IntervalsThresholdsUpdate update) {
+        IntervalsAthleteThresholds body = call(() -> restClient.put()
+                .uri(IntervalsApi.ATHLETE_THRESHOLDS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(update)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, IntervalsClient::throwProblem)
+                .body(IntervalsAthleteThresholds.class));
+        if (body == null) {
+            throw new IntervalsUnavailableException(HttpStatus.BAD_GATEWAY, "EMPTY_RESPONSE",
+                    "intervals-service lieferte nach dem Speichern keine Daten", null, null);
+        }
+        return body;
     }
 
     /** Leert die Caches des intervals-service. */
@@ -205,7 +226,8 @@ public class IntervalsClient {
         } catch (IOException | RuntimeException ignored) {
             // kein ProblemDetail: Standardtext behalten
         }
-        HttpStatus mapped = status == 404 ? HttpStatus.NOT_FOUND
+        HttpStatus mapped = status == 400 ? HttpStatus.BAD_REQUEST
+                : status == 404 ? HttpStatus.NOT_FOUND
                 : status == 503 ? HttpStatus.SERVICE_UNAVAILABLE
                 : HttpStatus.BAD_GATEWAY;
         throw new IntervalsUnavailableException(mapped, code, detail, retryAfter(response.getHeaders()), null);

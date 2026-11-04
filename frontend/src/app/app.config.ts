@@ -5,7 +5,7 @@ import { provideRouter } from '@angular/router';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient } from '@angular/common/http';
 import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE } from '@angular/material/core';
-import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
+import { provideCharts } from 'ng2-charts';
 import { routes } from './app.routes';
 import { provideApi as provideReportApi } from './api/report';
 import { provideApi as provideTrainingApi } from './api/training';
@@ -22,7 +22,7 @@ export const appConfig: ApplicationConfig = {
     // /api/fitness und /api/recommendation -> training-service); Dev-Proxy bzw. nginx leiten weiter.
     provideReportApi(''),
     provideTrainingApi(''),
-    provideCharts(withDefaultRegisterables()),
+    provideCharts(),
     { provide: LOCALE_ID, useValue: 'de-DE' },
     { provide: MAT_DATE_LOCALE, useValue: 'de-DE' },
     { provide: DateAdapter, useClass: GermanDateAdapter },

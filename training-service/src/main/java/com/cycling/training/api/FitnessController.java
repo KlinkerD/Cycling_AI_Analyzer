@@ -2,12 +2,15 @@ package com.cycling.training.api;
 
 import com.cycling.intervals.api.IntervalsAthleteThresholds;
 import com.cycling.intervals.api.IntervalsAthleteZones;
+import com.cycling.intervals.api.IntervalsThresholdsUpdate;
 import com.cycling.intervals.api.IntervalsZone;
 import com.cycling.intervals.client.IntervalsClient;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,6 +41,20 @@ public class FitnessController {
             intervals.evictCachesQuietly();
         }
         IntervalsAthleteZones z = intervals.athleteZonesOrEmpty();
+        return ResponseEntity.ok(new AthleteZonesDto(thresholds(z.thresholds()), zones(z.powerZones()),
+                zones(z.hrZones()), z.hrReference()));
+    }
+
+    /**
+     * PUT /api/fitness/athlete/thresholds - schreibt FTP outdoor/indoor, LTHR, HFmax und Gewicht nach
+     * intervals.icu (null-Felder bleiben) und liefert Schwellenwerte und Zonen mit den neuen Werten.
+     * 400 mit Begründung bei unplausiblen Werten.
+     */
+    @PutMapping("/athlete/thresholds")
+    public ResponseEntity<AthleteZonesDto> updateThresholds(@RequestBody AthleteThresholdsUpdateDto update) {
+        intervals.updateThresholds(new IntervalsThresholdsUpdate(
+                update.ftp(), update.indoorFtp(), update.lthr(), update.maxHr(), update.weight()));
+        IntervalsAthleteZones z = intervals.athleteZones();
         return ResponseEntity.ok(new AthleteZonesDto(thresholds(z.thresholds()), zones(z.powerZones()),
                 zones(z.hrZones()), z.hrReference()));
     }

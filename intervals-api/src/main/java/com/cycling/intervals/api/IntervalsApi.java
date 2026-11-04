@@ -17,7 +17,11 @@ public final class IntervalsApi {
     public static final String ACTIVITY_ZONES = BASE + "/activities/{id}/zones";
     /** GET: Power-Curve einer Aktivitaet -> {@link IntervalsPowerCurve}. */
     public static final String ACTIVITY_POWER_CURVE = BASE + "/activities/{id}/power-curve";
-    /** GET: Schwellenwerte des Athleten -> {@link IntervalsAthleteThresholds}. */
+    /**
+     * GET: Schwellenwerte des Athleten -> {@link IntervalsAthleteThresholds}.
+     * PUT mit {@link IntervalsThresholdsUpdate}: schreibt FTP, Indoor-FTP, LTHR, HFmax und Gewicht nach
+     * intervals.icu, leert die Caches und liefert die neuen Werte; 400 bei unplausiblen Werten.
+     */
     public static final String ATHLETE_THRESHOLDS = BASE + "/athlete/thresholds";
     /** GET: Power- und HF-Zonen des Athleten -> {@link IntervalsAthleteZones}. */
     public static final String ATHLETE_ZONES = BASE + "/athlete/zones";

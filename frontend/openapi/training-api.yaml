@@ -24,6 +24,24 @@ paths:
           description: OK
       tags:
       - Fitness
+  /api/fitness/athlete/thresholds:
+    put:
+      operationId: updateThresholds
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AthleteThresholdsUpdateDto"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AthleteZonesDto"
+          description: OK
+      tags:
+      - Fitness
   /api/fitness/wellness:
     get:
       operationId: getWellness
@@ -119,6 +137,35 @@ components:
       - lthr
       - maxHr
       - name
+      - weight
+    AthleteThresholdsUpdateDto:
+      type: object
+      properties:
+        ftp:
+          type: integer
+          format: int32
+          nullable: true
+        indoorFtp:
+          type: integer
+          format: int32
+          nullable: true
+        lthr:
+          type: integer
+          format: int32
+          nullable: true
+        maxHr:
+          type: integer
+          format: int32
+          nullable: true
+        weight:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - ftp
+      - indoorFtp
+      - lthr
+      - maxHr
       - weight
     AthleteZonesDto:
       type: object

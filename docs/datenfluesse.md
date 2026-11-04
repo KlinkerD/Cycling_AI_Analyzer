@@ -45,7 +45,7 @@ Durchgezogen = REST/HTTP, gestrichelt = MQTT über Mosquitto (Topics ohne Präfi
 
 ## Analyse einer Fahrt
 
-Automatisch, wenn der intervals-service eine neue Fahrt meldet, oder per Button in der Aktivitätsliste.
+Automatisch, wenn der intervals-service eine neue Fahrt meldet, oder per Button im Kalender (Fahrt anklicken → „Mit KI analysieren“).
 Beide Wege landen im selben Analyse-Job.
 
 ```mermaid
@@ -165,6 +165,7 @@ sequenceDiagram
 | | `GET /api/reports/{id}` | Report |
 | | `POST /api/reports/{id}/resend` | Versand anstoßen |
 | training-service | `GET /api/fitness/athlete[?refresh]` | Schwellen + Zonen |
+| training-service | `PUT /api/fitness/athlete/thresholds` | Schwellen + Gewicht nach intervals.icu schreiben |
 | | `GET /api/fitness/wellness?from&to[&refresh]` | CTL/ATL/Form |
 | | `GET /api/recommendation` · `POST /api/recommendation/refresh` | Tagesempfehlung |
 

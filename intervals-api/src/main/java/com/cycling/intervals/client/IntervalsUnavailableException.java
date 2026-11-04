@@ -30,7 +30,7 @@ public class IntervalsUnavailableException extends RuntimeException {
         this(HttpStatus.SERVICE_UNAVAILABLE, SERVICE_UNREACHABLE, message, null, cause);
     }
 
-    /** 404, 503 oder 502 (alles andere). */
+    /** 400 (unplausible Eingabe), 404, 503 oder 502 (alles andere). */
     public HttpStatus status() {
         return status;
     }

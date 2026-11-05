@@ -117,7 +117,7 @@ sequenceDiagram
         FE->>RS: POST /api/reports/{id}/refresh
         RS->>IS: Streams, Zonen, Kartenzonen, Power-Curve (REST)
         RS->>WS: Wetter (nur Outdoor mit GPS)
-        Note over RS: speichern; KI-Bewertung bleibt
+        Note over RS: speichern, KI-Bewertung bleibt
         RS-->>FE: ReportDto (502/503: gespeicherter Stand bleibt)
     end
     FE->>RS: POST /api/reports/{id}/resend

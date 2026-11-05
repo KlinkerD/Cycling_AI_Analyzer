@@ -1,5 +1,6 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
 import com.cycling.report.api.StreamDataDto;
 import com.cycling.report.api.ZoneDistributionDto;
 import com.cycling.report.weather.RideWeatherPoint;
@@ -24,7 +25,7 @@ public record PreparedAnalysis(
         int ftp,
         int maxHr,
         List<RideWeatherPoint> weather,
-        Map<String, WeatherSummary> previousWeather
+        Map<ActivityId, WeatherSummary> previousWeather
 ) {
 
     public PreparedAnalysis {

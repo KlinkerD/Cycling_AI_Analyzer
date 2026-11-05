@@ -1,5 +1,7 @@
 package com.cycling.intervals;
 
+import java.time.LocalDateTime;
+import com.cycling.types.ActivityId;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.intervals.api.IntervalsErrorCode;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
@@ -37,8 +39,8 @@ class IntervalsPollerTest {
     private final IntervalsPoller poller = new IntervalsPoller(gateway, publisher, CLOCK, 2);
 
     private static IntervalsActivity ride(String id) {
-        return new IntervalsActivity(id, "Runde " + id, "2026-11-02T08:00:00", "Ride", 30000.0, 3600, 3700,
-                180.0, 190.0, 500.0, 140.0, 170.0, 8.0, 200.0, 60.0, 0.72, "2026-11-02T07:00:00Z");
+        return new IntervalsActivity(ActivityId.of(id), "Runde " + id, LocalDateTime.parse("2026-11-02T08:00:00"), "Ride", 30000.0, 3600, 3700,
+                180.0, 190.0, 500.0, 140.0, 170.0, 8.0, 200.0, 60.0, 0.72, Instant.parse("2026-11-02T07:00:00Z"));
     }
 
     private void recent(IntervalsActivity... rides) {
@@ -55,7 +57,7 @@ class IntervalsPollerTest {
 
         ArgumentCaptor<ActivityDetected> sent = ArgumentCaptor.forClass(ActivityDetected.class);
         verify(publisher, times(2)).publish(eq(Topics.INTERVALS_ACTIVITY_DETECTED), sent.capture());
-        assertThat(sent.getAllValues()).extracting(ActivityDetected::activityId).containsExactly("i1", "i2");
+        assertThat(sent.getAllValues()).extracting(ActivityDetected::activityId).containsExactly(ActivityId.of("i1"), ActivityId.of("i2"));
         assertThat(sent.getValue().normalizedPower()).isEqualTo(190.0);
         assertThat(sent.getValue().movingTime()).isEqualTo(3600);
     }

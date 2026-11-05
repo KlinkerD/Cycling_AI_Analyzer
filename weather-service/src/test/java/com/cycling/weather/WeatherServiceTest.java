@@ -38,7 +38,7 @@ class WeatherServiceTest {
     private final WeatherService service = new WeatherService(source, Caffeine.newBuilder().build());
 
     private static WeatherQuery.Point point(double lat, double lng, String time) {
-        return new WeatherQuery.Point(lat, lng, time);
+        return new WeatherQuery.Point(lat, lng, time == null ? null : Instant.parse(time));
     }
 
     @Test
@@ -50,7 +50,7 @@ class WeatherServiceTest {
         assertThat(result.source()).isEqualTo("open-meteo");
         assertThat(result.points()).extracting(WeatherResult.Point::temperatureC).containsExactly(6.0, 8.0);
         assertThat(result.points()).extracting(WeatherResult.Point::time)
-                .containsExactly("2026-11-01T07:00:00Z", "2026-11-01T07:40:00Z");
+                .containsExactly(Instant.parse("2026-11-01T07:00:00Z"), Instant.parse("2026-11-01T07:40:00Z"));
     }
 
     @Test
@@ -89,8 +89,8 @@ class WeatherServiceTest {
                 .isInstanceOf(InvalidQueryException.class);
         assertThatThrownBy(() -> service.points(new WeatherQuery(List.of(point(91, 0, "2026-11-01T07:00:00Z")))))
                 .isInstanceOf(InvalidQueryException.class);
-        assertThatThrownBy(() -> service.points(new WeatherQuery(List.of(point(48, 11, "2026-11-01T07:00:00")))))
-                .hasMessageContaining("UTC");
+        assertThatThrownBy(() -> service.points(new WeatherQuery(List.of(point(48, 11, null)))))
+                .hasMessageContaining("Zeit fehlt");
         assertThatThrownBy(() -> service.points(new WeatherQuery(
                 Collections.nCopies(WeatherApi.MAX_POINTS + 1, point(48, 11, "2026-11-01T07:00:00Z")))))
                 .isInstanceOf(InvalidQueryException.class);

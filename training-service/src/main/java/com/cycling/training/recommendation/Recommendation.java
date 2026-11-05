@@ -2,6 +2,7 @@ package com.cycling.training.recommendation;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Eine Tagesempfehlung. Pro Berechnung entstehen zwei Staende mit derselben {@code requestId}: zuerst sofort
@@ -21,7 +22,7 @@ import java.time.LocalDateTime;
  * @param fallbackUsed  true, wenn {@code text} der statische Fallback-Text ist
  */
 public record Recommendation(
-        String requestId,
+        UUID requestId,
         String category,
         String categoryLabel,
         String color,

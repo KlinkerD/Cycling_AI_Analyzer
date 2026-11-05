@@ -2,6 +2,7 @@ package com.cycling.weather;
 
 import com.cycling.weather.api.WeatherResult;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -19,7 +20,8 @@ final class Interpolation {
     private Interpolation() {
     }
 
-    static WeatherResult.Point at(Series series, double lat, double lng, String time, long epochSecond) {
+    static WeatherResult.Point at(Series series, double lat, double lng, Instant time) {
+        long epochSecond = time.getEpochSecond();
         List<Long> ts = series.epochSeconds();
         int n = ts.size();
         if (n == 0 || epochSecond < ts.getFirst() || epochSecond > ts.getLast()) {

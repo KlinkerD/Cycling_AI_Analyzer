@@ -1,5 +1,8 @@
 package com.cycling.report.api;
 
+import java.util.UUID;
+import com.cycling.types.ActivityId;
+
 import com.cycling.intervals.client.IntervalsUnavailableException;
 import com.cycling.report.analysis.AnalysisJob;
 import com.cycling.report.analysis.AnalysisJobService;
@@ -32,6 +35,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class ReportControllerTest {
 
+    private static final UUID JOB_1 = UUID.fromString("6f1c2a4e-0d5b-4c1e-9a7f-2b3c4d5e6f70");
+
     private final IntervalsData intervals = mock(IntervalsData.class);
     private final AnalysisService analysisService = mock(AnalysisService.class);
     private final AnalysisJobService jobService = mock(AnalysisJobService.class);
@@ -42,7 +47,7 @@ class ReportControllerTest {
             .setControllerAdvice(new IntervalsProblemHandler())
             .build();
 
-    private static ActivityDto activity(String id) {
+    private static ActivityDto activity(ActivityId id) {
         ActivityDto a = new ActivityDto();
         a.setId(id);
         a.setName("Runde " + id);
@@ -51,8 +56,8 @@ class ReportControllerTest {
 
     @Test
     void activitiesCarryAnalyzedFlag() throws Exception {
-        when(intervals.getActivities("2026-11-01", "2026-11-03")).thenReturn(List.of(activity("i1"), activity("i2")));
-        when(analysisService.getAnalyzedIds()).thenReturn(List.of("i2"));
+        when(intervals.getActivities("2026-11-01", "2026-11-03")).thenReturn(List.of(activity(ActivityId.of("i1")), activity(ActivityId.of("i2"))));
+        when(analysisService.getAnalyzedIds()).thenReturn(List.of(ActivityId.of("i2")));
 
         mvc.perform(get("/api/reports/activities").param("from", "2026-11-01").param("to", "2026-11-03"))
                 .andExpect(status().isOk())
@@ -73,39 +78,44 @@ class ReportControllerTest {
 
     @Test
     void startAnalysisAnswersAcceptedWithJob() throws Exception {
-        when(jobService.start(eq("i1"), any())).thenReturn(new AnalysisJob("job-1", "i1", "{}", LocalDateTime.now()));
+        when(jobService.start(eq(ActivityId.of("i1")), any())).thenReturn(new AnalysisJob(JOB_1, ActivityId.of("i1"), "{}", LocalDateTime.now()));
 
         mvc.perform(post("/api/reports/i1/analysis").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"id\":\"i1\",\"name\":\"Runde\",\"analyzed\":false}"))
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.jobId").value("job-1"))
+                .andExpect(jsonPath("$.jobId").value(JOB_1.toString()))
                 .andExpect(jsonPath("$.status").value("PENDING"));
     }
 
     @Test
     void unknownJobAnswersNotFound() throws Exception {
-        when(jobService.find("nope")).thenReturn(Optional.empty());
+        when(jobService.find(JOB_1)).thenReturn(Optional.empty());
 
-        mvc.perform(get("/api/reports/analysis-jobs/nope")).andExpect(status().isNotFound());
+        mvc.perform(get("/api/reports/analysis-jobs/" + JOB_1)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void jobIdThatIsNoUuidIsBadRequest() throws Exception {
+        mvc.perform(get("/api/reports/analysis-jobs/nope")).andExpect(status().isBadRequest());
     }
 
     @Test
     void neverAnalyzedActivityHasNoLatestJob() throws Exception {
-        when(jobService.latestFor("i9")).thenReturn(Optional.empty());
+        when(jobService.latestFor(ActivityId.of("i9"))).thenReturn(Optional.empty());
 
         mvc.perform(get("/api/reports/i9/analysis-job")).andExpect(status().isNotFound());
     }
 
     @Test
     void missingReportAnswersNotFound() throws Exception {
-        when(analysisService.getReport("i9")).thenThrow(new ReportNotFoundException("i9"));
+        when(analysisService.getReport(ActivityId.of("i9"))).thenThrow(new ReportNotFoundException(ActivityId.of("i9")));
 
         mvc.perform(get("/api/reports/i9")).andExpect(status().isNotFound());
     }
 
     @Test
     void resendAnswersAcceptedWithAllActiveChannels() throws Exception {
-        when(resend.resend("i1")).thenReturn(new Outcome(Result.QUEUED, List.of("MAIL", "DISCORD")));
+        when(resend.resend(ActivityId.of("i1"))).thenReturn(new Outcome(Result.QUEUED, List.of("MAIL", "DISCORD")));
 
         mvc.perform(post("/api/reports/i1/resend"))
                 .andExpect(status().isAccepted())
@@ -115,7 +125,7 @@ class ReportControllerTest {
 
     @Test
     void resendAnswersConflictWhenNoChannelIsActive() throws Exception {
-        when(resend.resend("i1")).thenReturn(new Outcome(Result.DISABLED, List.of()));
+        when(resend.resend(ActivityId.of("i1"))).thenReturn(new Outcome(Result.DISABLED, List.of()));
 
         mvc.perform(post("/api/reports/i1/resend"))
                 .andExpect(status().isConflict())
@@ -124,21 +134,21 @@ class ReportControllerTest {
 
     @Test
     void resendAnswersNotFoundForUnknownReport() throws Exception {
-        when(resend.resend("nope")).thenReturn(new Outcome(Result.NOT_FOUND, List.of()));
+        when(resend.resend(ActivityId.of("nope"))).thenReturn(new Outcome(Result.NOT_FOUND, List.of()));
 
         mvc.perform(post("/api/reports/nope/resend")).andExpect(status().isNotFound());
     }
 
     @Test
     void resendAnswersServiceUnavailableWhenDeliveryServiceIsUnknown() throws Exception {
-        when(resend.resend("i1")).thenReturn(new Outcome(Result.UNAVAILABLE, List.of()));
+        when(resend.resend(ActivityId.of("i1"))).thenReturn(new Outcome(Result.UNAVAILABLE, List.of()));
 
         mvc.perform(post("/api/reports/i1/resend")).andExpect(status().isServiceUnavailable());
     }
 
     @Test
     void resendAnswersServiceUnavailableWithReasonWhenReportCannotBeLoaded() throws Exception {
-        when(resend.resend("i1")).thenReturn(new Outcome(Result.REPORT_UNAVAILABLE, List.of()));
+        when(resend.resend(ActivityId.of("i1"))).thenReturn(new Outcome(Result.REPORT_UNAVAILABLE, List.of()));
 
         mvc.perform(post("/api/reports/i1/resend"))
                 .andExpect(status().isServiceUnavailable())
@@ -149,7 +159,7 @@ class ReportControllerTest {
 
     @Test
     void streamsReturnOnlyTheTimeSeries() throws Exception {
-        when(intervals.getStreams("i1")).thenReturn(new StreamDataDto(List.of(), List.of(200, 210), List.of(140, 141),
+        when(intervals.getStreams(ActivityId.of("i1"))).thenReturn(new StreamDataDto(List.of(), List.of(200, 210), List.of(140, 141),
                 List.of(), List.of(), List.of(0, 1), List.of(), List.of(53.5, 53.6), List.of(10.0, 10.1)));
 
         mvc.perform(get("/api/reports/i1/streams"))
@@ -162,7 +172,7 @@ class ReportControllerTest {
 
     @Test
     void streamsAnswerNotFoundForUnknownActivity() throws Exception {
-        when(intervals.getStreams("x")).thenThrow(new IntervalsUnavailableException(
+        when(intervals.getStreams(ActivityId.of("x"))).thenThrow(new IntervalsUnavailableException(
                 org.springframework.http.HttpStatus.NOT_FOUND, "NOT_FOUND", "unbekannt", null, null));
 
         mvc.perform(get("/api/reports/x/streams")).andExpect(status().isNotFound());
@@ -170,7 +180,7 @@ class ReportControllerTest {
 
     @Test
     void startFtpDetectionAnswersAcceptedWithPendingStatus() throws Exception {
-        when(ftpDetection.start("i1")).thenReturn(new FtpDetection("i1", "r1", LocalDateTime.now()));
+        when(ftpDetection.start(ActivityId.of("i1"))).thenReturn(new FtpDetection(ActivityId.of("i1"), UUID.fromString("00000000-0000-0000-0000-000000000001"), LocalDateTime.now()));
 
         mvc.perform(post("/api/reports/i1/ftp-detection"))
                 .andExpect(status().isAccepted())
@@ -180,9 +190,9 @@ class ReportControllerTest {
 
     @Test
     void ftpDetectionReturnsDetectedValues() throws Exception {
-        FtpDetection detection = new FtpDetection("i1", "r1", LocalDateTime.now());
+        FtpDetection detection = new FtpDetection(ActivityId.of("i1"), UUID.fromString("00000000-0000-0000-0000-000000000001"), LocalDateTime.now());
         detection.markDetected(266, 172, 182, 280, 1200, LocalDateTime.now());
-        when(ftpDetection.find("i1")).thenReturn(Optional.of(detection));
+        when(ftpDetection.find(ActivityId.of("i1"))).thenReturn(Optional.of(detection));
 
         mvc.perform(get("/api/reports/i1/ftp-detection"))
                 .andExpect(status().isOk())
@@ -195,7 +205,7 @@ class ReportControllerTest {
 
     @Test
     void ftpDetectionAnswersNotFoundWhenNeverStarted() throws Exception {
-        when(ftpDetection.find("i1")).thenReturn(Optional.empty());
+        when(ftpDetection.find(ActivityId.of("i1"))).thenReturn(Optional.empty());
 
         mvc.perform(get("/api/reports/i1/ftp-detection")).andExpect(status().isNotFound());
     }

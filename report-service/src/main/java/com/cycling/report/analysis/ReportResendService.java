@@ -1,5 +1,7 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.api.ReportDto;
 import com.cycling.messaging.contract.DeliveryServiceStatus;
 import com.cycling.report.ReportDelivery;
@@ -37,7 +39,7 @@ public class ReportResendService {
         status.set(newStatus);
     }
 
-    public Outcome resend(String activityId) {
+    public Outcome resend(ActivityId activityId) {
         if (repository.findByActivityId(activityId).isEmpty()) {
             return new Outcome(Result.NOT_FOUND, List.of());
         }
@@ -61,7 +63,7 @@ public class ReportResendService {
 
         try {
             delivery.accept(new ReportDelivery(
-                    UUID.randomUUID().toString(), activityId, ReportContentMapper.toContent(report)));
+                    UUID.randomUUID(), activityId, ReportContentMapper.toContent(report)));
         } catch (RuntimeException e) {
             log.warn("Versandauftrag fuer {} nicht gesendet: {}", activityId, e.getMessage());
             return new Outcome(Result.UNAVAILABLE, List.of());

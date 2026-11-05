@@ -1,5 +1,7 @@
 package com.cycling.report.api;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.analysis.ActivityAnalysis;
 import com.cycling.web.ApiNonNull;
 
@@ -14,7 +16,7 @@ import java.time.LocalDateTime;
  * @param ftpUsed         FTP in Watt, mit der IF/TSS berechnet wurden
  */
 public record AnalysisDto(
-        @ApiNonNull String activityId,
+        @ApiNonNull ActivityId activityId,
         String activityName,
         LocalDateTime activityDate,
         Double distanceKm,

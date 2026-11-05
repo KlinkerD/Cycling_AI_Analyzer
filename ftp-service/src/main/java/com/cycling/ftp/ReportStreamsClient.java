@@ -1,5 +1,7 @@
 package com.cycling.ftp;
 
+import com.cycling.types.ActivityId;
+
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.web.client.RestClient;
@@ -22,7 +24,7 @@ public class ReportStreamsClient {
     }
 
     /** @throws IllegalStateException mit lesbarer Meldung, wenn die Streams nicht abrufbar sind */
-    public StreamData streams(String activityId) {
+    public StreamData streams(ActivityId activityId) {
         byte[] body;
         try {
             body = restClient.get()

@@ -1,5 +1,8 @@
 package com.cycling.report.api;
 
+import com.cycling.types.ActivityId;
+import java.util.UUID;
+
 import com.cycling.report.analysis.AnalysisJobService;
 import com.cycling.report.analysis.AnalysisService;
 import com.cycling.report.analysis.IntervalsData;
@@ -59,7 +62,7 @@ public class ReportController {
     ) {
         List<ActivityDto> activities = intervals.getActivities(
                 from.format(DateTimeFormatter.ISO_DATE), to.format(DateTimeFormatter.ISO_DATE));
-        Set<String> analyzed = new HashSet<>(analysisService.getAnalyzedIds());
+        Set<ActivityId> analyzed = new HashSet<>(analysisService.getAnalyzedIds());
         activities.forEach(a -> a.setAnalyzed(analyzed.contains(a.id())));
         return ResponseEntity.ok(activities);
     }
@@ -72,7 +75,7 @@ public class ReportController {
      */
     @PostMapping("/{activityId}/analysis")
     @ApiResponse(responseCode = "202", description = "Analyse gestartet (oder laeuft bereits)")
-    public ResponseEntity<AnalysisJobDto> startAnalysis(@PathVariable String activityId,
+    public ResponseEntity<AnalysisJobDto> startAnalysis(@PathVariable ActivityId activityId,
                                                         @RequestBody ActivityDto activity) {
         return ResponseEntity.accepted().body(AnalysisJobDto.from(jobService.start(activityId, activity)));
     }
@@ -81,7 +84,7 @@ public class ReportController {
     @GetMapping("/analysis-jobs/{jobId}")
     @ApiResponse(responseCode = "200", description = "Job gefunden")
     @ApiResponse(responseCode = "404", description = "Unbekannter Job", content = @Content)
-    public ResponseEntity<AnalysisJobDto> getAnalysisJob(@PathVariable String jobId) {
+    public ResponseEntity<AnalysisJobDto> getAnalysisJob(@PathVariable UUID jobId) {
         return jobService.find(jobId)
                 .map(job -> ResponseEntity.ok(AnalysisJobDto.from(job)))
                 .orElse(ResponseEntity.notFound().build());
@@ -91,7 +94,7 @@ public class ReportController {
     @GetMapping("/{activityId}/analysis-job")
     @ApiResponse(responseCode = "200", description = "Juengster Job")
     @ApiResponse(responseCode = "404", description = "Noch nie analysiert", content = @Content)
-    public ResponseEntity<AnalysisJobDto> getLatestAnalysisJob(@PathVariable String activityId) {
+    public ResponseEntity<AnalysisJobDto> getLatestAnalysisJob(@PathVariable ActivityId activityId) {
         return jobService.latestFor(activityId)
                 .map(job -> ResponseEntity.ok(AnalysisJobDto.from(job)))
                 .orElse(ResponseEntity.notFound().build());
@@ -101,7 +104,7 @@ public class ReportController {
     @GetMapping("/{activityId}")
     @ApiResponse(responseCode = "200", description = "Gespeicherter Report")
     @ApiResponse(responseCode = "404", description = "Kein Report vorhanden", content = @Content)
-    public ResponseEntity<ReportDto> getReport(@PathVariable String activityId) {
+    public ResponseEntity<ReportDto> getReport(@PathVariable ActivityId activityId) {
         try {
             return ResponseEntity.ok(analysisService.getReport(activityId));
         } catch (ReportNotFoundException e) {
@@ -121,7 +124,7 @@ public class ReportController {
             content = @Content(schema = @Schema(implementation = ResendResultDto.class)))
     @ApiResponse(responseCode = "503", description = "Versand-Service nicht erreichbar oder Report nicht ladbar",
             content = @Content(schema = @Schema(implementation = ResendResultDto.class)))
-    public ResponseEntity<ResendResultDto> resendReport(@PathVariable String activityId) {
+    public ResponseEntity<ResendResultDto> resendReport(@PathVariable ActivityId activityId) {
         ReportResendService.Outcome outcome = resendService.resend(activityId);
         return switch (outcome.result()) {
             case QUEUED -> ResponseEntity.accepted().body(ResendResultDto.queued(outcome.channels()));
@@ -143,7 +146,7 @@ public class ReportController {
     @GetMapping("/{activityId}/streams")
     @ApiResponse(responseCode = "200", description = "Streams der Fahrt")
     @ApiResponse(responseCode = "404", description = "Fahrt bei intervals.icu unbekannt", content = @Content)
-    public ResponseEntity<StreamDataDto> getStreams(@PathVariable String activityId) {
+    public ResponseEntity<StreamDataDto> getStreams(@PathVariable ActivityId activityId) {
         return ResponseEntity.ok(intervals.getStreams(activityId));
     }
 
@@ -154,7 +157,7 @@ public class ReportController {
      */
     @PostMapping("/{activityId}/ftp-detection")
     @ApiResponse(responseCode = "202", description = "Erkennung gestartet (oder laeuft bereits)")
-    public ResponseEntity<FtpDetectionDto> startFtpDetection(@PathVariable String activityId) {
+    public ResponseEntity<FtpDetectionDto> startFtpDetection(@PathVariable ActivityId activityId) {
         return ResponseEntity.accepted().body(FtpDetectionDto.from(ftpDetectionService.start(activityId)));
     }
 
@@ -162,7 +165,7 @@ public class ReportController {
     @GetMapping("/{activityId}/ftp-detection")
     @ApiResponse(responseCode = "200", description = "Ergebnis oder laufende Erkennung")
     @ApiResponse(responseCode = "404", description = "Noch nie ausgeloest", content = @Content)
-    public ResponseEntity<FtpDetectionDto> getFtpDetection(@PathVariable String activityId) {
+    public ResponseEntity<FtpDetectionDto> getFtpDetection(@PathVariable ActivityId activityId) {
         return ftpDetectionService.find(activityId)
                 .map(d -> ResponseEntity.ok(FtpDetectionDto.from(d)))
                 .orElse(ResponseEntity.notFound().build());

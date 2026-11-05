@@ -1,5 +1,7 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.api.ActivityDto;
 import com.cycling.messaging.contract.ActivityDetected;
 import org.slf4j.Logger;
@@ -24,8 +26,8 @@ public class ActivityDetectedHandler {
     }
 
     public void onActivityDetected(ActivityDetected message) {
-        String activityId = message.activityId();
-        if (activityId == null || activityId.isBlank()) {
+        ActivityId activityId = message.activityId();
+        if (activityId == null) {
             log.warn("ActivityDetected ohne activityId verworfen");
             return;
         }

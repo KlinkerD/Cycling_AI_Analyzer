@@ -1,5 +1,7 @@
 package com.cycling.messaging.contract;
 
+import java.util.UUID;
+
 /**
  * Antwort des ai-service auf einen {@link AiRequest} (auf {@code Topics.aiResult(quelle)}).
  * Jeder Auftrag bekommt genau eine Antwort. Bei {@code success=false} steht der Grund in
@@ -7,13 +9,13 @@ package com.cycling.messaging.contract;
  *
  * @param text Antworttext des Modells, unveraendert (bei {@code json=true} das JSON als Text)
  */
-public record AiResult(String requestId, boolean success, String error, String text) {
+public record AiResult(UUID requestId, boolean success, String error, String text) {
 
-    public static AiResult ok(String requestId, String text) {
+    public static AiResult ok(UUID requestId, String text) {
         return new AiResult(requestId, true, null, text);
     }
 
-    public static AiResult failed(String requestId, String error) {
+    public static AiResult failed(UUID requestId, String error) {
         return new AiResult(requestId, false, error, null);
     }
 }

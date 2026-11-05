@@ -2,6 +2,7 @@ package com.cycling.messaging.contract;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Fachlich neutrale Nachricht an den delivery-service (auf {@code Topics.deliveryRequest(quelle)}).
@@ -9,7 +10,8 @@ import java.util.List;
  * (Discord: Embeds + Anhang-Nachricht, Mail: HTML mit Inline-Bildern) und kuemmert sich um
  * Zustellung und Wiederholung.
  *
- * @param messageId   eindeutig pro Nachricht; dieselbe ID zweimal (MQTT-Neuzustellung) wird nur einmal versendet
+ * @param messageId   eindeutig pro Nachricht (fuer Nachrichten, die es nur einmal pro Tag gibt, aus dem Datum
+ *                    abgeleitet: {@code UUID.nameUUIDFromBytes}); dieselbe ID zweimal (MQTT-Neuzustellung) wird nur einmal versendet
  * @param title       Ueberschrift, z. B. "🚴 Morgenrunde" (Pflicht)
  * @param subtitle    optionale Unterzeile, z. B. ein Datum
  * @param color       optionale Akzentfarbe als "#rrggbb"
@@ -20,7 +22,7 @@ import java.util.List;
  * @param targets     wohin; leer = Ziel "default" jedes aktiven Kanals
  */
 public record DeliveryMessage(
-        String messageId,
+        UUID messageId,
         String title,
         String subtitle,
         String color,

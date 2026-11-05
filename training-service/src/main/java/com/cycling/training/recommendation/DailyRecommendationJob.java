@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
@@ -32,7 +33,6 @@ public class DailyRecommendationJob implements Consumer<Recommendation> {
     private static final Logger log = LoggerFactory.getLogger(DailyRecommendationJob.class);
     /** cycling/delivery/request/recommendation */
     static final String TOPIC = Topics.deliveryRequest("recommendation");
-    static final String REQUEST_ID_PREFIX = "daily-";
 
     private final RecommendationEngine engine;
     private final RecommendationMessageBuilder messageBuilder;
@@ -45,7 +45,7 @@ public class DailyRecommendationJob implements Consumer<Recommendation> {
     /** Tag, fuer den die Empfehlung schon uebergeben wurde. */
     private LocalDate sentFor;
     /** Laufende Berechnung fuer den Versand; null = keine. */
-    private String requestId;
+    private UUID requestId;
     private LocalDate requestedFor;
     private Instant startedAt;
     /** Letzte Nachricht dieser Berechnung. */
@@ -82,7 +82,7 @@ public class DailyRecommendationJob implements Consumer<Recommendation> {
     @Scheduled(fixedDelayString = "${recommendation.daily.check-interval:1m}",
             initialDelayString = "${recommendation.daily.initial-delay:1m}")
     public void check() {
-        String toCompute;
+        UUID toCompute;
         synchronized (this) {
             ZonedDateTime now = ZonedDateTime.now(clock);
             LocalDate today = now.toLocalDate();
@@ -102,7 +102,7 @@ public class DailyRecommendationJob implements Consumer<Recommendation> {
             LocalTime time = now.toLocalTime();
             if (time.isBefore(sendAt) || !time.isBefore(catchUpUntil)) return;
 
-            toCompute = REQUEST_ID_PREFIX + today + "-" + now.toLocalTime().withNano(0).toString().replace(":", "");
+            toCompute = UUID.randomUUID();
             requestId = toCompute;
             requestedFor = today;
             startedAt = clock.instant();

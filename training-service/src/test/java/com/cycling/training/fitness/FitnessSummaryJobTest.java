@@ -1,5 +1,6 @@
 package com.cycling.training.fitness;
 
+import java.time.LocalDate;
 
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.MessagingException;
@@ -102,7 +103,7 @@ class FitnessSummaryJobTest {
 
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.topics).containsExactly("cycling/delivery/request/fitness");
-        assertThat(publisher.messages.getFirst().messageId()).isEqualTo("fitness-daily-2026-11-03");
+        assertThat(publisher.messages.getFirst().messageId()).isEqualTo(FitnessMessageBuilder.messageId(LocalDate.parse("2026-11-03")));
     }
 
     @Test
@@ -117,7 +118,7 @@ class FitnessSummaryJobTest {
         job.onWellness(stand("2026-11-03"));
 
         assertThat(publisher.messages).hasSize(1);
-        assertThat(publisher.messages.getFirst().messageId()).isEqualTo("fitness-daily-2026-11-03");
+        assertThat(publisher.messages.getFirst().messageId()).isEqualTo(FitnessMessageBuilder.messageId(LocalDate.parse("2026-11-03")));
     }
 
     @Test
@@ -165,7 +166,7 @@ class FitnessSummaryJobTest {
         job.check();
 
         assertThat(publisher.messages).extracting(DeliveryMessage::messageId)
-                .containsExactly("fitness-daily-2026-11-03", "fitness-daily-2026-11-04");
+                .containsExactly(FitnessMessageBuilder.messageId(LocalDate.parse("2026-11-03")), FitnessMessageBuilder.messageId(LocalDate.parse("2026-11-04")));
     }
 
     @Test

@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.Optional;
 import java.util.Set;
 
@@ -78,7 +79,7 @@ public class DeliveryService {
      * @return die neu eingereihten, zu sendenden Zeilen
      */
     public List<Delivery> accept(String source, DeliveryMessage message) {
-        if (message.messageId() == null || message.messageId().isBlank()) {
+        if (message.messageId() == null) {
             throw new IllegalArgumentException("Nachricht ohne messageId von Quelle " + source);
         }
         if (message.title() == null || message.title().isBlank()) {
@@ -145,7 +146,7 @@ public class DeliveryService {
     }
 
     /** Sendet alle offenen Zeilen dieser Nachricht (nur aktive Kanaele). */
-    public void deliverPending(String messageId) {
+    public void deliverPending(UUID messageId) {
         List<Delivery> pending = pendingForEnabledChannels(messageId);
         if (pending.isEmpty()) return;
 
@@ -210,7 +211,7 @@ public class DeliveryService {
     }
 
     /** Offene Zeilen; die abgeschalteter Kanaele bleiben PENDING, bis der Kanal wieder aktiv ist. */
-    private List<Delivery> pendingForEnabledChannels(String messageId) {
+    private List<Delivery> pendingForEnabledChannels(UUID messageId) {
         return deliveries.findByMessageIdAndStatus(messageId, DeliveryStatus.PENDING).stream()
                 .filter(d -> enabledSender(d.getChannel()) != null)
                 .toList();

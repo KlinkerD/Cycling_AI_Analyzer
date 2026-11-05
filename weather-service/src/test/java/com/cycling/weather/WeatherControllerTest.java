@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -29,7 +30,7 @@ class WeatherControllerTest {
     @Test
     void returnsPoints() throws Exception {
         when(service.points(any())).thenReturn(new WeatherResult(List.of(
-                new WeatherResult.Point(48.1, 11.5, "2026-11-01T07:00:00Z", 6.0, 10.0, 20.0, 270.0, 0.0)), "open-meteo"));
+                new WeatherResult.Point(48.1, 11.5, Instant.parse("2026-11-01T07:00:00Z"), 6.0, 10.0, 20.0, 270.0, 0.0)), "open-meteo"));
 
         mvc.perform(post(WeatherApi.POINTS).contentType(MediaType.APPLICATION_JSON).content(QUERY))
                 .andExpect(status().isOk())

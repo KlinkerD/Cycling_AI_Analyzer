@@ -1,5 +1,7 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.api.ActivityDto;
 import com.cycling.report.api.ReportDto;
 import com.cycling.messaging.MessagePublisher;
@@ -61,7 +63,7 @@ public class AnalysisJobService {
      * Startet eine Analyse. Laeuft fuer die Aktivitaet schon ein Job, wird dieser zurueckgegeben.
      * Fehler beim Vorbereiten oder Senden landen als FAILED im Job, nicht als Exception.
      */
-    public AnalysisJob start(String activityId, ActivityDto activity) {
+    public AnalysisJob start(ActivityId activityId, ActivityDto activity) {
         Optional<AnalysisJob> running =
                 jobRepository.findFirstByActivityIdAndStatusOrderByCreatedAtDesc(activityId, AnalysisJobStatus.PENDING);
         if (running.isPresent()) {
@@ -69,7 +71,7 @@ public class AnalysisJobService {
             return running.get();
         }
 
-        AnalysisJob job = new AnalysisJob(UUID.randomUUID().toString(), activityId, toJson(activity), now());
+        AnalysisJob job = new AnalysisJob(UUID.randomUUID(), activityId, toJson(activity), now());
         try {
             PreparedAnalysis prepared = analysisService.prepare(activityId, activity);
             // Erst speichern, dann senden: ein schnelles Ergebnis muss den Job schon finden.
@@ -137,16 +139,16 @@ public class AnalysisJobService {
         }
     }
 
-    public Optional<AnalysisJob> find(String jobId) {
+    public Optional<AnalysisJob> find(UUID jobId) {
         return jobRepository.findById(jobId);
     }
 
-    public Optional<AnalysisJob> latestFor(String activityId) {
+    public Optional<AnalysisJob> latestFor(ActivityId activityId) {
         return jobRepository.findFirstByActivityIdOrderByCreatedAtDesc(activityId);
     }
 
     /** Aktivitaeten, fuer die gerade eine Analyse laeuft. */
-    public Set<String> runningActivityIds() {
+    public Set<ActivityId> runningActivityIds() {
         return jobRepository.findByStatus(AnalysisJobStatus.PENDING).stream()
                 .map(AnalysisJob::getActivityId)
                 .collect(Collectors.toSet());
@@ -162,7 +164,7 @@ public class AnalysisJobService {
         }
     }
 
-    static AiRequest toRequest(String requestId, PreparedAnalysis prepared) {
+    static AiRequest toRequest(UUID requestId, PreparedAnalysis prepared) {
         return new AiRequest(requestId, AnalysisPrompt.build(prepared), AnalysisPrompt.TEMPERATURE, true);
     }
 

@@ -5,6 +5,8 @@ import com.cycling.messaging.contract.DeliveryMessage.Field;
 import com.cycling.messaging.contract.DeliveryMessage.Section;
 import com.cycling.messaging.contract.DeliveryMessage.Target;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -28,8 +30,12 @@ public class RecommendationMessageBuilder {
         this.targets = List.copyOf(targets);
     }
 
-    public static String messageId(LocalDate date) {
-        return MESSAGE_ID_PREFIX + date;
+    /**
+     * Fuer jeden Tag immer dieselbe UUID (aus "recommendation-daily-" + Datum abgeleitet), damit der delivery-service eine
+     * zweite Nachricht fuer denselben Tag als Duplikat erkennt.
+     */
+    public static UUID messageId(LocalDate date) {
+        return UUID.nameUUIDFromBytes((MESSAGE_ID_PREFIX + date).getBytes(StandardCharsets.UTF_8));
     }
 
     /** @param date Versandtag (bestimmt messageId und Unterzeile) */

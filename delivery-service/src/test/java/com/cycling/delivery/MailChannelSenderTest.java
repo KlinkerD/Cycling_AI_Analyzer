@@ -44,7 +44,7 @@ class MailChannelSenderTest {
     }
 
     private static Delivery delivery(String destination) {
-        return new Delivery("m1", "report", DeliveryChannel.MAIL, destination, LocalDateTime.now());
+        return new Delivery(MessageFixtures.id("m1"), "report", DeliveryChannel.MAIL, destination, LocalDateTime.now());
     }
 
     private MimeMessage sent() throws Exception {

@@ -303,7 +303,7 @@ operations:
     channel:
       $ref: '#/channels/deliveryRequest'
     summary: Fitness-Zusammenfassung ab `FITNESS_SUMMARY_TIME` (Quelle `fitness`).
-    description: messageId `fitness-daily-<datum>`, damit pro Tag nur eine Nachricht verschickt wird.
+    description: messageId = `UUID.nameUUIDFromBytes("fitness-daily-<datum>")`, damit pro Tag nur eine Nachricht verschickt wird.
     tags:
       - name: training-service
     x-service: training-service
@@ -346,7 +346,7 @@ operations:
     channel:
       $ref: '#/channels/deliveryRequest'
     summary: Morgen-Empfehlung ab `RECOMMENDATION_DAILY_TIME` (Quelle `recommendation`).
-    description: messageId `recommendation-daily-<datum>`.
+    description: messageId = `UUID.nameUUIDFromBytes("recommendation-daily-<datum>")`, eine Nachricht pro Tag.
     tags:
       - name: training-service
     x-service: training-service
@@ -487,8 +487,8 @@ components:
       properties:
         activityId: { type: string, examples: [i123456] }
         name: { type: [string, 'null'] }
-        startDateLocal: { type: [string, 'null'], description: 'Lokale Startzeit, z. B. 2026-11-01T08:30:00' }
-        startDate: { type: [string, 'null'], description: 'Startzeit in UTC, z. B. 2026-11-01T07:30:00Z (fehlt bei alten Meldungen)' }
+        startDateLocal: { type: [string, 'null'], format: date-time, description: 'Lokale Startzeit ohne Zone, z. B. 2026-11-01T08:30:00' }
+        startDate: { type: [string, 'null'], format: date-time, description: 'Startzeit in UTC, z. B. 2026-11-01T07:30:00Z (fehlt bei alten Meldungen)' }
         type: { type: [string, 'null'], examples: [Ride, VirtualRide] }
         distance: { type: [number, 'null'], description: Meter }
         movingTime: { type: [integer, 'null'], description: Sekunden }
@@ -526,7 +526,7 @@ components:
       type: object
       required: [requestId, prompt, temperature, json]
       properties:
-        requestId: { type: string, description: 'Korrelation, z. B. ID des Analyse-Jobs' }
+        requestId: { type: string, format: uuid, description: 'Korrelation, z. B. ID des Analyse-Jobs' }
         prompt: { type: string, minLength: 1, description: vollständiger Prompt, geht unverändert an Gemini }
         temperature: { type: number, minimum: 0, maximum: 2, examples: [0.3, 0.5] }
         json: { type: boolean, description: true = Gemini soll reines JSON liefern (der Absender parst es) }
@@ -535,7 +535,7 @@ components:
       type: object
       required: [requestId, success]
       properties:
-        requestId: { type: string }
+        requestId: { type: string, format: uuid }
         success: { type: boolean }
         error: { type: [string, 'null'], description: Grund bei success=false }
         text: { type: [string, 'null'], description: Antworttext unverändert; null bei success=false }
@@ -544,7 +544,7 @@ components:
       type: object
       required: [messageId, title]
       properties:
-        messageId: { type: string, description: eindeutig; doppelte IDs werden nur einmal versendet }
+        messageId: { type: string, format: uuid, description: eindeutig; doppelte IDs werden nur einmal versendet }
         title: { type: string, examples: ['🚴 Morgenrunde'] }
         subtitle: { type: [string, 'null'] }
         color: { type: [string, 'null'], pattern: '^#[0-9a-fA-F]{6}$' }
@@ -595,14 +595,14 @@ components:
       type: object
       required: [requestId, activityId]
       properties:
-        requestId: { type: string, description: 'neu je Lauf; kommt in der Antwort zurück' }
+        requestId: { type: string, format: uuid, description: 'neu je Lauf; kommt in der Antwort zurück' }
         activityId: { type: string, examples: [i123456] }
 
     DetectFtpResponse:
       type: object
       required: [requestId, activityId, isFtpDetected]
       properties:
-        requestId: { type: string }
+        requestId: { type: string, format: uuid }
         activityId: { type: string }
         isFtpDetected: { type: boolean, description: false auch bei Fehlern (dann ist error gesetzt) }
         ftp: { type: [integer, 'null'], description: 'Watt, 20-min-Mittel × 0,95' }

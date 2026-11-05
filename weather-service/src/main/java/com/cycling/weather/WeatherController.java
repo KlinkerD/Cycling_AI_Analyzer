@@ -38,7 +38,8 @@ class WeatherController {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ProblemDetail> unreadable(HttpMessageNotReadableException e) {
-        return problem(HttpStatus.BAD_REQUEST, "Anfrage ist kein gueltiges WeatherQuery-JSON");
+        return problem(HttpStatus.BAD_REQUEST,
+                "Anfrage ist kein gueltiges WeatherQuery-JSON (Zeiten als ISO-8601 in UTC, z. B. 2026-11-01T07:30:00Z)");
     }
 
     @ExceptionHandler(WeatherSourceException.class)

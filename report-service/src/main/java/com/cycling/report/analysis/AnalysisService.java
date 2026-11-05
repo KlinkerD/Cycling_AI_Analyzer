@@ -1,5 +1,7 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.api.*;
 import com.cycling.report.weather.RideWeatherPoint;
 import com.cycling.report.weather.RideWeatherService;
@@ -46,7 +48,7 @@ public class AnalysisService {
      * Sammelt alles, was fuer die KI-Bewertung gebraucht wird (Streams, Zonen, FTP, Vergleichsfahrten)
      * und baut die Analyse ohne KI-Felder. Speichert noch nichts.
      */
-    public PreparedAnalysis prepare(String activityId, ActivityDto activityDto) {
+    public PreparedAnalysis prepare(ActivityId activityId, ActivityDto activityDto) {
         log.info("Bereite Analyse vor für Aktivität: {} ({})", activityDto.name(), activityId);
 
         // Athleten-Schwellenwerte laden
@@ -81,7 +83,7 @@ public class AnalysisService {
         ActivityAnalysis analysis = new ActivityAnalysis();
         analysis.setActivityId(activityId);
         analysis.setActivityName(activityDto.name());
-        analysis.setActivityDate(parseDate(activityDto.startDateLocal()));
+        analysis.setActivityDate(activityDto.startDateLocal());
         analysis.setDistanceKm(activityDto.distance() != null ? activityDto.distance() / 1000.0 : 0);
         analysis.setDurationSeconds(activityDto.movingTime());
         analysis.setAvgPowerWatts(activityDto.averageWatts() != null ? activityDto.averageWatts() : avgPower);
@@ -106,7 +108,7 @@ public class AnalysisService {
         // Wetter nur fuer echte Outdoor-Fahrten: unbekannte Indoor-Kennung (zones.indoor() null) = kein Wetter
         List<RideWeatherPoint> rideWeather = weather.fetch(activityId, zones.indoor(), activityDto.type(),
                 activityDto.startDate(), streams);
-        Map<String, WeatherSummary> previousWeather = new LinkedHashMap<>();
+        Map<ActivityId, WeatherSummary> previousWeather = new LinkedHashMap<>();
         for (ActivityAnalysis prev : lastThree) {
             weather.summary(prev.getActivityId()).ifPresent(s -> previousWeather.put(prev.getActivityId(), s));
         }
@@ -121,7 +123,7 @@ public class AnalysisService {
      */
     public ReportDto complete(PreparedAnalysis prepared, AiAssessment aiResult) {
         ActivityAnalysis analysis = prepared.analysis();
-        String activityId = analysis.getActivityId();
+        ActivityId activityId = analysis.getActivityId();
 
         analysis.setAnalyzedAt(LocalDateTime.now());
         analysis.setOverallScore(aiResult.score());
@@ -161,14 +163,14 @@ public class AnalysisService {
                 powerCurveSet, bands.power(), bands.hr(), weatherPoints);
     }
 
-    public List<String> getAnalyzedIds() {
+    public List<ActivityId> getAnalyzedIds() {
         return repository.findAllActivityIds();
     }
 
     /**
      * Lädt einen gespeicherten Report aus der DB und erstellt Streams + Zonen neu.
      */
-    public ReportDto getReport(String activityId) {
+    public ReportDto getReport(ActivityId activityId) {
         ActivityAnalysis analysis = repository.findByActivityId(activityId)
                 .orElseThrow(() -> new ReportNotFoundException(activityId));
 

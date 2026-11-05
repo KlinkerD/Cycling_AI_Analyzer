@@ -1,5 +1,7 @@
 package com.cycling.report;
 
+import com.cycling.types.ActivityId;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -40,7 +42,7 @@ public record ReportContent(
 
     /** Kennzahlen und KI-Bewertung einer Fahrt. Alle Werte optional (null = unbekannt). */
     public record Analysis(
-            String activityId,
+            ActivityId activityId,
             String activityName,
             LocalDateTime activityDate,
             Double distanceKm,
@@ -98,7 +100,7 @@ public record ReportContent(
 
     /** Eine analysierte Fahrt im Trend-Chart. */
     public record TrendPoint(
-            String activityId,
+            ActivityId activityId,
             String activityName,
             LocalDateTime activityDate,
             Double avgPowerWatts,
@@ -116,7 +118,7 @@ public record ReportContent(
     public record PowerCurveSet(PowerCurve current, List<PowerCurve> previous, Integer ftpWatts) {
     }
 
-    public record PowerCurve(String activityId, String activityName, LocalDateTime activityDate,
+    public record PowerCurve(ActivityId activityId, String activityName, LocalDateTime activityDate,
                              List<PowerCurvePoint> points) {
     }
 

@@ -52,7 +52,7 @@ class DeliveryServiceTest {
 
     /** Legt Nachricht + Zeile so an, als waere sie bereits angenommen worden. */
     private Delivery queued(DeliveryChannel channel, String destination, LocalDateTime queuedAt) {
-        store.messages.add(new StoredMessage("m1", "report", message.title(), queuedAt, codec.encode(message)));
+        store.messages.add(new StoredMessage(MessageFixtures.id("m1"), "report", message.title(), queuedAt, codec.encode(message)));
         return store.add("m1", channel, destination, queuedAt);
     }
 
@@ -135,7 +135,7 @@ class DeliveryServiceTest {
 
     @Test
     void messageWithoutIdOrTitleIsRejected() {
-        DeliveryMessage noTitle = new DeliveryMessage("m1", " ", null, null, null, null, null, null, null);
+        DeliveryMessage noTitle = new DeliveryMessage(MessageFixtures.id("m1"), " ", null, null, null, null, null, null, null);
         DeliveryMessage noId = new DeliveryMessage(null, "Hallo", null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> service(mail).accept("report", noTitle)).isInstanceOf(IllegalArgumentException.class);
@@ -156,7 +156,7 @@ class DeliveryServiceTest {
     void deliverPendingSendsStoredMessageToDestinationAndMarksSent() throws Exception {
         Delivery row = queued(DeliveryChannel.DISCORD, "reports", NOW);
 
-        service(discord).deliverPending("m1");
+        service(discord).deliverPending(MessageFixtures.id("m1"));
 
         verify(discord).send(eq(message), eq("reports"), eq(row));
         assertThat(row.getStatus()).isEqualTo(DeliveryStatus.SENT);
@@ -169,7 +169,7 @@ class DeliveryServiceTest {
         Delivery row = queued(DeliveryChannel.MAIL, "default", NOW);
         doThrow(DeliveryException.temporary("SMTP down", null)).when(mail).send(any(), any(), any());
 
-        service(mail).deliverPending("m1");
+        service(mail).deliverPending(MessageFixtures.id("m1"));
 
         assertThat(row.getStatus()).isEqualTo(DeliveryStatus.PENDING);
         assertThat(row.getAttempts()).isEqualTo(1);
@@ -182,7 +182,7 @@ class DeliveryServiceTest {
         row.setAttempts(4);
         doThrow(DeliveryException.temporary("SMTP down", null)).when(mail).send(any(), any(), any());
 
-        service(mail).deliverPending("m1");
+        service(mail).deliverPending(MessageFixtures.id("m1"));
 
         assertThat(row.getAttempts()).isEqualTo(5);
         assertThat(row.getStatus()).isEqualTo(DeliveryStatus.FAILED);
@@ -194,7 +194,7 @@ class DeliveryServiceTest {
         doThrow(DeliveryException.permanent("HTTP 401 (Bot-Token ungueltig)", null))
                 .when(discord).send(any(), any(), any());
 
-        service(discord).deliverPending("m1");
+        service(discord).deliverPending(MessageFixtures.id("m1"));
 
         assertThat(row.getAttempts()).isEqualTo(1);
         assertThat(row.getStatus()).isEqualTo(DeliveryStatus.FAILED);
@@ -207,7 +207,7 @@ class DeliveryServiceTest {
         Delivery discordRow = store.add("m1", DeliveryChannel.DISCORD, "default", NOW);
         doThrow(new IllegalArgumentException("kaputt")).when(mail).send(any(), any(), any());
 
-        service(mail, discord).deliverPending("m1");
+        service(mail, discord).deliverPending(MessageFixtures.id("m1"));
 
         assertThat(mailRow.getStatus()).isEqualTo(DeliveryStatus.PENDING);
         assertThat(mailRow.getLastError()).contains("kaputt");
@@ -219,7 +219,7 @@ class DeliveryServiceTest {
         ChannelSender disabledDiscord = sender(DeliveryChannel.DISCORD, false, "default");
         Delivery row = queued(DeliveryChannel.DISCORD, "default", NOW);
 
-        service(mail, disabledDiscord).deliverPending("m1");
+        service(mail, disabledDiscord).deliverPending(MessageFixtures.id("m1"));
 
         verify(disabledDiscord, never()).send(any(), any(), any());
         assertThat(row.getStatus()).isEqualTo(DeliveryStatus.PENDING);
@@ -230,7 +230,7 @@ class DeliveryServiceTest {
     void pendingRowWhoseMessageIsGoneFailsPermanently() throws Exception {
         Delivery row = store.add("m1", DeliveryChannel.MAIL, "default", NOW);
 
-        service(mail).deliverPending("m1");
+        service(mail).deliverPending(MessageFixtures.id("m1"));
 
         verify(mail, never()).send(any(), any(), any());
         assertThat(row.getStatus()).isEqualTo(DeliveryStatus.FAILED);
@@ -241,7 +241,7 @@ class DeliveryServiceTest {
     void retryPendingResendsOnlyRowsQueuedWithinTwoDays() throws Exception {
         Delivery recent = queued(DeliveryChannel.MAIL, "default", NOW.minusHours(47));
         DeliveryMessage old = MessageFixtures.message("old");
-        store.messages.add(new StoredMessage("old", "report", old.title(), NOW.minusDays(3), codec.encode(old)));
+        store.messages.add(new StoredMessage(MessageFixtures.id("old"), "report", old.title(), NOW.minusDays(3), codec.encode(old)));
         Delivery tooOld = store.add("old", DeliveryChannel.MAIL, "default", NOW.minusDays(2).minusMinutes(1));
 
         service(mail).retryPending();
@@ -255,9 +255,9 @@ class DeliveryServiceTest {
 
     @Test
     void cleanUpDropsPayloadAfterSevenDaysAndRowsAfterNinetyDays() {
-        StoredMessage fresh = new StoredMessage("fresh", "report", "t", NOW.minusDays(6), new byte[]{1});
-        StoredMessage week = new StoredMessage("week", "report", "t", NOW.minusDays(8), new byte[]{1});
-        StoredMessage ancient = new StoredMessage("ancient", "report", "t", NOW.minusDays(91), new byte[]{1});
+        StoredMessage fresh = new StoredMessage(MessageFixtures.id("fresh"), "report", "t", NOW.minusDays(6), new byte[]{1});
+        StoredMessage week = new StoredMessage(MessageFixtures.id("week"), "report", "t", NOW.minusDays(8), new byte[]{1});
+        StoredMessage ancient = new StoredMessage(MessageFixtures.id("ancient"), "report", "t", NOW.minusDays(91), new byte[]{1});
         store.messages.addAll(List.of(fresh, week, ancient));
         store.add("week", DeliveryChannel.MAIL, "default", NOW.minusDays(8)).setStatus(DeliveryStatus.SENT);
         store.add("ancient", DeliveryChannel.MAIL, "default", NOW.minusDays(91)).setStatus(DeliveryStatus.FAILED);

@@ -1,5 +1,7 @@
 package com.cycling.report.weather;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.api.WeatherPointDto;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -8,6 +10,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+
+import java.time.Instant;
 
 /**
  * Gespeichertes Wetter einer analysierten Fahrt, ein Eintrag pro Punkt (alle 10 Minuten). Wird einmal bei der
@@ -23,15 +27,14 @@ public class WeatherPoint {
     private Long id;
 
     @Column(nullable = false)
-    private String activityId;
+    private ActivityId activityId;
 
     private int minuteOfRide;
     private Double distanceKm;
     private double lat;
     private double lng;
-    /** UTC, ISO-8601. */
     @Column(nullable = false)
-    private String time;
+    private Instant time;
     private Double temperatureC;
     private Double windSpeedKmh;
     private Double windGustKmh;
@@ -41,7 +44,7 @@ public class WeatherPoint {
     protected WeatherPoint() {
     }
 
-    static WeatherPoint of(String activityId, WeatherPointDto p) {
+    static WeatherPoint of(ActivityId activityId, WeatherPointDto p) {
         WeatherPoint w = new WeatherPoint();
         w.activityId = activityId;
         w.minuteOfRide = p.minuteOfRide();
@@ -62,7 +65,7 @@ public class WeatherPoint {
                 windDirectionDeg, precipitationMmPerHour);
     }
 
-    public String getActivityId() {
+    public ActivityId getActivityId() {
         return activityId;
     }
 

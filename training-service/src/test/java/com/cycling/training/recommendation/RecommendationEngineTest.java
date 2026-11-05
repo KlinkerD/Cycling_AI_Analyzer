@@ -1,5 +1,7 @@
 package com.cycling.training.recommendation;
 
+import java.util.UUID;
+import com.cycling.types.ActivityId;
 import com.cycling.intervals.client.IntervalsUnavailableException;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
@@ -19,6 +21,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** Zwei Staende pro Berechnung: sofort Fallback, dann KI-Text oder - bei Ausfall - noch einmal Fallback. */
 class RecommendationEngineTest {
+
+    /** Feste UUID pro Name, damit Tests lesbar bleiben. */
+    private static UUID uuid(String name) {
+        return UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
 
     private final MutableClock clock = new MutableClock(LocalDateTime.of(2026, 11, 3, 9, 0));
     private final RecordingPublisher publisher = new RecordingPublisher();
@@ -44,7 +51,7 @@ class RecommendationEngineTest {
         @Override
         public List<IntervalsActivity> activities(LocalDate from, LocalDate to) {
             if (activitiesError != null) throw activitiesError;
-            return List.of(new IntervalsActivity("i1", "Runde", "2026-11-02T08:00:00", "Ride", 40000.0, null, null,
+            return List.of(new IntervalsActivity(ActivityId.of("i1"), "Runde", LocalDateTime.parse("2026-11-02T08:00:00"), "Ride", 40000.0, null, null,
                     null, null, null, null, null, null, null, 70.0, 0.75, null));
         }
     }
@@ -55,7 +62,7 @@ class RecommendationEngineTest {
 
     @Test
     void firstMessageIsFallbackAndRequestsText() {
-        Recommendation first = engine.compute("r1");
+        Recommendation first = engine.compute(uuid("r1"));
 
         assertThat(first.textPending()).isTrue();
         assertThat(first.fallbackUsed()).isTrue();
@@ -64,7 +71,7 @@ class RecommendationEngineTest {
         assertThat(first.computedAt()).isEqualTo(LocalDateTime.of(2026, 11, 3, 9, 0));
         assertThat(engine.latest()).contains(first);
         AiRequest request = publisher.on(Topics.aiRequest(RecommendationEngine.AI_SOURCE), AiRequest.class).getFirst();
-        assertThat(request.requestId()).isEqualTo("r1");
+        assertThat(request.requestId()).isEqualTo(uuid("r1"));
         assertThat(request.prompt()).contains("Runde, 70 TSS, IF 0,75, 40 km");
         assertThat(request.prompt()).contains("darf NICHT geaendert werden: Harte Intervalle");
         assertThat(request.json()).isFalse();
@@ -73,13 +80,13 @@ class RecommendationEngineTest {
 
     @Test
     void textArrivesAsSecondMessage() {
-        engine.compute("r1");
+        engine.compute(uuid("r1"));
 
-        engine.applyText(new AiResult("r1", true, null, "Heute Sweet Spot!"));
+        engine.applyText(new AiResult(uuid("r1"), true, null, "Heute Sweet Spot!"));
 
         assertThat(updates()).hasSize(2);
         Recommendation second = updates().get(1);
-        assertThat(second.requestId()).isEqualTo("r1");
+        assertThat(second.requestId()).isEqualTo(uuid("r1"));
         assertThat(second.text()).isEqualTo("Heute Sweet Spot!");
         assertThat(second.textPending()).isFalse();
         assertThat(second.fallbackUsed()).isFalse();
@@ -88,9 +95,9 @@ class RecommendationEngineTest {
 
     @Test
     void failedTextStillSendsSecondMessageWithFallback() {
-        Recommendation first = engine.compute("r1");
+        Recommendation first = engine.compute(uuid("r1"));
 
-        engine.applyText(AiResult.failed("r1", "HTTP 500"));
+        engine.applyText(AiResult.failed(uuid("r1"), "HTTP 500"));
 
         Recommendation second = updates().get(1);
         assertThat(second.text()).isEqualTo(first.text());
@@ -100,17 +107,17 @@ class RecommendationEngineTest {
 
     @Test
     void textForOlderComputationIsIgnored() {
-        engine.compute("r1");
-        engine.compute("r2");
+        engine.compute(uuid("r1"));
+        engine.compute(uuid("r2"));
 
-        engine.applyText(new AiResult("r1", true, null, "Veraltet"));
+        engine.applyText(new AiResult(uuid("r1"), true, null, "Veraltet"));
 
-        assertThat(updates()).extracting(Recommendation::requestId).containsExactly("r1", "r2");
+        assertThat(updates()).extracting(Recommendation::requestId).containsExactly(uuid("r1"), uuid("r2"));
     }
 
     @Test
     void missingTextExpiresAfterTimeout() {
-        engine.compute("r1");
+        engine.compute(uuid("r1"));
         clock.advance(Duration.ofSeconds(89));
         engine.expirePending();
         assertThat(updates()).hasSize(1);
@@ -120,7 +127,7 @@ class RecommendationEngineTest {
 
         assertThat(updates()).hasSize(2);
         assertThat(updates().get(1).textPending()).isFalse();
-        engine.applyText(new AiResult("r1", true, null, "zu spaet"));
+        engine.applyText(new AiResult(uuid("r1"), true, null, "zu spaet"));
         assertThat(updates()).hasSize(2);
     }
 
@@ -128,7 +135,7 @@ class RecommendationEngineTest {
     void brokerOutageForAiRequestFinishesImmediately() {
         publisher.failingTopic = Topics.aiRequest(RecommendationEngine.AI_SOURCE);
 
-        engine.compute("r1");
+        engine.compute(uuid("r1"));
 
         assertThat(updates()).extracting(Recommendation::textPending).containsExactly(true, false);
     }
@@ -137,7 +144,7 @@ class RecommendationEngineTest {
     void insufficientDataIsSingleFinalMessage() {
         intervals.wellness = List.of();
 
-        engine.compute("r1");
+        engine.compute(uuid("r1"));
 
         assertThat(updates()).hasSize(1);
         assertThat(updates().getFirst().category()).isEqualTo("INSUFFICIENT_DATA");
@@ -149,7 +156,7 @@ class RecommendationEngineTest {
     void intervalsOutageSetsNothing() {
         intervals.wellnessError = new IntervalsUnavailableException("weg", null);
 
-        assertThatThrownBy(() -> engine.compute("r1")).isInstanceOf(IntervalsUnavailableException.class);
+        assertThatThrownBy(() -> engine.compute(uuid("r1"))).isInstanceOf(IntervalsUnavailableException.class);
         engine.computeScheduled();
 
         assertThat(seen).isEmpty();
@@ -161,7 +168,7 @@ class RecommendationEngineTest {
     void missingActivitiesOnlyShortenThePrompt() {
         intervals.activitiesError = new IntervalsUnavailableException("weg", null);
 
-        engine.compute("r1");
+        engine.compute(uuid("r1"));
 
         assertThat(publisher.on(Topics.aiRequest(RecommendationEngine.AI_SOURCE), AiRequest.class).getFirst()
                 .prompt()).contains("- Keine Aktivitaeten erfasst.");

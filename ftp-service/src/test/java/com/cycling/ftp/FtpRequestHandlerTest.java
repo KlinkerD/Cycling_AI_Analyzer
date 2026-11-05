@@ -1,5 +1,7 @@
 package com.cycling.ftp;
 
+import com.cycling.types.ActivityId;
+import java.util.UUID;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.DetectFtpRequest;
@@ -19,6 +21,9 @@ import static org.mockito.Mockito.when;
 
 class FtpRequestHandlerTest {
 
+    private static final UUID R1 = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final ActivityId I1 = ActivityId.of("i1");
+
     private static final StreamData STREAMS = new StreamData(List.of(0), List.of(200), List.of(150));
 
     private final ReportStreamsClient client = mock(ReportStreamsClient.class);
@@ -34,40 +39,40 @@ class FtpRequestHandlerTest {
 
     @Test
     void publishesDetectedValues() {
-        when(client.streams("i1")).thenReturn(STREAMS);
+        when(client.streams(I1)).thenReturn(STREAMS);
         when(detector.detect(STREAMS)).thenReturn(FtpTestResult.detected(266, 182, 171, 280, 1200));
 
-        handler.handle(new DetectFtpRequest("r1", "i1"));
+        handler.handle(new DetectFtpRequest(R1, I1));
 
         assertThat(published()).isEqualTo(
-                new DetectFtpResponse("r1", "i1", true, 266, 182, 171, 280, 1200, null));
+                new DetectFtpResponse(R1, I1, true, 266, 182, 171, 280, 1200, null));
     }
 
     @Test
     void publishesNotDetectedWithoutError() {
-        when(client.streams("i1")).thenReturn(STREAMS);
+        when(client.streams(I1)).thenReturn(STREAMS);
         when(detector.detect(STREAMS)).thenReturn(FtpTestResult.notDetected("kein Test"));
 
-        handler.handle(new DetectFtpRequest("r1", "i1"));
+        handler.handle(new DetectFtpRequest(R1, I1));
 
-        assertThat(published()).isEqualTo(DetectFtpResponse.notDetected("r1", "i1"));
+        assertThat(published()).isEqualTo(DetectFtpResponse.notDetected(R1, I1));
     }
 
     @Test
     void publishesErrorWhenStreamsAreUnavailable() {
-        when(client.streams("i1")).thenThrow(new IllegalStateException("report-service nicht erreichbar"));
+        when(client.streams(I1)).thenThrow(new IllegalStateException("report-service nicht erreichbar"));
 
-        handler.handle(new DetectFtpRequest("r1", "i1"));
+        handler.handle(new DetectFtpRequest(R1, I1));
 
         DetectFtpResponse response = published();
         assertThat(response.isFtpDetected()).isFalse();
         assertThat(response.error()).isEqualTo("report-service nicht erreichbar");
-        assertThat(response.requestId()).isEqualTo("r1");
+        assertThat(response.requestId()).isEqualTo(R1);
     }
 
     @Test
     void rejectsRequestWithoutActivityId() {
-        handler.handle(new DetectFtpRequest("r1", " "));
+        handler.handle(new DetectFtpRequest(R1, null));
 
         assertThat(published().error()).contains("activityId");
         verifyNoInteractions(client, detector);
@@ -78,7 +83,7 @@ class FtpRequestHandlerTest {
         when(client.streams(any())).thenReturn(STREAMS);
         when(detector.detect(STREAMS)).thenThrow(new IllegalArgumentException("kaputt"));
 
-        handler.handle(new DetectFtpRequest("r1", "i1"));
+        handler.handle(new DetectFtpRequest(R1, I1));
 
         assertThat(published().error()).isEqualTo("kaputt");
     }

@@ -73,10 +73,10 @@ public class RecommendationEngine {
 
     /** Zeitplan (alle paar Stunden). */
     public void computeScheduled() {
-        computeQuietly(UUID.randomUUID().toString(), "Zeitplan");
+        computeQuietly(UUID.randomUUID(), "Zeitplan");
     }
 
-    private void computeQuietly(String requestId, String trigger) {
+    private void computeQuietly(UUID requestId, String trigger) {
         try {
             compute(requestId);
         } catch (RuntimeException e) {
@@ -90,7 +90,7 @@ public class RecommendationEngine {
      * @return der erste Stand dieser Berechnung
      * @throws IntervalsUnavailableException wenn keine Wellness-Daten geladen werden konnten
      */
-    public Recommendation compute(String requestId) {
+    public Recommendation compute(UUID requestId) {
         synchronized (computeLock) {
             LocalDate today = LocalDate.now(clock);
             Assessment assessment = RecommendationCalculator.assess(
@@ -139,7 +139,7 @@ public class RecommendationEngine {
 
     /** Beendet einen offenen KI-Auftrag mit dem Fallback, wenn er laenger als {@code textTimeout} offen ist. */
     public void expirePending() {
-        String expired = null;
+        UUID expired = null;
         synchronized (stateLock) {
             if (pending != null && !clock.instant().isBefore(pendingSince.plus(textTimeout))) {
                 expired = pending.requestId();
@@ -152,7 +152,7 @@ public class RecommendationEngine {
     }
 
     /** @param text KI-Text; null = Fallback behalten */
-    private void finish(String requestId, String text) {
+    private void finish(UUID requestId, String text) {
         Recommendation done;
         synchronized (stateLock) {
             if (pending == null || !pending.requestId().equals(requestId)) {
@@ -190,7 +190,7 @@ public class RecommendationEngine {
         }
     }
 
-    private static Recommendation message(String requestId, Assessment a, String text, LocalDateTime now,
+    private static Recommendation message(UUID requestId, Assessment a, String text, LocalDateTime now,
                                                  boolean textPending, boolean fallbackUsed) {
         return new Recommendation(requestId, a.category().name(), a.category().getLabel(),
                 a.category().getColor(), text, a.form(), a.rampRate(), a.rampCapped(), a.refDate(), now,

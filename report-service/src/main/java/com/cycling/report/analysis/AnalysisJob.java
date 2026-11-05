@@ -1,8 +1,12 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Ein KI-Analyseauftrag. Die ID ist zugleich die Korrelations-ID der MQTT-Nachrichten.
@@ -13,11 +17,13 @@ import java.time.LocalDateTime;
 @Table(name = "analysis_job", indexes = @Index(name = "idx_analysis_job_activity", columnList = "activityId"))
 public class AnalysisJob {
 
+    /** Als Text gespeichert (Spalte bleibt varchar). */
     @Id
-    private String id;
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    private UUID id;
 
     @Column(nullable = false)
-    private String activityId;
+    private ActivityId activityId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -35,7 +41,7 @@ public class AnalysisJob {
     protected AnalysisJob() {
     }
 
-    public AnalysisJob(String id, String activityId, String activityJson, LocalDateTime createdAt) {
+    public AnalysisJob(UUID id, ActivityId activityId, String activityJson, LocalDateTime createdAt) {
         this.id = id;
         this.activityId = activityId;
         this.activityJson = activityJson;
@@ -55,11 +61,11 @@ public class AnalysisJob {
         finishedAt = at;
     }
 
-    public String getId() {
+    public UUID getId() {
         return id;
     }
 
-    public String getActivityId() {
+    public ActivityId getActivityId() {
         return activityId;
     }
 

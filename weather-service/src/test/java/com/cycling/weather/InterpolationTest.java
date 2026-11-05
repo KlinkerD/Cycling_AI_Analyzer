@@ -3,6 +3,7 @@ package com.cycling.weather;
 import com.cycling.weather.api.WeatherResult;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 
@@ -22,7 +23,7 @@ class InterpolationTest {
             List.of(0.0, 0.5, 0.25));
 
     private static WeatherResult.Point at(Series s, long t) {
-        return Interpolation.at(s, 48.1, 11.5, "t", t);
+        return Interpolation.at(s, 48.1, 11.5, Instant.ofEpochSecond(t));
     }
 
     @Test
@@ -79,10 +80,10 @@ class InterpolationTest {
 
     @Test
     void keepsRequestedPointData() {
-        WeatherResult.Point p = Interpolation.at(SERIES, 48.123, 11.456, "2026-11-01T07:30:00Z", T0);
+        WeatherResult.Point p = Interpolation.at(SERIES, 48.123, 11.456, Instant.ofEpochSecond(T0));
 
         assertThat(p.lat()).isEqualTo(48.123);
         assertThat(p.lng()).isEqualTo(11.456);
-        assertThat(p.time()).isEqualTo("2026-11-01T07:30:00Z");
+        assertThat(p.time()).isEqualTo(Instant.ofEpochSecond(T0));
     }
 }

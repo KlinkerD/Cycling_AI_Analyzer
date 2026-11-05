@@ -1,5 +1,7 @@
 package com.cycling.report.ftp;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.DetectFtpRequest;
@@ -41,14 +43,14 @@ public class FtpDetectionService {
     }
 
     /** Startet einen Lauf oder liefert den laufenden. Sendefehler landen als FAILED, nicht als Exception. */
-    public FtpDetection start(String activityId) {
+    public FtpDetection start(ActivityId activityId) {
         Optional<FtpDetection> existing = find(activityId);
         if (existing.isPresent() && existing.get().getStatus() == FtpDetectionStatus.PENDING) {
             log.info("FTP-Erkennung fuer {} laeuft bereits ({})", activityId, existing.get().getRequestId());
             return existing.get();
         }
 
-        String requestId = UUID.randomUUID().toString();
+        UUID requestId = UUID.randomUUID();
         FtpDetection detection = existing.orElseGet(() -> new FtpDetection(activityId, requestId, now()));
         detection.restart(requestId, now());
         // Erst speichern, dann senden: eine schnelle Antwort muss den Lauf schon finden.
@@ -65,13 +67,14 @@ public class FtpDetectionService {
     }
 
     /** Ergebnis der Aktivitaet; ein abgelaufener PENDING-Lauf wird dabei auf FAILED gesetzt. */
-    public Optional<FtpDetection> find(String activityId) {
-        return repository.findById(activityId).map(this::expireIfStale);
+    public Optional<FtpDetection> find(ActivityId activityId) {
+        return repository.findById(activityId.value()).map(this::expireIfStale);
     }
 
     /** Verarbeitet eine Antwort des ftp-service; idempotent bei doppelter Zustellung. */
     public void complete(DetectFtpResponse response) {
-        FtpDetection detection = repository.findById(response.activityId()).orElse(null);
+        FtpDetection detection = response.activityId() == null ? null
+                : repository.findById(response.activityId().value()).orElse(null);
         if (detection == null) {
             log.warn("FTP-Ergebnis fuer unbekannte Aktivitaet {} verworfen", response.activityId());
             return;

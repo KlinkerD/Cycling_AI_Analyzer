@@ -1,5 +1,7 @@
 package com.cycling.report.weather;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.api.StreamDataDto;
 import com.cycling.report.api.WeatherPointDto;
 import com.cycling.weather.api.WeatherQuery;
@@ -22,6 +24,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RideWeatherServiceTest {
+
+    private static final Instant START = Instant.parse("2026-11-01T07:30:00Z");
 
     private final WeatherClient client = mock(WeatherClient.class);
     private final WeatherPointRepository repository = mock(WeatherPointRepository.class);
@@ -53,27 +57,21 @@ class RideWeatherServiceTest {
     void fetchesWeatherForEveryTenMinutesInUtc() {
         when(client.points(anyList())).thenAnswer(inv -> answer(inv.getArgument(0)));
 
-        List<RideWeatherPoint> points = service.fetch("i1", false, "Ride", "2026-11-01T07:30:00Z", ride());
+        List<RideWeatherPoint> points = service.fetch(ActivityId.of("i1"), false, "Ride", START, ride());
 
         ArgumentCaptor<List<WeatherQuery.Point>> query = ArgumentCaptor.forClass(List.class);
         verify(client).points(query.capture());
         assertThat(query.getValue()).extracting(WeatherQuery.Point::time)
-                .containsExactly("2026-11-01T07:30:00Z", "2026-11-01T07:40:00Z", "2026-11-01T07:45:00Z");
+                .containsExactly(START, Instant.parse("2026-11-01T07:40:00Z"), Instant.parse("2026-11-01T07:45:00Z"));
         assertThat(points).hasSize(3).allSatisfy(p -> assertThat(p.temperatureC()).isEqualTo(7.0));
         assertThat(points.getFirst().windRelation()).isEqualTo(WindRelation.TAILWIND);
     }
 
     @Test
-    void startWithoutOffsetIsReadAsUtc() {
-        assertThat(RideWeatherService.parse("2026-11-01T07:30:00")).isEqualTo(Instant.parse("2026-11-01T07:30:00Z"));
-        assertThat(RideWeatherService.parse("kaputt")).isNull();
-    }
-
-    @Test
     void indoorUnknownOrNoStartMakesNoCall() {
-        assertThat(service.fetch("i1", true, "Ride", "2026-11-01T07:30:00Z", ride())).isEmpty();
-        assertThat(service.fetch("i1", null, "Ride", "2026-11-01T07:30:00Z", ride())).isEmpty();
-        assertThat(service.fetch("i1", false, "Ride", null, ride())).isEmpty();
+        assertThat(service.fetch(ActivityId.of("i1"), true, "Ride", START, ride())).isEmpty();
+        assertThat(service.fetch(ActivityId.of("i1"), null, "Ride", START, ride())).isEmpty();
+        assertThat(service.fetch(ActivityId.of("i1"), false, "Ride", null, ride())).isEmpty();
         verify(client, never()).points(any());
     }
 
@@ -81,57 +79,57 @@ class RideWeatherServiceTest {
     void unavailableServiceGivesNoWeather() {
         when(client.points(anyList())).thenThrow(new WeatherUnavailableException("weg", null));
 
-        assertThat(service.fetch("i1", false, "Ride", "2026-11-01T07:30:00Z", ride())).isEmpty();
+        assertThat(service.fetch(ActivityId.of("i1"), false, "Ride", START, ride())).isEmpty();
     }
 
     @Test
     void unexpectedErrorGivesNoWeather() {
         when(client.points(anyList())).thenThrow(new IllegalStateException("kaputt"));
 
-        assertThat(service.fetch("i1", false, "Ride", "2026-11-01T07:30:00Z", ride())).isEmpty();
+        assertThat(service.fetch(ActivityId.of("i1"), false, "Ride", START, ride())).isEmpty();
     }
 
     @Test
     void wrongAnswerSizeGivesNoWeather() {
         when(client.points(anyList())).thenReturn(List.of());
 
-        assertThat(service.fetch("i1", false, "Ride", "2026-11-01T07:30:00Z", ride())).isEmpty();
+        assertThat(service.fetch(ActivityId.of("i1"), false, "Ride", START, ride())).isEmpty();
     }
 
     @Test
     void disabledWithoutClient() {
         RideWeatherService disabled = new RideWeatherService(null, repository);
 
-        assertThat(disabled.fetch("i1", false, "Ride", "2026-11-01T07:30:00Z", ride())).isEmpty();
+        assertThat(disabled.fetch(ActivityId.of("i1"), false, "Ride", START, ride())).isEmpty();
     }
 
     @Test
     void replaceDeletesThenSaves() {
         RideWeatherPoint p = new RideWeatherPoint(
-                new WeatherSample(0, 0.0, 48.0, 11.5, Instant.parse("2026-11-01T07:30:00Z"), 0.0),
+                new WeatherSample(0, 0.0, 48.0, 11.5, START, 0.0),
                 7.0, 12.0, 20.0, 180.0, 0.0);
 
-        service.replace("i1", List.of(p));
+        service.replace(ActivityId.of("i1"), List.of(p));
 
-        verify(repository).deleteByActivityId("i1");
+        verify(repository).deleteByActivityId(ActivityId.of("i1"));
         verify(repository).saveAll(anyList());
     }
 
     @Test
     void replaceWithNothingOnlyDeletes() {
-        service.replace("i1", List.of());
+        service.replace(ActivityId.of("i1"), List.of());
 
-        verify(repository).deleteByActivityId("i1");
+        verify(repository).deleteByActivityId(ActivityId.of("i1"));
         verify(repository, never()).saveAll(anyList());
     }
 
     @Test
     void summaryFromStoredPoints() {
-        when(repository.findByActivityIdOrderByMinuteOfRideAsc("i1")).thenReturn(List.of(
-                WeatherPoint.of("i1", new WeatherPointDto(0, 0.0, 48, 11, "t0", 6.0, 10.0, 20.0, 180.0, 0.0)),
-                WeatherPoint.of("i1", new WeatherPointDto(10, 3.0, 48, 11, "t1", 8.0, 14.0, 25.0, 180.0, 3.0))));
+        when(repository.findByActivityIdOrderByMinuteOfRideAsc(ActivityId.of("i1"))).thenReturn(List.of(
+                WeatherPoint.of(ActivityId.of("i1"), new WeatherPointDto(0, 0.0, 48, 11, START, 6.0, 10.0, 20.0, 180.0, 0.0)),
+                WeatherPoint.of(ActivityId.of("i1"), new WeatherPointDto(10, 3.0, 48, 11, START.plusSeconds(600), 8.0, 14.0, 25.0, 180.0, 3.0))));
 
-        WeatherSummary s = service.summary("i1").orElseThrow();
+        WeatherSummary s = service.summary(ActivityId.of("i1")).orElseThrow();
 
         assertThat(s.minTemperatureC()).isEqualTo(6.0);
         assertThat(s.maxTemperatureC()).isEqualTo(8.0);
@@ -143,8 +141,8 @@ class RideWeatherServiceTest {
 
     @Test
     void noSummaryWithoutTemperature() {
-        when(repository.findByActivityIdOrderByMinuteOfRideAsc("i1")).thenReturn(List.of());
+        when(repository.findByActivityIdOrderByMinuteOfRideAsc(ActivityId.of("i1"))).thenReturn(List.of());
 
-        assertThat(service.summary("i1")).isEmpty();
+        assertThat(service.summary(ActivityId.of("i1"))).isEmpty();
     }
 }

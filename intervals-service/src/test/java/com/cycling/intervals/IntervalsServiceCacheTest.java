@@ -1,5 +1,6 @@
 package com.cycling.intervals;
 
+import com.cycling.types.ActivityId;
 import com.cycling.intervals.api.IntervalsActivityZones;
 import com.cycling.intervals.api.IntervalsAthleteThresholds;
 import com.cycling.intervals.api.IntervalsAthleteZones;
@@ -20,6 +21,8 @@ import static org.mockito.Mockito.when;
 
 class IntervalsServiceCacheTest {
 
+    private static final ActivityId I1 = ActivityId.of("i1");
+
     private static final IntervalsAthleteZones ZONES = new IntervalsAthleteZones(
             new IntervalsAthleteThresholds("Dan", 250, null, 170, 190, null), List.of(), List.of(), "lthr");
 
@@ -30,12 +33,12 @@ class IntervalsServiceCacheTest {
     void secondRequestIsServedFromCache() {
         IntervalsStreams streams = new IntervalsStreams(List.of(), List.of(), List.of(), List.of(), List.of(),
                 List.of(), List.of(), List.of(), List.of());
-        when(gateway.streams("i1")).thenReturn(streams);
+        when(gateway.streams(I1)).thenReturn(streams);
 
-        assertThat(service.streams("i1")).isSameAs(streams);
-        assertThat(service.streams("i1")).isSameAs(streams);
+        assertThat(service.streams(I1)).isSameAs(streams);
+        assertThat(service.streams(I1)).isSameAs(streams);
 
-        verify(gateway, times(1)).streams("i1");
+        verify(gateway, times(1)).streams(I1);
     }
 
     @Test
@@ -46,11 +49,11 @@ class IntervalsServiceCacheTest {
 
         service.thresholds();
         service.athleteZones();
-        service.activityZones("i1");
-        service.activityZones("i1");
+        service.activityZones(I1);
+        service.activityZones(I1);
 
         verify(gateway, times(1)).athleteZones();
-        verify(gateway, times(1)).activityZones("i1", ZONES);
+        verify(gateway, times(1)).activityZones(I1, ZONES);
     }
 
     @Test
@@ -75,11 +78,11 @@ class IntervalsServiceCacheTest {
                 .thenReturn(new IntervalsActivityZones(List.of(), List.of(), false, 250));
         var update = new com.cycling.intervals.api.IntervalsThresholdsUpdate(280, null, null, null, null);
         when(gateway.updateThresholds(update)).thenReturn(fresh);
-        service.activityZones("i1");
+        service.activityZones(I1);
 
         assertThat(service.updateThresholds(update)).isSameAs(fresh);
         assertThat(service.thresholds().ftp()).isEqualTo(280);
-        service.activityZones("i1");
+        service.activityZones(I1);
 
         verify(gateway, times(1)).athleteZones();          // frische Zonen kamen aus dem Update
         verify(gateway, times(2)).activityZones(any(), any()); // Zonenzeiten wurden neu geholt

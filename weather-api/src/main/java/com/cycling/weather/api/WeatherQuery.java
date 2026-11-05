@@ -1,5 +1,6 @@
 package com.cycling.weather.api;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -13,8 +14,8 @@ public record WeatherQuery(List<Point> points) {
     /**
      * @param lat  Breitengrad in Grad
      * @param lng  Laengengrad in Grad
-     * @param time Zeitpunkt in UTC (ISO-8601), z. B. "2026-11-01T07:30:00Z"
+     * @param time Zeitpunkt (im JSON ISO-8601 in UTC, z. B. "2026-11-01T07:30:00Z")
      */
-    public record Point(double lat, double lng, String time) {
+    public record Point(double lat, double lng, Instant time) {
     }
 }

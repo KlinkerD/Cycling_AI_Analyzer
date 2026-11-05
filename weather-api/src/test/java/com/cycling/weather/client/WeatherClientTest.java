@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,7 +29,7 @@ class WeatherClientTest {
             "windSpeedKmh":14.0,"windGustKmh":28.5,"windDirectionDeg":225.0,"precipitationMmPerHour":0.0}],
             "source":"open-meteo"}""";
     private static final List<WeatherQuery.Point> POINTS =
-            List.of(new WeatherQuery.Point(48.13, 11.57, "2026-11-01T07:30:00Z"));
+            List.of(new WeatherQuery.Point(48.13, 11.57, Instant.parse("2026-11-01T07:30:00Z")));
 
     private MockRestServiceServer server;
     private WeatherClient client;

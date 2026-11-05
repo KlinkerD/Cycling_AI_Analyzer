@@ -1,5 +1,6 @@
 package com.cycling.intervals;
 
+import com.cycling.types.ActivityId;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.intervals.api.IntervalsActivityZones;
 import com.cycling.intervals.api.IntervalsApi;
@@ -42,17 +43,17 @@ public class IntervalsController {
     }
 
     @GetMapping(IntervalsApi.ACTIVITY_STREAMS)
-    public IntervalsStreams streams(@PathVariable String id) {
+    public IntervalsStreams streams(@PathVariable ActivityId id) {
         return intervals.streams(id);
     }
 
     @GetMapping(IntervalsApi.ACTIVITY_ZONES)
-    public IntervalsActivityZones activityZones(@PathVariable String id) {
+    public IntervalsActivityZones activityZones(@PathVariable ActivityId id) {
         return intervals.activityZones(id);
     }
 
     @GetMapping(IntervalsApi.ACTIVITY_POWER_CURVE)
-    public IntervalsPowerCurve powerCurve(@PathVariable String id) {
+    public IntervalsPowerCurve powerCurve(@PathVariable ActivityId id) {
         return intervals.powerCurve(id);
     }
 

@@ -1,5 +1,8 @@
 package com.cycling.report.ftp;
 
+import java.util.UUID;
+import com.cycling.types.ActivityId;
+
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.MessagingException;
 import com.cycling.messaging.Topics;
@@ -40,7 +43,7 @@ class FtpDetectionServiceTest {
         when(repository.findById(anyString())).thenAnswer(inv -> Optional.ofNullable(store.get(inv.<String>getArgument(0))));
         when(repository.save(any())).thenAnswer(inv -> {
             FtpDetection d = inv.getArgument(0);
-            store.put(d.getActivityId(), d);
+            store.put(d.getActivityId().value(), d);
             return d;
         });
     }
@@ -53,18 +56,18 @@ class FtpDetectionServiceTest {
 
     @Test
     void startSendsRequestAndStoresPendingDetection() {
-        FtpDetection detection = service.start("i1");
+        FtpDetection detection = service.start(ActivityId.of("i1"));
 
         DetectFtpRequest request = sentRequest();
-        assertThat(request.activityId()).isEqualTo("i1");
+        assertThat(request.activityId()).isEqualTo(ActivityId.of("i1"));
         assertThat(request.requestId()).isEqualTo(detection.getRequestId());
         assertThat(store.get("i1").getStatus()).isEqualTo(FtpDetectionStatus.PENDING);
     }
 
     @Test
     void secondStartWhilePendingSendsNothingNew() {
-        FtpDetection first = service.start("i1");
-        FtpDetection second = service.start("i1");
+        FtpDetection first = service.start(ActivityId.of("i1"));
+        FtpDetection second = service.start(ActivityId.of("i1"));
 
         assertThat(second.getRequestId()).isEqualTo(first.getRequestId());
         verify(publisher, times(1)).publish(eq(Topics.DETECT_FTP_REQUEST), any());
@@ -72,9 +75,9 @@ class FtpDetectionServiceTest {
 
     @Test
     void detectedResponseStoresValues() {
-        String requestId = service.start("i1").getRequestId();
+        UUID requestId = service.start(ActivityId.of("i1")).getRequestId();
 
-        service.complete(new DetectFtpResponse(requestId, "i1", true, 266, 182, 172, 280, 1200, null));
+        service.complete(new DetectFtpResponse(requestId, ActivityId.of("i1"), true, 266, 182, 172, 280, 1200, null));
 
         FtpDetection d = store.get("i1");
         assertThat(d.getStatus()).isEqualTo(FtpDetectionStatus.DETECTED);
@@ -88,9 +91,9 @@ class FtpDetectionServiceTest {
 
     @Test
     void notDetectedResponseIsNoError() {
-        String requestId = service.start("i1").getRequestId();
+        UUID requestId = service.start(ActivityId.of("i1")).getRequestId();
 
-        service.complete(DetectFtpResponse.notDetected(requestId, "i1"));
+        service.complete(DetectFtpResponse.notDetected(requestId, ActivityId.of("i1")));
 
         assertThat(store.get("i1").getStatus()).isEqualTo(FtpDetectionStatus.NOT_DETECTED);
         assertThat(store.get("i1").getError()).isNull();
@@ -98,9 +101,9 @@ class FtpDetectionServiceTest {
 
     @Test
     void errorResponseMarksFailed() {
-        String requestId = service.start("i1").getRequestId();
+        UUID requestId = service.start(ActivityId.of("i1")).getRequestId();
 
-        service.complete(DetectFtpResponse.failed(requestId, "i1", "report-service nicht erreichbar"));
+        service.complete(DetectFtpResponse.failed(requestId, ActivityId.of("i1"), "report-service nicht erreichbar"));
 
         assertThat(store.get("i1").getStatus()).isEqualTo(FtpDetectionStatus.FAILED);
         assertThat(store.get("i1").getError()).isEqualTo("report-service nicht erreichbar");
@@ -108,11 +111,11 @@ class FtpDetectionServiceTest {
 
     @Test
     void responseOfOldRunIsDiscarded() {
-        String oldRequest = service.start("i1").getRequestId();
-        service.complete(DetectFtpResponse.failed(oldRequest, "i1", "kaputt"));
-        String newRequest = service.start("i1").getRequestId();
+        UUID oldRequest = service.start(ActivityId.of("i1")).getRequestId();
+        service.complete(DetectFtpResponse.failed(oldRequest, ActivityId.of("i1"), "kaputt"));
+        UUID newRequest = service.start(ActivityId.of("i1")).getRequestId();
 
-        service.complete(new DetectFtpResponse(oldRequest, "i1", true, 1, 1, 1, 1, 1, null));
+        service.complete(new DetectFtpResponse(oldRequest, ActivityId.of("i1"), true, 1, 1, 1, 1, 1, null));
 
         FtpDetection d = store.get("i1");
         assertThat(d.getRequestId()).isEqualTo(newRequest);
@@ -121,10 +124,10 @@ class FtpDetectionServiceTest {
 
     @Test
     void restartAfterResultOverwritesOldValues() {
-        String first = service.start("i1").getRequestId();
-        service.complete(new DetectFtpResponse(first, "i1", true, 266, 182, 172, 280, 1200, null));
+        UUID first = service.start(ActivityId.of("i1")).getRequestId();
+        service.complete(new DetectFtpResponse(first, ActivityId.of("i1"), true, 266, 182, 172, 280, 1200, null));
 
-        FtpDetection restarted = service.start("i1");
+        FtpDetection restarted = service.start(ActivityId.of("i1"));
 
         assertThat(restarted.getStatus()).isEqualTo(FtpDetectionStatus.PENDING);
         assertThat(restarted.getFtp()).isNull();
@@ -133,10 +136,10 @@ class FtpDetectionServiceTest {
 
     @Test
     void pendingRunExpiresAfterTimeoutWhenRead() {
-        service.start("i1");
+        service.start(ActivityId.of("i1"));
         clock.advance(Duration.ofMinutes(3));
 
-        FtpDetection d = service.find("i1").orElseThrow();
+        FtpDetection d = service.find(ActivityId.of("i1")).orElseThrow();
 
         assertThat(d.getStatus()).isEqualTo(FtpDetectionStatus.FAILED);
         assertThat(d.getError()).contains("ftp-service");
@@ -144,10 +147,10 @@ class FtpDetectionServiceTest {
 
     @Test
     void expiredRunCanBeStartedAgain() {
-        service.start("i1");
+        service.start(ActivityId.of("i1"));
         clock.advance(Duration.ofMinutes(3));
 
-        FtpDetection d = service.start("i1");
+        FtpDetection d = service.start(ActivityId.of("i1"));
 
         assertThat(d.getStatus()).isEqualTo(FtpDetectionStatus.PENDING);
         verify(publisher, times(2)).publish(eq(Topics.DETECT_FTP_REQUEST), any());
@@ -157,7 +160,7 @@ class FtpDetectionServiceTest {
     void publishFailureMarksFailed() {
         doThrow(new MessagingException("Broker weg", null)).when(publisher).publish(any(), any());
 
-        FtpDetection d = service.start("i1");
+        FtpDetection d = service.start(ActivityId.of("i1"));
 
         assertThat(d.getStatus()).isEqualTo(FtpDetectionStatus.FAILED);
         assertThat(d.getError()).contains("Broker weg");
@@ -165,7 +168,7 @@ class FtpDetectionServiceTest {
 
     @Test
     void responseForUnknownActivityIsIgnored() {
-        service.complete(DetectFtpResponse.notDetected("r1", "unbekannt"));
+        service.complete(DetectFtpResponse.notDetected(UUID.randomUUID(), ActivityId.of("unbekannt")));
 
         assertThat(store).isEmpty();
     }

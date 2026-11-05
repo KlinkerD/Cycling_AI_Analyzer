@@ -4,6 +4,7 @@
     <file url="file://$PROJECT_DIR$/ai-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/backend/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cycling-messaging/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/cycling-types/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cycling-web/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/delivery-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/fitness-service/src/main/java" charset="UTF-8" />
@@ -16,5 +17,7 @@
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/training-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/weather-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/weather-service/src/main/java" charset="UTF-8" />
   </component>
 </project>

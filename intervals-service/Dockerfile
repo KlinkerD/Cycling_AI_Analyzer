@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
 
 COPY pom.xml .
+COPY cycling-types ./cycling-types
 COPY cycling-messaging ./cycling-messaging
 COPY intervals-api ./intervals-api
 COPY intervals-service ./intervals-service

@@ -1,5 +1,6 @@
 package com.cycling.weather.api;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -23,7 +24,7 @@ public record WeatherResult(List<Point> points, String source) {
     public record Point(
             double lat,
             double lng,
-            String time,
+            Instant time,
             Double temperatureC,
             Double windSpeedKmh,
             Double windGustKmh,

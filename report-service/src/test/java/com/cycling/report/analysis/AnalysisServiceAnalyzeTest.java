@@ -1,5 +1,7 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.api.ActivityDto;
 import com.cycling.report.api.StreamDataDto;
 import com.cycling.report.weather.RideWeatherService;
@@ -35,7 +37,7 @@ class AnalysisServiceAnalyzeTest {
 
         when(intervals.getAthleteThresholds())
                 .thenReturn(new AthleteThresholdsDto("Test", 250, 235, null, null, null));
-        when(intervals.getStreams("i1"))
+        when(intervals.getStreams(ActivityId.of("i1")))
                 .thenReturn(new StreamDataDto(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
                         List.of(), List.of()));
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -45,7 +47,7 @@ class AnalysisServiceAnalyzeTest {
     /** 1 h mit NP 200 W. */
     private static ActivityDto activity(String type) {
         ActivityDto dto = new ActivityDto();
-        dto.setId("i1");
+        dto.setId(ActivityId.of("i1"));
         dto.setName("Test-Fahrt");
         dto.setType(type);
         dto.setMovingTime(3600);
@@ -56,7 +58,7 @@ class AnalysisServiceAnalyzeTest {
     private static final AiAssessment AI = new AiAssessment(7, "s", "a", "p", "sum");
 
     private PreparedAnalysis analyze(ActivityDto activity) {
-        PreparedAnalysis prepared = service.prepare("i1", activity);
+        PreparedAnalysis prepared = service.prepare(ActivityId.of("i1"), activity);
         service.complete(prepared, AI);
         return prepared;
     }
@@ -69,7 +71,7 @@ class AnalysisServiceAnalyzeTest {
 
     @Test
     void indoorRideUsesIndoorFtpEverywhere() {
-        when(intervals.getActivityZones("i1")).thenReturn(new ActivityZonesDto(List.of(), List.of(), true, null));
+        when(intervals.getActivityZones(ActivityId.of("i1"))).thenReturn(new ActivityZonesDto(List.of(), List.of(), true, null));
 
         PreparedAnalysis prepared = analyze(activity("VirtualRide"));
 
@@ -85,7 +87,7 @@ class AnalysisServiceAnalyzeTest {
 
     @Test
     void icuFtpOfActivityWins() {
-        when(intervals.getActivityZones("i1")).thenReturn(new ActivityZonesDto(List.of(), List.of(), true, 240));
+        when(intervals.getActivityZones(ActivityId.of("i1"))).thenReturn(new ActivityZonesDto(List.of(), List.of(), true, 240));
 
         analyze(activity("VirtualRide"));
 
@@ -94,7 +96,7 @@ class AnalysisServiceAnalyzeTest {
 
     @Test
     void outdoorRideUsesOutdoorFtp() {
-        when(intervals.getActivityZones("i1")).thenReturn(new ActivityZonesDto(List.of(), List.of(), false, null));
+        when(intervals.getActivityZones(ActivityId.of("i1"))).thenReturn(new ActivityZonesDto(List.of(), List.of(), false, null));
 
         analyze(activity("Ride"));
 
@@ -106,7 +108,7 @@ class AnalysisServiceAnalyzeTest {
 
     @Test
     void fallsBackToActivityTypeWhenActivityCouldNotBeLoaded() {
-        when(intervals.getActivityZones("i1")).thenReturn(new ActivityZonesDto(List.of(), List.of(), null, null));
+        when(intervals.getActivityZones(ActivityId.of("i1"))).thenReturn(new ActivityZonesDto(List.of(), List.of(), null, null));
 
         analyze(activity("VirtualRide"));
 

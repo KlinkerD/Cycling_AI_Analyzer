@@ -1,5 +1,8 @@
 package com.cycling.training.fitness;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+
 import com.cycling.training.form.FormZone;
 import com.cycling.training.form.RampAssessment;
 
@@ -30,7 +33,9 @@ class FitnessMessageBuilderTest {
                 new Values("2026-11-03", 52.3, 61.0, -8.7, 4.1),
                 new Values("2026-11-02", 51.5, 55.8, -4.3, 3.9)));
 
-        assertThat(message.messageId()).isEqualTo("fitness-daily-2026-11-03");
+        // fest aus Praefix + Datum abgeleitet: bleibt ueber Neustarts und Versionen gleich (Duplikatschutz)
+        assertThat(message.messageId())
+                .isEqualTo(UUID.nameUUIDFromBytes("fitness-daily-2026-11-03".getBytes(StandardCharsets.UTF_8)));
         assertThat(message.title()).isEqualTo("📈 Fitness heute");
         assertThat(message.subtitle()).isEqualTo("Dienstag, 03.11.2026");
         assertThat(message.color()).isEqualTo(FormZone.GREY.color());

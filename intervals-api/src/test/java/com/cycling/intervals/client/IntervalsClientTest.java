@@ -15,6 +15,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import com.cycling.types.ActivityId;
+
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
@@ -30,6 +32,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 /** JSON wie es der intervals-service liefert. */
 class IntervalsClientTest {
+
+    private static final ActivityId I1 = ActivityId.of("i1");
 
     private static final String BASE = "http://intervals-service";
     private static final LocalDate NOV_1 = LocalDate.of(2026, 11, 1);
@@ -48,7 +52,7 @@ class IntervalsClientTest {
     void readsActivities() {
         server.expect(requestTo(BASE + "/api/intervals/activities?from=2026-11-01&to=2026-11-03"))
                 .andRespond(withSuccess("""
-                        [{"id":"i1","name":"Runde","startDateLocal":"2026-11-01T08:30:00","type":"Ride",
+                        [{"id":"i1","name":"Runde","startDateLocal":"2026-11-01T08:30:00","startDate":"2026-11-01T07:30:00Z","type":"Ride",
                           "distance":42000.0,"movingTime":5400,"elapsedTime":5600,"averageWatts":180.0,
                           "normalizedPower":195.0,"maxWatts":600.0,"averageHeartrate":140.0,"maxHeartrate":175.0,
                           "averageSpeed":7.8,"totalElevationGain":350.0}]""", MediaType.APPLICATION_JSON));
@@ -57,7 +61,9 @@ class IntervalsClientTest {
 
         assertThat(activities).hasSize(1);
         IntervalsActivity a = activities.getFirst();
-        assertThat(a.id()).isEqualTo("i1");
+        assertThat(a.id()).isEqualTo(I1);
+        assertThat(a.startDateLocal()).isEqualTo(java.time.LocalDateTime.parse("2026-11-01T08:30:00"));
+        assertThat(a.startDate()).isEqualTo(java.time.Instant.parse("2026-11-01T07:30:00Z"));
         assertThat(a.normalizedPower()).isEqualTo(195.0);
         assertThat(a.movingTime()).isEqualTo(5400);
     }
@@ -73,7 +79,7 @@ class IntervalsClientTest {
                         [{"date":"2026-11-03","ctl":55.0,"atl":60.0,"form":-5.0,"rampRate":3.2}]""",
                         MediaType.APPLICATION_JSON));
 
-        IntervalsStreams streams = client.streams("i1");
+        IntervalsStreams streams = client.streams(I1);
         List<IntervalsWellnessPoint> wellness = client.wellness(NOV_2, NOV_3);
 
         assertThat(streams.watts()).containsExactly(150, null);
@@ -99,8 +105,8 @@ class IntervalsClientTest {
                         MediaType.APPLICATION_JSON));
 
         IntervalsAthleteZones zones = client.athleteZonesOrEmpty();
-        IntervalsActivityZones activityZones = client.activityZonesIfAvailable("i1").orElseThrow();
-        IntervalsPowerCurve curve = client.powerCurveOrEmpty("i1");
+        IntervalsActivityZones activityZones = client.activityZonesIfAvailable(I1).orElseThrow();
+        IntervalsPowerCurve curve = client.powerCurveOrEmpty(I1);
 
         assertThat(zones.thresholds().indoorFtp()).isEqualTo(235);
         assertThat(zones.powerZones().getFirst().upperValue()).isEqualTo(188);
@@ -133,7 +139,7 @@ class IntervalsClientTest {
                         .contentType(MediaType.APPLICATION_PROBLEM_JSON)
                         .body(problem("INTERVALS_RATE_LIMIT", "Rate-Limit")));
 
-        assertThatThrownBy(() -> client.streams("i1"))
+        assertThatThrownBy(() -> client.streams(I1))
                 .isInstanceOfSatisfying(IntervalsUnavailableException.class, e -> {
                     assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
                     assertThat(e.code()).isEqualTo("INTERVALS_RATE_LIMIT");
@@ -172,8 +178,8 @@ class IntervalsClientTest {
         assertThat(thresholds.ftp()).isNull();
         assertThat(zones.powerZones()).isEmpty();
         assertThat(zones.hrReference()).isEqualTo("lthr");
-        assertThat(client.activityZonesIfAvailable("i1")).isEmpty();
-        assertThat(client.powerCurveOrEmpty("i1").points()).isEmpty();
+        assertThat(client.activityZonesIfAvailable(I1)).isEmpty();
+        assertThat(client.powerCurveOrEmpty(I1).points()).isEmpty();
         client.evictCachesQuietly();
         server.verify();
     }

@@ -51,7 +51,7 @@ class DiscordChannelSenderTest {
     private final DeliveryMessage message = MessageFixtures.message("m1");
 
     private static Delivery delivery(String destination) {
-        return new Delivery("m1", "report", DeliveryChannel.DISCORD, destination, LocalDateTime.now());
+        return new Delivery(MessageFixtures.id("m1"), "report", DeliveryChannel.DISCORD, destination, LocalDateTime.now());
     }
 
     @Test
@@ -81,7 +81,7 @@ class DiscordChannelSenderTest {
 
     @Test
     void invalidColorFallsBackToGrey() throws Exception {
-        DeliveryMessage noColor = new DeliveryMessage("m1", "Hallo", null, "rot", null, null, null, null, null);
+        DeliveryMessage noColor = new DeliveryMessage(MessageFixtures.id("m1"), "Hallo", null, "rot", null, null, null, null, null);
         server.expect(requestTo(DEFAULT_URL))
                 .andExpect(jsonPath("$.embeds.length()").value(1))
                 .andExpect(jsonPath("$.embeds[0].color").value(0x9E9E9E))

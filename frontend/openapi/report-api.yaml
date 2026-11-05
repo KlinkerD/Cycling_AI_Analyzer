@@ -41,6 +41,7 @@ paths:
         required: true
         schema:
           type: string
+          format: uuid
       responses:
         "200":
           content:
@@ -255,9 +256,11 @@ components:
           nullable: true
         startDate:
           type: string
+          format: date-time
           nullable: true
         startDateLocal:
           type: string
+          format: date-time
           nullable: true
         totalElevationGain:
           type: number
@@ -411,6 +414,7 @@ components:
           nullable: true
         jobId:
           type: string
+          format: uuid
         status:
           type: string
           enum:
@@ -725,6 +729,7 @@ components:
           nullable: true
         time:
           type: string
+          format: date-time
         windDirectionDeg:
           type: number
           format: double

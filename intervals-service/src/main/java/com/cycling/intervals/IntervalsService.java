@@ -1,5 +1,6 @@
 package com.cycling.intervals;
 
+import com.cycling.types.ActivityId;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.intervals.api.IntervalsActivityZones;
 import com.cycling.intervals.api.IntervalsAthleteThresholds;
@@ -37,39 +38,39 @@ public class IntervalsService {
     private final Cache<String, List<IntervalsActivity>> activities = cache(Duration.ofMinutes(2), 32);
     private final Cache<String, List<IntervalsWellnessPoint>> wellness = cache(Duration.ofMinutes(15), 64);
     private final Cache<String, IntervalsAthleteZones> athleteZones = cache(Duration.ofHours(1), 1);
-    private final Cache<String, IntervalsStreams> streams = cache(Duration.ofHours(6), 50);
-    private final Cache<String, IntervalsActivityZones> activityZones = cache(Duration.ofHours(6), 50);
-    private final Cache<String, IntervalsPowerCurve> powerCurves = cache(Duration.ofHours(6), 50);
+    private final Cache<ActivityId, IntervalsStreams> streams = cache(Duration.ofHours(6), 50);
+    private final Cache<ActivityId, IntervalsActivityZones> activityZones = cache(Duration.ofHours(6), 50);
+    private final Cache<ActivityId, IntervalsPowerCurve> powerCurves = cache(Duration.ofHours(6), 50);
 
     public IntervalsService(IntervalsGateway gateway) {
         this.gateway = gateway;
     }
 
     public List<IntervalsActivity> activities(LocalDate from, LocalDate to) {
-        return activities.get(from + "_" + to, k -> gateway.activities(from, to));
+        return activities.get(from + "_" + to, _ -> gateway.activities(from, to));
     }
 
     public List<IntervalsWellnessPoint> wellness(LocalDate from, LocalDate to) {
-        return wellness.get(from + "_" + to, k -> gateway.wellness(from, to));
+        return wellness.get(from + "_" + to, _ -> gateway.wellness(from, to));
     }
 
     public IntervalsAthleteZones athleteZones() {
-        return athleteZones.get(ATHLETE_KEY, k -> gateway.athleteZones());
+        return athleteZones.get(ATHLETE_KEY, _ -> gateway.athleteZones());
     }
 
     public IntervalsAthleteThresholds thresholds() {
         return athleteZones().thresholds();
     }
 
-    public IntervalsStreams streams(String activityId) {
+    public IntervalsStreams streams(ActivityId activityId) {
         return streams.get(activityId, gateway::streams);
     }
 
-    public IntervalsActivityZones activityZones(String activityId) {
+    public IntervalsActivityZones activityZones(ActivityId activityId) {
         return activityZones.get(activityId, id -> gateway.activityZones(id, athleteZones()));
     }
 
-    public IntervalsPowerCurve powerCurve(String activityId) {
+    public IntervalsPowerCurve powerCurve(ActivityId activityId) {
         return powerCurves.get(activityId, gateway::powerCurve);
     }
 
@@ -97,7 +98,7 @@ public class IntervalsService {
         log.info("Alle intervals.icu-Caches geleert");
     }
 
-    private static <V> Cache<String, V> cache(Duration ttl, long maxSize) {
+    private static <K, V> Cache<K, V> cache(Duration ttl, long maxSize) {
         return Caffeine.newBuilder().expireAfterWrite(ttl).maximumSize(maxSize).build();
     }
 }

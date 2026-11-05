@@ -23,7 +23,7 @@ public record RideWeatherPoint(
 
     public WeatherPointDto toDto() {
         return new WeatherPointDto(sample.minuteOfRide(), sample.distanceKm(), sample.lat(), sample.lng(),
-                sample.time().toString(), temperatureC, windSpeedKmh, windGustKmh, windDirectionDeg,
+                sample.time(), temperatureC, windSpeedKmh, windGustKmh, windDirectionDeg,
                 precipitationMmPerHour);
     }
 }

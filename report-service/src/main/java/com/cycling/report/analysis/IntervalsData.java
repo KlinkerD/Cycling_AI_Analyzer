@@ -1,5 +1,7 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.intervals.api.IntervalsActivityZones;
 import com.cycling.intervals.api.IntervalsAthleteThresholds;
 import com.cycling.intervals.api.IntervalsAthleteZones;
@@ -41,7 +43,7 @@ public class IntervalsData {
         return client.activities(LocalDate.parse(from), LocalDate.parse(to)).stream().map(ActivityDto::from).toList();
     }
 
-    public StreamDataDto getStreams(String activityId) {
+    public StreamDataDto getStreams(ActivityId activityId) {
         IntervalsStreams s = client.streams(activityId);
         return new StreamDataDto(list(s.distance()), list(s.watts()), list(s.heartrate()), list(s.velocity()),
                 list(s.altitude()), list(s.time()), list(s.cadence()), list(s.lat()), list(s.lng()));
@@ -89,14 +91,14 @@ public class IntervalsData {
     }
 
     /** Fail-soft: leere Zonen und unbekannte Indoor-Kennung/FTP, wenn der Abruf scheitert. */
-    public ActivityZonesDto getActivityZones(String activityId) {
+    public ActivityZonesDto getActivityZones(ActivityId activityId) {
         return client.activityZonesIfAvailable(activityId)
                 .map(IntervalsData::toZones)
                 .orElseGet(() -> new ActivityZonesDto(List.of(), List.of(), null, null));
     }
 
     /** Power-Curve als "Dauer in s -> Watt"; fail-soft leer. */
-    public SortedMap<Integer, Integer> getActivityPowerCurve(String activityId) {
+    public SortedMap<Integer, Integer> getActivityPowerCurve(ActivityId activityId) {
         TreeMap<Integer, Integer> out = new TreeMap<>();
         for (IntervalsPowerCurve.Point p : client.powerCurveOrEmpty(activityId).points()) {
             out.put(p.seconds(), p.watts());

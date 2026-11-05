@@ -1,5 +1,6 @@
 package com.cycling.intervals;
 
+import com.cycling.types.ActivityId;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.intervals.api.IntervalsActivityZones;
 import com.cycling.intervals.api.IntervalsAthleteZones;
@@ -41,7 +42,7 @@ public class IntervalsGateway {
     }
 
     /** {@code GET /activity/{id}/streams}: Standard-Streams plus GPS ({@code latlng}). */
-    public IntervalsStreams streams(String activityId) {
+    public IntervalsStreams streams(ActivityId activityId) {
         return IntervalsParser.streams(json(activityPath(activityId) + "/streams?types=latlng&includeDefaults=true"));
     }
 
@@ -88,7 +89,7 @@ public class IntervalsGateway {
     }
 
     /** Zonenzeiten aus dem Aktivitaets-Detail; Namen/Farben aus {@code athleteZones}. */
-    public IntervalsActivityZones activityZones(String activityId, IntervalsAthleteZones athleteZones) {
+    public IntervalsActivityZones activityZones(ActivityId activityId, IntervalsAthleteZones athleteZones) {
         return IntervalsParser.activityZones(json(activityPath(activityId)), athleteZones);
     }
 
@@ -96,7 +97,7 @@ public class IntervalsGateway {
      * Erst {@code /activity/{id}/power-curve}, bei Fehler oder leerer Antwort die {@code icu_pm_*}-Felder
      * des Aktivitaets-Details. Fehler beim zweiten Abruf werden geworfen.
      */
-    public IntervalsPowerCurve powerCurve(String activityId) {
+    public IntervalsPowerCurve powerCurve(ActivityId activityId) {
         try {
             IntervalsPowerCurve curve = IntervalsParser.powerCurve(json(activityPath(activityId) + "/power-curve"));
             if (!curve.points().isEmpty()) return curve;
@@ -119,8 +120,8 @@ public class IntervalsGateway {
         return "/athlete/" + UriUtils.encodePathSegment(http.athleteId(), StandardCharsets.UTF_8);
     }
 
-    private static String activityPath(String activityId) {
-        return "/activity/" + UriUtils.encodePathSegment(activityId, StandardCharsets.UTF_8);
+    private static String activityPath(ActivityId activityId) {
+        return "/activity/" + UriUtils.encodePathSegment(activityId.value(), StandardCharsets.UTF_8);
     }
 
     private JsonNode json(String path) {

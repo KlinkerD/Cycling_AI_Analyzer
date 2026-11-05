@@ -1,8 +1,11 @@
 package com.cycling.delivery;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Eine angenommene {@code DeliveryMessage}. Der Inhalt (JSON inkl. Bilder) wird nach
@@ -12,8 +15,10 @@ import java.time.LocalDateTime;
 @Table(name = "delivery_message", indexes = @Index(columnList = "receivedAt"))
 public class StoredMessage {
 
+    /** Als Text gespeichert (Spalte bleibt varchar). */
     @Id
-    private String messageId;
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    private UUID messageId;
 
     @Column(nullable = false)
     private String source;
@@ -31,7 +36,7 @@ public class StoredMessage {
     protected StoredMessage() {
     }
 
-    public StoredMessage(String messageId, String source, String title, LocalDateTime receivedAt, byte[] payload) {
+    public StoredMessage(UUID messageId, String source, String title, LocalDateTime receivedAt, byte[] payload) {
         this.messageId = messageId;
         this.source = source;
         this.title = title != null && title.length() > 500 ? title.substring(0, 500) : title;
@@ -43,7 +48,7 @@ public class StoredMessage {
         payload = null;
     }
 
-    public String getMessageId() { return messageId; }
+    public UUID getMessageId() { return messageId; }
     public String getSource() { return source; }
     public String getTitle() { return title; }
     public LocalDateTime getReceivedAt() { return receivedAt; }

@@ -1,5 +1,7 @@
 package com.cycling.report.weather;
 
+import com.cycling.types.ActivityId;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -12,10 +14,10 @@ import java.util.List;
 @Repository
 public interface WeatherPointRepository extends JpaRepository<WeatherPoint, Long> {
 
-    List<WeatherPoint> findByActivityIdOrderByMinuteOfRideAsc(String activityId);
+    List<WeatherPoint> findByActivityIdOrderByMinuteOfRideAsc(ActivityId activityId);
 
     @Modifying
     @Transactional
     @Query("DELETE FROM WeatherPoint w WHERE w.activityId = :activityId")
-    void deleteByActivityId(@Param("activityId") String activityId);
+    void deleteByActivityId(@Param("activityId") ActivityId activityId);
 }

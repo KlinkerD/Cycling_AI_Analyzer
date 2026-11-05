@@ -1,5 +1,7 @@
 package com.cycling.training.recommendation;
 
+import java.time.LocalDateTime;
+import com.cycling.types.ActivityId;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
 import com.cycling.training.form.FormZone;
@@ -125,7 +127,7 @@ class RecommendationCalculatorTest {
     }
 
     private static IntervalsActivity ride(String name, String start, Double load, Double intensity, Double distance) {
-        return new IntervalsActivity("i", name, start, "Ride", distance, null, null, null, null, null, null, null,
+        return new IntervalsActivity(ActivityId.of("i"), name, start == null ? null : LocalDateTime.parse(start), "Ride", distance, null, null, null, null, null, null, null,
                 null, null, load, intensity, null);
     }
 }

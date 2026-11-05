@@ -1,5 +1,6 @@
 package com.cycling.training.api;
 
+import java.util.UUID;
 import com.cycling.intervals.client.IntervalsUnavailableException;
 import com.cycling.training.recommendation.Recommendation;
 import com.cycling.training.recommendation.RecommendationEngine;
@@ -24,13 +25,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class RecommendationControllerTest {
 
+    /** Feste UUID pro Name, damit Tests lesbar bleiben. */
+    private static UUID uuid(String name) {
+        return UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     private final RecommendationEngine engine = mock(RecommendationEngine.class);
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new RecommendationController(engine))
             .setControllerAdvice(new IntervalsProblemHandler())
             .build();
 
     private static Recommendation recommendation(String requestId, String text, boolean textPending) {
-        return new Recommendation(requestId, "TEMPO", "Tempo / Sweet Spot", "#ff9800", text, 8.0, 4.2, false,
+        return new Recommendation(uuid(requestId), "TEMPO", "Tempo / Sweet Spot", "#ff9800", text, 8.0, 4.2, false,
                 LocalDate.of(2026, 11, 3), LocalDateTime.of(2026, 11, 3, 9, 0), textPending, textPending);
     }
 

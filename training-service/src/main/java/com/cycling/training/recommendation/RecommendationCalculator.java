@@ -72,8 +72,8 @@ public final class RecommendationCalculator {
     public static String last7DaysSummary(List<IntervalsActivity> activities) {
         StringBuilder sb = new StringBuilder();
         activities.stream()
-                .sorted(Comparator.comparing(
-                        (IntervalsActivity a) -> a.startDateLocal() == null ? "" : a.startDateLocal()).reversed())
+                .sorted(Comparator.comparing(IntervalsActivity::startDateLocal,
+                        Comparator.nullsFirst(Comparator.<LocalDateTime>naturalOrder())).reversed())
                 .forEach(a -> {
                     sb.append("- ").append(day(a.startDateLocal())).append(' ').append(a.name());
                     if (a.trainingLoad() != null) {
@@ -90,12 +90,8 @@ public final class RecommendationCalculator {
         return sb.toString();
     }
 
-    private static String day(String startDateLocal) {
-        try {
-            return LocalDateTime.parse(startDateLocal).format(DAY_FMT);
-        } catch (RuntimeException e) {
-            return "?.?.";
-        }
+    private static String day(LocalDateTime startDateLocal) {
+        return startDateLocal == null ? "?.?." : startDateLocal.format(DAY_FMT);
     }
 
     /** Juengster Punkt mit vorhandenem CTL (Liste ist aufsteigend nach Datum sortiert). */

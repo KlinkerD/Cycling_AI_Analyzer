@@ -8,7 +8,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -61,7 +60,7 @@ class WeatherService {
         List<WeatherResult.Point> out = new ArrayList<>(parsed.size());
         for (Parsed p : parsed) {
             WeatherQuery.Point q = p.point();
-            out.add(Interpolation.at(series.get(p.location()), q.lat(), q.lng(), q.time(), p.instant().getEpochSecond()));
+            out.add(Interpolation.at(series.get(p.location()), q.lat(), q.lng(), q.time()));
         }
         return new WeatherResult(out, SOURCE);
     }
@@ -84,14 +83,8 @@ class WeatherService {
             if (!(p.lat() >= -90 && p.lat() <= 90) || !(p.lng() >= -180 && p.lng() <= 180)) {
                 throw new InvalidQueryException("Punkt " + i + ": Koordinaten ausserhalb des gueltigen Bereichs");
             }
-            Instant instant;
-            try {
-                instant = Instant.parse(p.time());
-            } catch (DateTimeParseException | NullPointerException e) {
-                throw new InvalidQueryException("Punkt " + i + ": Zeit ist kein UTC-Zeitpunkt (ISO-8601 mit Z): "
-                        + p.time());
-            }
-            out.add(new Parsed(p, instant, Location.snap(p.lat(), p.lng())));
+            if (p.time() == null) throw new InvalidQueryException("Punkt " + i + ": Zeit fehlt");
+            out.add(new Parsed(p, p.time(), Location.snap(p.lat(), p.lng())));
         }
         return out;
     }

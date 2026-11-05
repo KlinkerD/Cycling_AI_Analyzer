@@ -1,8 +1,13 @@
 package com.cycling.intervals.api;
 
+import com.cycling.types.ActivityId;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -11,7 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** Die Records muessen JSON-Roundtrips ueberstehen, weil der intervals-service und seine Clients sie austauschen. */
 class IntervalsApiJsonTest {
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule())
+            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
 
     private <T> T roundTrip(T value, Class<T> type) throws Exception {
         return mapper.readValue(mapper.writeValueAsString(value), type);
@@ -19,9 +25,10 @@ class IntervalsApiJsonTest {
 
     @Test
     void activitySurvivesRoundTrip() throws Exception {
-        IntervalsActivity activity = new IntervalsActivity("i1", "Runde", "2026-11-01T08:30:00", "Ride",
+        IntervalsActivity activity = new IntervalsActivity(ActivityId.of("i1"), "Runde",
+                LocalDateTime.parse("2026-11-01T08:30:00"), "Ride",
                 42000.0, 5400, 5600, 180.0, 195.0, 600.0, 140.0, 175.0, 7.8, 350.0, 85.0, 0.78,
-                "2026-11-01T07:30:00Z");
+                Instant.parse("2026-11-01T07:30:00Z"));
 
         assertThat(roundTrip(activity, IntervalsActivity.class)).isEqualTo(activity);
     }

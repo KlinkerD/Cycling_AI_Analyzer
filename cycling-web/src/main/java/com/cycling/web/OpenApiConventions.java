@@ -1,10 +1,12 @@
 package com.cycling.web;
 
+import com.cycling.types.ActivityId;
 import com.fasterxml.jackson.databind.JavaType;
 import io.swagger.v3.oas.models.media.ComposedSchema;
 import io.swagger.v3.oas.models.media.Schema;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.customizers.PropertyCustomizer;
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -23,6 +25,11 @@ import java.util.Map;
  */
 @Configuration
 public class OpenApiConventions {
+
+    static {
+        // Werttypen, die im JSON einfache Strings sind, auch in der Spec als String (nicht als Objekt {value})
+        SpringDocUtils.getConfig().replaceWithClass(ActivityId.class, String.class);
+    }
 
     /** Objekt-Typen (Integer, String, Dto ...) koennen null sein; primitive Typen und Listen nicht. */
     @Bean

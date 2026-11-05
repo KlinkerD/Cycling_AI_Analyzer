@@ -1,5 +1,9 @@
 package com.cycling.report.api;
 
+import com.cycling.types.ActivityId;
+import java.time.Instant;
+import java.time.LocalDateTime;
+
 import com.cycling.web.ApiNonNull;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.messaging.contract.ActivityDetected;
@@ -17,10 +21,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ActivityDto {
 
-    private String id;
+    private ActivityId id;
     private String name;
-    private String startDateLocal;
-    private String startDate;
+    private LocalDateTime startDateLocal;
+    private Instant startDate;
     private Double distance;
     private Integer movingTime;
     private Integer elapsedTime;
@@ -46,11 +50,11 @@ public class ActivityDto {
                 a.maxHeartrate(), a.averageSpeed(), a.totalElevationGain(), a.startDate());
     }
 
-    private static ActivityDto of(String id, String name, String startDateLocal, String type, Double distance,
+    private static ActivityDto of(ActivityId id, String name, LocalDateTime startDateLocal, String type, Double distance,
                                   Integer movingTime, Integer elapsedTime, Double averageWatts,
                                   Double normalizedPower, Double maxWatts, Double averageHeartrate,
                                   Double maxHeartrate, Double averageSpeed, Double totalElevationGain,
-                                  String startDate) {
+                                  Instant startDate) {
         ActivityDto dto = new ActivityDto();
         dto.id = id;
         dto.name = name;
@@ -71,10 +75,10 @@ public class ActivityDto {
     }
 
     // ---- Setter (JSON vom Frontend bzw. aus dem Analyse-Job) ----
-    public void setId(String v) { this.id = v; }
+    public void setId(ActivityId v) { this.id = v; }
     public void setName(String v) { this.name = v; }
-    public void setStartDateLocal(String v) { this.startDateLocal = v; }
-    public void setStartDate(String v) { this.startDate = v; }
+    public void setStartDateLocal(LocalDateTime v) { this.startDateLocal = v; }
+    public void setStartDate(Instant v) { this.startDate = v; }
     public void setDistance(Double v) { this.distance = v; }
     public void setMovingTime(Integer v) { this.movingTime = v; }
     public void setElapsedTime(Integer v) { this.elapsedTime = v; }
@@ -89,11 +93,12 @@ public class ActivityDto {
     public void setAnalyzed(boolean v) { this.analyzed = v; }
 
     // ---- Accessoren (auch fuer Serialisierung Richtung Frontend) ----
-    @ApiNonNull @JsonProperty("id") public String id() { return id; }
+    @ApiNonNull @JsonProperty("id") public ActivityId id() { return id; }
     @JsonProperty("name") public String name() { return name; }
-    @JsonProperty("startDateLocal") public String startDateLocal() { return startDateLocal; }
-    /** Startzeit in UTC, z. B. "2026-11-01T07:30:00Z"; null bei alten Daten (dann kein Wetter). */
-    @JsonProperty("startDate") public String startDate() { return startDate; }
+    /** Lokale Startzeit ohne Zone. */
+    @JsonProperty("startDateLocal") public LocalDateTime startDateLocal() { return startDateLocal; }
+    /** Startzeit in UTC; null bei alten Daten (dann kein Wetter). */
+    @JsonProperty("startDate") public Instant startDate() { return startDate; }
     /** Meter. */
     @JsonProperty("distance") public Double distance() { return distance; }
     /** Sekunden. */

@@ -1,5 +1,7 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.weather.RideWeatherPoint;
 import com.cycling.report.weather.WeatherSample;
 import com.cycling.report.weather.WeatherSummary;
@@ -17,7 +19,7 @@ class AnalysisPromptWeatherTest {
 
     private static final Instant START = Instant.parse("2026-11-01T07:30:00Z");
 
-    private static ActivityAnalysis ride(String id, String name) {
+    private static ActivityAnalysis ride(ActivityId id, String name) {
         ActivityAnalysis a = new ActivityAnalysis();
         a.setActivityId(id);
         a.setActivityName(name);
@@ -39,8 +41,8 @@ class AnalysisPromptWeatherTest {
                     null, null, null, null, null));
 
     private static String prompt(List<RideWeatherPoint> weather, List<ActivityAnalysis> previous,
-                                 Map<String, WeatherSummary> previousWeather) {
-        return AnalysisPrompt.build(new PreparedAnalysis(ride("i1", "Runde"), null, List.of(), List.of(), previous,
+                                 Map<ActivityId, WeatherSummary> previousWeather) {
+        return AnalysisPrompt.build(new PreparedAnalysis(ride(ActivityId.of("i1"), "Runde"), null, List.of(), List.of(), previous,
                 250, 190, weather, previousWeather));
     }
 
@@ -69,11 +71,11 @@ class AnalysisPromptWeatherTest {
 
     @Test
     void comparisonRidesShowTheirWeather() {
-        ActivityAnalysis prev = ride("i0", "Vorher");
-        ActivityAnalysis prevWithout = ride("i-1", "Ohne Wetter");
+        ActivityAnalysis prev = ride(ActivityId.of("i0"), "Vorher");
+        ActivityAnalysis prevWithout = ride(ActivityId.of("i-1"), "Ohne Wetter");
 
         String p = prompt(List.of(), List.of(prev, prevWithout),
-                Map.of("i0", new WeatherSummary(10, 14, 12.4, 18.2, 35.0, 0)));
+                Map.of(ActivityId.of("i0"), new WeatherSummary(10, 14, 12.4, 18.2, 35.0, 0)));
 
         assertThat(p).containsPattern("Vorher \\(01\\.11\\.2026\\).*, Wetter: 12 °C, Wind 18 km/h");
         assertThat(p).doesNotContainPattern("Ohne Wetter.*Wetter:");

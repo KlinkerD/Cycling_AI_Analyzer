@@ -3,23 +3,22 @@ package com.cycling.intervals;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.intervals.api.IntervalsErrorCode;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
+import com.cycling.types.ActivityId;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** REST-Endpoints und Fehlerantworten (ProblemDetail mit code) ohne Spring-Kontext. */
 class IntervalsControllerTest {
@@ -32,8 +31,8 @@ class IntervalsControllerTest {
     @Test
     void listsActivities() throws Exception {
         when(intervals.activities(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 3))).thenReturn(List.of(
-                new IntervalsActivity("i1", "Runde", "2026-11-01T08:30:00", "Ride", 42000.0, 5400, 5600,
-                        180.0, 195.0, 600.0, 140.0, 175.0, 7.8, 350.0, 85.0, 0.78, "2026-11-01T07:30:00Z")));
+                new IntervalsActivity(ActivityId.of("i1"), "Runde", LocalDateTime.parse("2026-11-01T08:30:00"), "Ride", 42000.0, 5400, 5600,
+                        180.0, 195.0, 600.0, 140.0, 175.0, 7.8, 350.0, 85.0, 0.78, Instant.parse("2026-11-01T07:30:00Z"))));
 
         mvc.perform(get("/api/intervals/activities").param("from", "2026-11-01").param("to", "2026-11-03"))
                 .andExpect(status().isOk())
@@ -89,7 +88,7 @@ class IntervalsControllerTest {
 
     @Test
     void authProblemIsBadGateway() throws Exception {
-        when(intervals.streams(anyString()))
+        when(intervals.streams(any()))
                 .thenThrow(new IntervalsApiException(IntervalsErrorCode.INTERVALS_AUTH, "API-Key pruefen"));
 
         mvc.perform(get("/api/intervals/activities/i1/streams"))
@@ -111,7 +110,7 @@ class IntervalsControllerTest {
 
     @Test
     void unknownActivityIsNotFound() throws Exception {
-        when(intervals.activityZones("nope"))
+        when(intervals.activityZones(ActivityId.of("nope")))
                 .thenThrow(new IntervalsApiException(IntervalsErrorCode.NOT_FOUND, "unbekannt"));
 
         mvc.perform(get("/api/intervals/activities/nope/zones"))

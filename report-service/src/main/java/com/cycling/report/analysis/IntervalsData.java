@@ -2,18 +2,22 @@ package com.cycling.report.analysis;
 
 import com.cycling.intervals.api.IntervalsActivityZones;
 import com.cycling.intervals.api.IntervalsAthleteThresholds;
+import com.cycling.intervals.api.IntervalsAthleteZones;
 import com.cycling.intervals.api.IntervalsPowerCurve;
 import com.cycling.intervals.api.IntervalsStreams;
+import com.cycling.intervals.api.IntervalsZone;
 import com.cycling.intervals.api.IntervalsZoneShare;
 import com.cycling.intervals.client.IntervalsClient;
 import com.cycling.intervals.client.IntervalsUnavailableException;
 import com.cycling.report.api.ActivityDto;
 import com.cycling.report.api.StreamDataDto;
+import com.cycling.report.api.ZoneBandDto;
 import com.cycling.report.api.ZoneDistributionDto;
 
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -40,7 +44,42 @@ public class IntervalsData {
     public StreamDataDto getStreams(String activityId) {
         IntervalsStreams s = client.streams(activityId);
         return new StreamDataDto(list(s.distance()), list(s.watts()), list(s.heartrate()), list(s.velocity()),
-                list(s.altitude()), list(s.time()), list(s.cadence()));
+                list(s.altitude()), list(s.time()), list(s.cadence()), list(s.lat()), list(s.lng()));
+    }
+
+    /**
+     * Zonengrenzen fuer die Karte; fail-soft leer. Leistungszonen Z1-Z7 (ohne Sweet Spot) aus den Prozentgrenzen
+     * mal {@code ftp}, damit sie zur FTP der Fahrt passen; ohne FTP die aktuellen Wattgrenzen. HF-Zonen mit den
+     * aktuellen bpm-Grenzen.
+     */
+    public ZoneBands getZoneBands(Integer ftp) {
+        IntervalsAthleteZones zones = client.athleteZonesOrEmpty();
+        List<ZoneBandDto> power = zones.powerZones().stream()
+                .filter(z -> z.index() >= 1 && z.index() <= 7)
+                .map(z -> powerBand(z, ftp))
+                .filter(Objects::nonNull)
+                .toList();
+        List<ZoneBandDto> hr = zones.hrZones().stream()
+                .filter(z -> z.lowerValue() != null)
+                .map(z -> new ZoneBandDto(z.name(), z.lowerValue(), z.upperValue(), z.color()))
+                .toList();
+        return new ZoneBands(power, hr);
+    }
+
+    /** Leistungs- und HF-Zonengrenzen fuer die Karte. */
+    public record ZoneBands(List<ZoneBandDto> power, List<ZoneBandDto> hr) {
+        public static ZoneBands empty() {
+            return new ZoneBands(List.of(), List.of());
+        }
+    }
+
+    private static ZoneBandDto powerBand(IntervalsZone z, Integer ftp) {
+        if (ftp != null && ftp > 0 && z.lowerPct() != null) {
+            Integer upper = z.upperPct() == null ? null : (int) Math.round(z.upperPct() * ftp);
+            return new ZoneBandDto(z.name(), (int) Math.round(z.lowerPct() * ftp), upper, z.color());
+        }
+        if (z.lowerValue() == null) return null;
+        return new ZoneBandDto(z.name(), z.lowerValue(), z.upperValue(), z.color());
     }
 
     /** Fail-soft: leere Schwellenwerte, wenn der Abruf scheitert. */

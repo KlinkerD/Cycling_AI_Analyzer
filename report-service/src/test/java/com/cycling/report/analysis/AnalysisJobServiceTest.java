@@ -90,9 +90,9 @@ class AnalysisJobServiceTest {
         a.setOverallScore(8);
         a.setSummary("z");
         StreamDataDto streams = new StreamDataDto(List.of(0.0, 10.0), List.of(150, 160), List.of(120, 125),
-                List.of(8.0, 8.1), List.of(100.0, 101.0), List.of(0, 1), List.of());
+                List.of(8.0, 8.1), List.of(100.0, 101.0), List.of(0, 1), List.of(), List.of(), List.of());
         return new ReportDto(AnalysisDto.from(a), streams, List.of(new ZoneDistributionDto("Z2", "Ausdauer", 1800, 50.0, "#0f0")),
-                List.of(), List.of(), null);
+                List.of(), List.of(), null, List.of(), List.of());
     }
 
     private static final AiAssessment ASSESSMENT = new AiAssessment(8, "s", "a", "p", "z");

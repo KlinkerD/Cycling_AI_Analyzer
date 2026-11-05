@@ -25,8 +25,8 @@ RUN --mount=type=cache,target=/root/.m2     mvn -q -B -pl report-service -am pac
 FROM eclipse-temurin:25-jre
 WORKDIR /app
 
-# curl fuer den Docker-Healthcheck (/actuator/health)
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+# curl fuer den Docker-Healthcheck (/actuator/health), Schrift fuer Legende/Quellenangabe im Kartenbild
+RUN apt-get update && apt-get install -y --no-install-recommends curl fontconfig fonts-dejavu-core     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/report-service/target/report-service-*.jar app.jar
 

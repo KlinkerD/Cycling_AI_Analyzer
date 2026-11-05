@@ -13,6 +13,7 @@ public record StreamDataDto(
         List<Double> velocity,   // Geschwindigkeit in m/s
         List<Double> altitude,   // Höhe in Metern
         List<Integer> time,      // Zeit in Sekunden
-        List<Integer> cadence    // Trittfrequenz in rpm
+        List<Integer> cadence,   // Trittfrequenz in rpm
+        List<Double> lat,        // Breitengrad in Grad; leer ohne GPS (Indoor), einzelne Werte koennen null sein
+        List<Double> lng         // Laengengrad in Grad; indexgleich zu lat
 ) {}
-

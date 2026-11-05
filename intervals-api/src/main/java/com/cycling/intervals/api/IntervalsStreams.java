@@ -10,6 +10,8 @@ import java.util.List;
  * @param velocity m/s
  * @param altitude Meter
  * @param time     Sekunden seit Start
+ * @param lat      Breitengrad in Grad (aus dem intervals.icu-Stream "latlng", Feld "data"); leer ohne GPS
+ * @param lng      Laengengrad in Grad (aus dem intervals.icu-Stream "latlng", Feld "data2"); leer ohne GPS
  */
 public record IntervalsStreams(
         List<Double> distance,
@@ -18,6 +20,8 @@ public record IntervalsStreams(
         List<Double> velocity,
         List<Double> altitude,
         List<Integer> time,
-        List<Integer> cadence
+        List<Integer> cadence,
+        List<Double> lat,
+        List<Double> lng
 ) {
 }

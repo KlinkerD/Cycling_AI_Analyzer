@@ -1,6 +1,7 @@
 package com.cycling.report;
 
 
+import com.cycling.report.map.RouteMapRenderer;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -12,7 +13,8 @@ import static org.mockito.Mockito.when;
 class ReportChartRendererTest {
 
     private final QuickChartService quickChart = mock(QuickChartService.class);
-    private final ReportChartRenderer renderer = new ReportChartRenderer(quickChart);
+    private final RouteMapRenderer routeMap = mock(RouteMapRenderer.class);
+    private final ReportChartRenderer renderer = new ReportChartRenderer(quickChart, routeMap);
 
     @Test
     void keepsOnlyRenderedChartsInReportOrder() {
@@ -29,5 +31,17 @@ class ReportChartRendererTest {
                 .containsExactly("speedAltChart", "cadenceChart", "hrZonesChart", "powerCurveChart");
         assertThat(charts.get("cadenceChart")).isNotNull();
         assertThat(charts.get("powerHrChart")).isNull();
+    }
+
+    @Test
+    void routeMapComesFirst() {
+        ReportContent report = ReportFixtures.report("i1");
+        when(routeMap.render(report.streams(), report.powerZoneBands())).thenReturn(ReportFixtures.png("map"));
+        when(quickChart.renderSpeedAndAltitude(any())).thenReturn(ReportFixtures.png("speed"));
+
+        ReportCharts charts = renderer.render(report);
+
+        assertThat(charts.all()).extracting(ReportCharts.Chart::key).containsExactly("routeMapChart", "speedAltChart");
+        assertThat(charts.get("routeMapChart").title()).isEqualTo("Fahrtverlauf");
     }
 }

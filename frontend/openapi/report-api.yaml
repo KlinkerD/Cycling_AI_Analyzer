@@ -536,6 +536,10 @@ components:
       properties:
         analysis:
           $ref: "#/components/schemas/AnalysisDto"
+        hrZoneBands:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZoneBandDto"
         hrZones:
           type: array
           items:
@@ -544,6 +548,10 @@ components:
           allOf:
           - $ref: "#/components/schemas/PowerCurveSetDto"
           nullable: true
+        powerZoneBands:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZoneBandDto"
         powerZones:
           type: array
           items:
@@ -556,8 +564,10 @@ components:
             $ref: "#/components/schemas/TrendDataDto"
       required:
       - analysis
+      - hrZoneBands
       - hrZones
       - powerCurveSet
+      - powerZoneBands
       - powerZones
       - streams
       - trend
@@ -604,6 +614,16 @@ components:
           items:
             type: integer
             format: int32
+        lat:
+          type: array
+          items:
+            type: number
+            format: double
+        lng:
+          type: array
+          items:
+            type: number
+            format: double
         time:
           type: array
           items:
@@ -624,6 +644,8 @@ components:
       - cadence
       - distance
       - heartrate
+      - lat
+      - lng
       - time
       - velocity
       - watts
@@ -668,6 +690,25 @@ components:
       - avgSpeedKmh
       - distanceKm
       - overallScore
+    ZoneBandDto:
+      type: object
+      properties:
+        color:
+          type: string
+        lower:
+          type: integer
+          format: int32
+        name:
+          type: string
+        upper:
+          type: integer
+          format: int32
+          nullable: true
+      required:
+      - color
+      - lower
+      - name
+      - upper
     ZoneDistributionDto:
       type: object
       properties:

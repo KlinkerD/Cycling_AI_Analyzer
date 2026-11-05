@@ -1,28 +1,33 @@
 package com.cycling.report;
 
-
+import com.cycling.report.map.RouteMapRenderer;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Rendert alle Charts eines Reports einmal ueber QuickChart; sie gehen als Anhaenge der
- * DeliveryMessage an alle Kanaele. Charts ohne Daten (null / leer) werden weggelassen.
+ * Rendert alle Bilder eines Reports einmal: zuerst die Karte mit dem Fahrtverlauf (selbst gezeichnet), dann die
+ * Charts ueber QuickChart. Sie gehen als Anhaenge der DeliveryMessage an alle Kanaele. Bilder ohne Daten
+ * (null / leer, z. B. die Karte bei Indoor-Fahrten) werden weggelassen.
  */
 @Component
 public class ReportChartRenderer {
 
     private final QuickChartService quickChart;
+    private final RouteMapRenderer routeMap;
 
-    public ReportChartRenderer(QuickChartService quickChart) {
+    public ReportChartRenderer(QuickChartService quickChart, RouteMapRenderer routeMap) {
         this.quickChart = quickChart;
+        this.routeMap = routeMap;
     }
 
     public ReportCharts render(ReportContent report) {
         List<ReportCharts.Chart> charts = new ArrayList<>();
         boolean hasCadence = report.streams().cadence() != null && !report.streams().cadence().isEmpty();
 
+        add(charts, ReportCharts.ROUTE_MAP, "Fahrtverlauf",
+                routeMap.render(report.streams(), report.powerZoneBands()));
         add(charts, ReportCharts.SPEED_ALT, "Geschwindigkeit & Höhe über Distanz",
                 quickChart.renderSpeedAndAltitude(report.streams()));
         add(charts, ReportCharts.POWER_HR, "Leistung & Herzfrequenz über Distanz",

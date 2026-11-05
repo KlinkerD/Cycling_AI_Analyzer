@@ -29,7 +29,7 @@ class IntervalsServiceCacheTest {
     @Test
     void secondRequestIsServedFromCache() {
         IntervalsStreams streams = new IntervalsStreams(List.of(), List.of(), List.of(), List.of(), List.of(),
-                List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of());
         when(gateway.streams("i1")).thenReturn(streams);
 
         assertThat(service.streams("i1")).isSameAs(streams);

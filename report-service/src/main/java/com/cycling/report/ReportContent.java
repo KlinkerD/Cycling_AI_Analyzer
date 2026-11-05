@@ -13,6 +13,8 @@ import java.util.List;
  * @param hrZones       Zeit in den Herzfrequenzzonen; leer = Chart entfaellt
  * @param trend         die zuletzt analysierten Fahrten (neueste zuerst)
  * @param powerCurveSet Bestleistungen der Fahrt und der vorherigen; null = Chart entfaellt
+ * @param powerZoneBands Leistungszonen in Watt (FTP der Fahrt) zum Einfaerben der Karte; leer = nach Tempo
+ * @param hrZoneBands    Herzfrequenzzonen in bpm
  */
 public record ReportContent(
         Analysis analysis,
@@ -20,10 +22,14 @@ public record ReportContent(
         List<Zone> powerZones,
         List<Zone> hrZones,
         List<TrendPoint> trend,
-        PowerCurveSet powerCurveSet
+        PowerCurveSet powerCurveSet,
+        List<ZoneBand> powerZoneBands,
+        List<ZoneBand> hrZoneBands
 ) {
 
     public ReportContent {
+        powerZoneBands = powerZoneBands == null ? List.of() : List.copyOf(powerZoneBands);
+        hrZoneBands = hrZoneBands == null ? List.of() : List.copyOf(hrZoneBands);
         powerZones = powerZones == null ? List.of() : List.copyOf(powerZones);
         hrZones = hrZones == null ? List.of() : List.copyOf(hrZones);
         trend = trend == null ? List.of() : List.copyOf(trend);
@@ -64,8 +70,14 @@ public record ReportContent(
             List<Double> velocity,   // m/s
             List<Double> altitude,   // Meter
             List<Integer> time,      // Sekunden
-            List<Integer> cadence    // rpm
+            List<Integer> cadence,   // rpm
+            List<Double> lat,        // Grad; leer ohne GPS
+            List<Double> lng         // Grad
     ) {
+    }
+
+    /** Grenzen einer Zone in Watt bzw. bpm; {@code upper} null = nach oben offen. */
+    public record ZoneBand(String name, int lower, Integer upper, String color) {
     }
 
     /** Anteil einer Zone, z. B. "Z2" / "Ausdauer". */

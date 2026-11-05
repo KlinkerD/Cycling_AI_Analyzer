@@ -133,7 +133,9 @@ public class AnalysisService {
         PowerCurveSetDto powerCurveSet = powerCurveService.buildReportSet(saved, prepared.lastThree(), prepared.ftp());
 
         log.info("Analyse für {} abgeschlossen. Score: {}/10", analysis.getActivityName(), aiResult.score());
-        return new ReportDto(AnalysisDto.from(saved), prepared.streams(), prepared.powerZones(), prepared.hrZones(), trend, powerCurveSet);
+        IntervalsData.ZoneBands bands = intervalsClient.getZoneBands(prepared.ftp());
+        return new ReportDto(AnalysisDto.from(saved), prepared.streams(), prepared.powerZones(), prepared.hrZones(), trend,
+                powerCurveSet, bands.power(), bands.hr());
     }
 
     public List<String> getAnalyzedIds() {
@@ -180,7 +182,9 @@ public class AnalysisService {
 
         PowerCurveSetDto powerCurveSet = powerCurveService.buildReportSet(analysis, lastThree, ftp);
 
-        return new ReportDto(AnalysisDto.from(analysis), streams, powerZones, hrZones, trend, powerCurveSet);
+        IntervalsData.ZoneBands bands = intervalsClient.getZoneBands(ftp);
+        return new ReportDto(AnalysisDto.from(analysis), streams, powerZones, hrZones, trend, powerCurveSet,
+                bands.power(), bands.hr());
     }
 
     private List<TrendDataDto> buildTrend() {

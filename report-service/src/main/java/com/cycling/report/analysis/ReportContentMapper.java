@@ -5,6 +5,7 @@ import com.cycling.report.api.PowerCurveSetDto;
 import com.cycling.report.api.ReportDto;
 import com.cycling.report.api.StreamDataDto;
 import com.cycling.report.api.TrendDataDto;
+import com.cycling.report.api.ZoneBandDto;
 import com.cycling.report.api.ZoneDistributionDto;
 import com.cycling.report.ReportContent;
 import com.cycling.report.api.AnalysisDto;
@@ -24,7 +25,9 @@ final class ReportContentMapper {
                 toZones(report.powerZones()),
                 toZones(report.hrZones()),
                 report.trend() == null ? List.of() : report.trend().stream().map(ReportContentMapper::toTrend).toList(),
-                toPowerCurveSet(report.powerCurveSet()));
+                toPowerCurveSet(report.powerCurveSet()),
+                toBands(report.powerZoneBands()),
+                toBands(report.hrZoneBands()));
     }
 
     private static ReportContent.Analysis toAnalysis(AnalysisDto a) {
@@ -51,8 +54,17 @@ final class ReportContentMapper {
     }
 
     private static ReportContent.Streams toStreams(StreamDataDto s) {
-        if (s == null) return new ReportContent.Streams(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
-        return new ReportContent.Streams(s.distance(), s.watts(), s.heartrate(), s.velocity(), s.altitude(), s.time(), s.cadence());
+        if (s == null) {
+            return new ReportContent.Streams(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                    List.of(), List.of());
+        }
+        return new ReportContent.Streams(s.distance(), s.watts(), s.heartrate(), s.velocity(), s.altitude(), s.time(),
+                s.cadence(), s.lat(), s.lng());
+    }
+
+    private static List<ReportContent.ZoneBand> toBands(List<ZoneBandDto> bands) {
+        if (bands == null) return List.of();
+        return bands.stream().map(b -> new ReportContent.ZoneBand(b.name(), b.lower(), b.upper(), b.color())).toList();
     }
 
     private static List<ReportContent.Zone> toZones(List<ZoneDistributionDto> zones) {

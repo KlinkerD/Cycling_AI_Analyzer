@@ -38,9 +38,10 @@ class ReportResendServiceTest {
         analysis.setActivityId("i1");
         analysis.setActivityName("Runde");
         when(repository.findByActivityId("i1")).thenReturn(Optional.of(analysis));
-        StreamDataDto streams = new StreamDataDto(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+        StreamDataDto streams = new StreamDataDto(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                List.of(), List.of());
         when(analysisService.getReport("i1"))
-                .thenReturn(new ReportDto(AnalysisDto.from(analysis), streams, List.of(), List.of(), List.of(), null));
+                .thenReturn(new ReportDto(AnalysisDto.from(analysis), streams, List.of(), List.of(), List.of(), null, List.of(), List.of()));
     }
 
     @Test

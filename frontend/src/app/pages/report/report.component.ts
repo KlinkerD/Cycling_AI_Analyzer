@@ -1,4 +1,6 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription } from 'rxjs';
 import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,12 +12,15 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 import { ActivityService } from '../../services/activity.service';
-import { PowerCurveSetDto, ReportDto, TrendDataDto, ZoneDistributionDto } from '../../api/report';
+import { FtpDetectionDto, PowerCurveSetDto, ReportDto, TrendDataDto, ZoneDistributionDto } from '../../api/report';
 import { ZoomGroup } from '../../shared/charts/zoom-group';
 import { RangeSliderComponent, SparkPoint } from '../../shared/charts/range-slider.component';
 import { alpha, metricColor, scoreColor, token } from '../../shared/theme';
 import { formatCurveDuration, formatDuration, shortDate } from '../../shared/format';
-import { Pt, StreamCharts, buildStreamCharts } from './stream-charts';
+import { Pt, StreamCharts, TimeHighlight, buildStreamCharts } from './stream-charts';
+
+/** Laenge des FTP-Testblocks (entspricht ftp.detection.window-seconds im ftp-service). */
+const FTP_TEST_SECONDS = 20 * 60;
 
 interface ZoneRow {
   name: string;
@@ -42,11 +47,18 @@ export class ReportComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly activityService = inject(ActivityService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly report = signal<ReportDto | null>(null);
   readonly loading = signal(true);
   readonly resending = signal(false);
   activityId = '';
+
+  // FTP-Test-Erkennung
+  readonly Ftp = FtpDetectionDto.StatusEnum;
+  readonly ftpDetection = signal<FtpDetectionDto | null>(null);
+  readonly ftpStarting = signal(false);
+  private ftpPoll: Subscription | null = null;
 
   readonly formatDuration = formatDuration;
   readonly scoreColor = scoreColor;
@@ -81,12 +93,15 @@ export class ReportComponent implements OnInit {
 
   private load(): void {
     this.loading.set(true);
+    this.stopFtpPolling();
+    this.ftpDetection.set(null);
     this.activityService.getReport(this.activityId).subscribe({
       next: raw => {
         const report = this.normalize(raw);
         this.build(report);
         this.report.set(report);
         this.loading.set(false);
+        this.loadFtpDetection();
       },
       error: () => {
         this.loading.set(false);
@@ -97,7 +112,7 @@ export class ReportComponent implements OnInit {
   }
 
   private build(report: ReportDto): void {
-    this.streams = buildStreamCharts(report.streams, this.streamGroup);
+    this.streams = buildStreamCharts(report.streams, this.streamGroup, this.ftpHighlight());
     this.powerZones = this.zoneRows(report.powerZones);
     this.hrZones = this.zoneRows(report.hrZones);
     this.buildCurve(report.powerCurveSet);
@@ -335,6 +350,74 @@ export class ReportComponent implements OnInit {
         this.snackBar.open(message, 'OK', { duration: 5000 });
       }
     });
+  }
+
+  // ---- FTP-Test-Erkennung ----------------------------------------------------
+
+  /** Startet die Erkennung beim ftp-service und fragt das Ergebnis ab. */
+  detectFtp(): void {
+    if (this.ftpStarting() || this.ftpDetection()?.status === this.Ftp.PENDING) return;
+    this.ftpStarting.set(true);
+    const activityId = this.activityId;
+    this.activityService.startFtpDetection(activityId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: detection => {
+        this.ftpStarting.set(false);
+        if (activityId !== this.activityId) return;
+        this.applyFtpDetection(detection);
+      },
+      error: () => {
+        this.ftpStarting.set(false);
+        this.snackBar.open('FTP-Test-Auswertung konnte nicht gestartet werden.', 'OK', { duration: 5000 });
+      }
+    });
+  }
+
+  /** Letztes Ergebnis beim Laden der Seite; 404 = nie ausgeloest, dann bleibt das Panel weg. */
+  private loadFtpDetection(): void {
+    const activityId = this.activityId;
+    this.activityService.getFtpDetection(activityId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: detection => {
+        if (activityId === this.activityId) this.applyFtpDetection(detection);
+      },
+      error: () => { /* 404: noch nie ausgeloest */ }
+    });
+  }
+
+  private applyFtpDetection(detection: FtpDetectionDto): void {
+    const wasDetected = this.ftpDetection()?.status === this.Ftp.DETECTED;
+    this.ftpDetection.set(detection);
+    if (detection.status === this.Ftp.PENDING) {
+      this.startFtpPolling();
+    }
+    // Chart neu bauen, damit der erkannte Block hinterlegt wird (oder die alte Markierung verschwindet)
+    const report = this.report();
+    if (report && (wasDetected || detection.status === this.Ftp.DETECTED)) {
+      this.streams = buildStreamCharts(report.streams, this.streamGroup, this.ftpHighlight());
+    }
+  }
+
+  private startFtpPolling(): void {
+    this.stopFtpPolling();
+    const activityId = this.activityId;
+    this.ftpPoll = this.activityService.pollFtpDetection(activityId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: detection => {
+          if (activityId === this.activityId) this.applyFtpDetection(detection);
+        },
+        error: () => this.snackBar.open('Status der FTP-Test-Auswertung nicht abrufbar.', 'OK', { duration: 5000 })
+      });
+  }
+
+  private stopFtpPolling(): void {
+    this.ftpPoll?.unsubscribe();
+    this.ftpPoll = null;
+  }
+
+  private ftpHighlight(): TimeHighlight | null {
+    const d = this.ftpDetection();
+    if (d?.status !== this.Ftp.DETECTED || d.windowStartSeconds == null) return null;
+    return { startSeconds: d.windowStartSeconds, durationSeconds: FTP_TEST_SECONDS, label: 'FTP-Test 20 min' };
   }
 
   // ---- Format ---------------------------------------------------------------

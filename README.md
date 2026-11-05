@@ -6,7 +6,7 @@ Analysiere deine Radtrainings aus **intervals.icu** mit **Google Gemini AI** und
 
 | Schicht | Technologie |
 |---|---|
-| Backend | Spring Boot 4 + Java 25, aufgeteilt in intervals-service, report-service, training-service, ai-service, delivery-service |
+| Backend | Spring Boot 4 + Java 25, aufgeteilt in intervals-service, report-service, training-service, ai-service, delivery-service, ftp-service |
 | Messaging | MQTT (Eclipse Mosquitto, Paho-v5-Client) |
 | API-Vertrag | OpenAPI (springdoc) je Service → OpenAPI Generator (typescript-angular), ein Client pro Service |
 | Frontend | Angular 21 + Angular Material 3, Chart.js (mit Zoom-Plugin) |
@@ -62,7 +62,7 @@ docker compose up -d mosquitto
 # und MQTT_BROKER_URL=tcp://localhost:<port> für die Services setzen.
 ```
 
-**intervals-service, report-service, training-service, ai-service, delivery-service** (jeweils in eigenem Terminal):
+**intervals-service, report-service, training-service, ai-service, delivery-service, ftp-service** (jeweils in eigenem Terminal):
 ```bash
 mvn install -DskipTests                       # einmalig, baut auch cycling-messaging, intervals-api und cycling-web
 mvn -pl intervals-service spring-boot:run     # http://localhost:8081, braucht INTERVALS_API_KEY/INTERVALS_ATHLETE_ID
@@ -70,6 +70,7 @@ mvn -pl report-service spring-boot:run        # http://localhost:8082 (/api/repo
 mvn -pl training-service spring-boot:run      # http://localhost:8083 (/api/fitness, /api/recommendation)
 mvn -pl ai-service spring-boot:run            # braucht GEMINI_API_KEY
 mvn -pl delivery-service spring-boot:run
+mvn -pl ftp-service spring-boot:run           # FTP-Test-Erkennung, braucht den report-service
 ```
 
 **Frontend** (braucht Node 20.19+ oder 22.12+):
@@ -133,7 +134,7 @@ Je nach GitHub-Account heißen die Images typischerweise so:
 ghcr.io/<dein-github-username>/cycling-report:latest
 ghcr.io/<dein-github-username>/cycling-frontend:latest
 ```
-Dazu kommen `cycling-intervals`, `cycling-training`, `cycling-ai-service` und
+Dazu kommen `cycling-intervals`, `cycling-training`, `cycling-ai-service`, `cycling-ftp` und
 `cycling-delivery` für die übrigen Services.
 
 ### Auf dem Raspberry Pi nutzen
@@ -405,6 +406,7 @@ cycling/
 │                               #   abends Fitness-, morgens Empfehlungs-Nachricht, ohne Speicher
 ├── ai-service/                 # Gemini: generische KI-Aufträge (Prompt rein, Text raus) über MQTT
 ├── delivery-service/           # Mail + Discord für alle Quellen, eigene H2 für Nachrichten + Versandstatus
+├── ftp-service/                # erkennt 20-Minuten-FTP-Tests (FTP, LTHR, MaxHR) über MQTT, Streams per REST, ohne Speicher
 ├── mosquitto/config/           # Broker-Konfiguration
 ├── docs/                       # Datenflüsse (Markdown + Mermaid) und AsyncAPI-Spec der MQTT-Topics
 ├── frontend/                   # Angular 21

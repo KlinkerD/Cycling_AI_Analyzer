@@ -1,8 +1,8 @@
 
 services:
 
-  # MQTT-Broker: verbindet intervals-service, ai-service, report-service, training-service und
-  # delivery-service.
+  # MQTT-Broker: verbindet intervals-service, ai-service, report-service, training-service,
+  # ftp-service und delivery-service.
   mosquitto:
     image: eclipse-mosquitto:2.0.20
     container_name: cycling-mosquitto
@@ -121,6 +121,28 @@ services:
       mosquitto:
         condition: service_healthy
       intervals-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ftp-service: erkennt auf Anfrage (Button auf der Report-Seite) einen 20-Minuten-FTP-Test in einer Fahrt
+  # und berechnet FTP, LTHR und MaxHR. Streams per REST vom report-service, Auftrag/Ergebnis per MQTT.
+  # Kein Webserver, kein Speicher.
+  ftp-service:
+    build:
+      context: .
+      dockerfile: ftp-service/Dockerfile
+    container_name: cycling-ftp
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - REPORT_SERVICE_URL=http://report-service:8080
+      # Schwellwerte der Erkennung (Defaults siehe ftp-service/src/main/resources/application.properties)
+      - FTP_DETECTION_MIN_REST_RATIO=${FTP_DETECTION_MIN_REST_RATIO:-1.25}
+      - FTP_DETECTION_MIN_FINAL_HR_FRACTION=${FTP_DETECTION_MIN_FINAL_HR_FRACTION:-0.90}
+      - FTP_DETECTION_MAX_MISSING_FRACTION=${FTP_DETECTION_MAX_MISSING_FRACTION:-0.05}
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      report-service:
         condition: service_healthy
     restart: unless-stopped
 

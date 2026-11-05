@@ -35,6 +35,12 @@ public final class Topics {
      */
     public static final String DELIVERY_STATUS = ROOT + "delivery/status";
 
+    /** report-service -> ftp-service: Fahrt auf einen 20-Minuten-FTP-Test pruefen ({@code DetectFtpRequest}). */
+    public static final String DETECT_FTP_REQUEST = ROOT + "detect/ftp/request";
+
+    /** ftp-service -> report-service: Ergebnis der FTP-Test-Erkennung ({@code DetectFtpResponse}). */
+    public static final String DETECT_FTP_RESPONSE = ROOT + "detect/ftp/response";
+
     private Topics() {
     }
 

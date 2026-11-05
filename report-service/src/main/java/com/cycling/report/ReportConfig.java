@@ -7,6 +7,7 @@ import com.cycling.messaging.Topics;
 import com.cycling.messaging.contract.ActivityDetected;
 import com.cycling.messaging.contract.AiResult;
 import com.cycling.messaging.contract.DeliveryServiceStatus;
+import com.cycling.messaging.contract.DetectFtpResponse;
 import com.cycling.report.analysis.ActivityAnalysisRepository;
 import com.cycling.report.analysis.ActivityDetectedHandler;
 import com.cycling.report.analysis.AnalysisJobRepository;
@@ -14,6 +15,8 @@ import com.cycling.report.analysis.AnalysisJobService;
 import com.cycling.report.analysis.AnalysisService;
 import com.cycling.report.analysis.IntervalsData;
 import com.cycling.report.analysis.ReportResendService;
+import com.cycling.report.ftp.FtpDetectionRepository;
+import com.cycling.report.ftp.FtpDetectionService;
 import com.cycling.web.CyclingWebConfig;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -124,6 +127,15 @@ public class ReportConfig {
         return new ActivityDetectedHandler(jobService, repository);
     }
 
+    // ---- FTP-Test-Erkennung ---------------------------------------------------------------------
+
+    @Bean
+    public FtpDetectionService ftpDetectionService(FtpDetectionRepository repository, MqttMessaging messaging,
+                                                   Clock clock,
+                                                   @Value("${ftp-detection.timeout:2m}") Duration timeout) {
+        return new FtpDetectionService(repository, messaging, clock, timeout);
+    }
+
     /** Handler registrieren und erst danach verbinden, damit keine nachgelieferte Nachricht verloren geht. */
     @EventListener(ApplicationReadyEvent.class)
     public void connectMqtt(ApplicationReadyEvent event) {
@@ -132,10 +144,12 @@ public class ReportConfig {
         AnalysisJobService jobs = context.getBean(AnalysisJobService.class);
         ReportResendService resend = context.getBean(ReportResendService.class);
         ActivityDetectedHandler detected = context.getBean(ActivityDetectedHandler.class);
+        FtpDetectionService ftp = context.getBean(FtpDetectionService.class);
 
         messaging.subscribe(Topics.INTERVALS_ACTIVITY_DETECTED, ActivityDetected.class, detected::onActivityDetected);
         messaging.subscribe(Topics.aiResult(AnalysisJobService.AI_SOURCE), AiResult.class, jobs::complete);
         messaging.subscribe(Topics.DELIVERY_STATUS, DeliveryServiceStatus.class, resend::updateStatus);
+        messaging.subscribe(Topics.DETECT_FTP_RESPONSE, DetectFtpResponse.class, ftp::complete);
         messaging.start();
     }
 }

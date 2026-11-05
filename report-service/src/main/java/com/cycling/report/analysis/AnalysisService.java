@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
@@ -29,15 +30,18 @@ public class AnalysisService {
     private final PowerCurveService powerCurveService;
     private final FtpResolver ftpResolver;
     private final RideWeatherService weather;
+    private final ReportSnapshotStore snapshots;
 
     public AnalysisService(IntervalsData intervalsClient,
                            ZoneCalculatorService zoneCalculator,
                            ActivityAnalysisRepository repository,
                            PowerCurveService powerCurveService,
                            FtpResolver ftpResolver,
-                           RideWeatherService weather) {
+                           RideWeatherService weather,
+                           ReportSnapshotStore snapshots) {
         this.ftpResolver = ftpResolver;
         this.weather = weather;
+        this.snapshots = snapshots;
         this.intervalsClient = intervalsClient;
         this.zoneCalculator = zoneCalculator;
         this.repository = repository;
@@ -84,6 +88,8 @@ public class AnalysisService {
         analysis.setActivityId(activityId);
         analysis.setActivityName(activityDto.name());
         analysis.setActivityDate(activityDto.startDateLocal());
+        analysis.setActivityType(activityDto.type());
+        analysis.setStartDate(activityDto.startDate());
         analysis.setDistanceKm(activityDto.distance() != null ? activityDto.distance() / 1000.0 : 0);
         analysis.setDurationSeconds(activityDto.movingTime());
         analysis.setAvgPowerWatts(activityDto.averageWatts() != null ? activityDto.averageWatts() : avgPower);
@@ -159,8 +165,15 @@ public class AnalysisService {
 
         log.info("Analyse für {} abgeschlossen. Score: {}/10", analysis.getActivityName(), aiResult.score());
         IntervalsData.ZoneBands bands = intervalsClient.getZoneBands(prepared.ftp());
-        return new ReportDto(AnalysisDto.from(saved), prepared.streams(), prepared.powerZones(), prepared.hrZones(), trend,
-                powerCurveSet, bands.power(), bands.hr(), weatherPoints);
+        ReportData data = new ReportData(prepared.streams(), prepared.powerZones(), prepared.hrZones(),
+                bands.power(), bands.hr());
+        try {
+            snapshots.save(activityId, data);
+        } catch (RuntimeException e) {
+            // Report bleibt nutzbar: ohne Snapshot wird er beim naechsten Oeffnen live geladen
+            log.warn("Report-Daten fuer {} konnten nicht gespeichert werden: {}", activityId, e.getMessage());
+        }
+        return toReport(saved, data, trend, powerCurveSet, weatherPoints);
     }
 
     public List<ActivityId> getAnalyzedIds() {
@@ -168,23 +181,72 @@ public class AnalysisService {
     }
 
     /**
-     * Lädt einen gespeicherten Report aus der DB und erstellt Streams + Zonen neu.
+     * Laedt einen gespeicherten Report aus der DB, ohne intervals-service. Nur Reports ohne gespeicherte
+     * {@link ReportData} (Analysen aus alter Version) laden die Daten einmal live und speichern sie dann.
      */
     public ReportDto getReport(ActivityId activityId) {
-        ActivityAnalysis analysis = repository.findByActivityId(activityId)
-                .orElseThrow(() -> new ReportNotFoundException(activityId));
+        ActivityAnalysis analysis = findAnalysis(activityId);
+        ReportData data = snapshots.load(activityId).orElseGet(() -> {
+            log.info("Report {} ohne gespeicherte Daten - einmalig live laden", activityId);
+            return fetchAndStore(analysis);
+        });
+        return buildReport(analysis, data);
+    }
 
+    /**
+     * "Daten neu laden": holt Streams, Zonen, Kartenzonen, Power-Curve und Wetter frisch und speichert sie.
+     * Die KI-Bewertung und die Kennzahlen der Analyse bleiben unveraendert. Scheitert der intervals-service,
+     * bleibt alles wie es war ({@link com.cycling.intervals.client.IntervalsUnavailableException}).
+     * Liefert der weather-service nichts, bleibt das bisherige Wetter stehen.
+     */
+    public ReportDto refresh(ActivityId activityId) {
+        ActivityAnalysis analysis = findAnalysis(activityId);
+        fillActivityInfo(analysis);
+        ReportData data = fetchAndStore(analysis);
+
+        List<PowerCurvePoint> curve = powerCurveService.buildPointsForActivity(activityId);
+        if (curve != null && !curve.isEmpty()) {
+            analysis.replacePowerCurve(curve);
+        }
+        repository.save(analysis);
+
+        List<RideWeatherPoint> rideWeather = weather.fetch(activityId, analysis.getIndoor(),
+                analysis.getActivityType(), analysis.getStartDate(), data.streams());
+        if (!rideWeather.isEmpty()) {
+            weather.replace(activityId, rideWeather);
+        } else {
+            log.info("Kein neues Wetter fuer {} - bisheriges bleibt", activityId);
+        }
+        log.info("Report-Daten fuer {} neu geladen", activityId);
+        return buildReport(analysis, data);
+    }
+
+    private ActivityAnalysis findAnalysis(ActivityId activityId) {
+        return repository.findByActivityId(activityId).orElseThrow(() -> new ReportNotFoundException(activityId));
+    }
+
+    /** Typ und UTC-Startzeit fuer das Wetter nachtragen (Analysen aus alter Version); fail-soft. */
+    private void fillActivityInfo(ActivityAnalysis analysis) {
+        if (analysis.getActivityType() != null && analysis.getStartDate() != null) return;
+        LocalDate day = analysis.getActivityDate() != null ? analysis.getActivityDate().toLocalDate() : null;
+        intervalsClient.findActivity(analysis.getActivityId(), day).ifPresent(a -> {
+            if (analysis.getActivityType() == null) analysis.setActivityType(a.type());
+            if (analysis.getStartDate() == null) analysis.setStartDate(a.startDate());
+        });
+    }
+
+    /**
+     * Laedt die Report-Daten live und speichert sie. Streams, Zonen und Kartenzonen werfen bei Fehlern, damit
+     * keine leeren Daten gespeichert werden. Traegt bei Analysen aus alter Version Indoor-Kennung und FTP nach.
+     */
+    private ReportData fetchAndStore(ActivityAnalysis analysis) {
+        ActivityId activityId = analysis.getActivityId();
         StreamDataDto streams = intervalsClient.getStreams(activityId);
-
-        AthleteThresholdsDto thresholds = intervalsClient.getAthleteThresholds();
-
-        ActivityZonesDto zones = intervalsClient.getActivityZones(activityId);
-        List<ZoneDistributionDto> powerZones = zones.powerZones();
-        List<ZoneDistributionDto> hrZones = zones.hrZones();
-        List<TrendDataDto> trend = buildTrend();
+        ActivityZonesDto zones = intervalsClient.getActivityZonesOrThrow(activityId);
 
         // Analysen aus alter Version: Indoor-Kennung + FTP nachtragen, IF/TSS damit neu rechnen
         if (analysis.getFtpUsed() == null) {
+            AthleteThresholdsDto thresholds = intervalsClient.getAthleteThresholds();
             boolean indoor = Boolean.TRUE.equals(zones.indoor());
             int ftp = ftpResolver.resolve(zones.icuFtp(), indoor, thresholds);
             enrichNormalizedPower(analysis, null, streams);
@@ -192,7 +254,15 @@ public class AnalysisService {
             repository.save(analysis);
             log.info("Analyse {} nachgetragen: indoor={}, FTP={} W", activityId, indoor, ftp);
         }
-        int ftp = analysis.getFtpUsed();
+
+        IntervalsData.ZoneBands bands = intervalsClient.getZoneBandsOrThrow(analysis.getFtpUsed());
+        ReportData data = new ReportData(streams, zones.powerZones(), zones.hrZones(), bands.power(), bands.hr());
+        snapshots.save(activityId, data);
+        return data;
+    }
+
+    private ReportDto buildReport(ActivityAnalysis analysis, ReportData data) {
+        ActivityId activityId = analysis.getActivityId();
 
         // Power-Curve sicherstellen (Backfill, falls aus alter Analyse-Version noch nicht vorhanden)
         powerCurveService.ensurePowerCurves(List.of(analysis));
@@ -205,11 +275,14 @@ public class AnalysisService {
                 .collect(Collectors.toList());
         powerCurveService.ensurePowerCurves(lastThree);
 
-        PowerCurveSetDto powerCurveSet = powerCurveService.buildReportSet(analysis, lastThree, ftp);
+        PowerCurveSetDto powerCurveSet = powerCurveService.buildReportSet(analysis, lastThree, analysis.getFtpUsed());
+        return toReport(analysis, data, buildTrend(), powerCurveSet, weather.load(activityId));
+    }
 
-        IntervalsData.ZoneBands bands = intervalsClient.getZoneBands(ftp);
-        return new ReportDto(AnalysisDto.from(analysis), streams, powerZones, hrZones, trend, powerCurveSet,
-                bands.power(), bands.hr(), weather.load(activityId));
+    private static ReportDto toReport(ActivityAnalysis analysis, ReportData data, List<TrendDataDto> trend,
+                                      PowerCurveSetDto powerCurveSet, List<WeatherPointDto> weatherPoints) {
+        return new ReportDto(AnalysisDto.from(analysis), data.streams(), data.powerZones(), data.hrZones(), trend,
+                powerCurveSet, data.powerBands(), data.hrBands(), weatherPoints);
     }
 
     private List<TrendDataDto> buildTrend() {

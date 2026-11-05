@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.util.UUID;
 
 /**
- * Beantwortet {@link DetectFtpRequest}s: Streams beim report-service holen, FTP-Test erkennen, Ergebnis
+ * Beantwortet {@link DetectFtpRequest}s: Streams beim intervals-service holen, FTP-Test erkennen, Ergebnis
  * auf {@link Topics#DETECT_FTP_RESPONSE} veroeffentlichen. Jeder Auftrag bekommt genau eine Antwort,
  * technische Fehler als {@code error}, damit der report-service nicht auf sein Timeout warten muss.
  * Zustandslos und damit unkritisch bei erneuter Zustellung.
@@ -20,11 +20,11 @@ public class FtpRequestHandler {
 
     private static final Logger log = LoggerFactory.getLogger(FtpRequestHandler.class);
 
-    private final ReportStreamsClient streamsClient;
+    private final IntervalsStreamsClient streamsClient;
     private final FtpDetector detector;
     private final MessagePublisher publisher;
 
-    public FtpRequestHandler(ReportStreamsClient streamsClient, FtpDetector detector, MessagePublisher publisher) {
+    public FtpRequestHandler(IntervalsStreamsClient streamsClient, FtpDetector detector, MessagePublisher publisher) {
         this.streamsClient = streamsClient;
         this.detector = detector;
         this.publisher = publisher;

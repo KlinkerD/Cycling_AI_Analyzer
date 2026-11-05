@@ -154,6 +154,26 @@ paths:
           description: Erkennung gestartet (oder laeuft bereits)
       tags:
       - Reports
+  /api/reports/{activityId}/refresh:
+    post:
+      operationId: refreshReport
+      parameters:
+      - in: path
+        name: activityId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportDto"
+          description: Report mit neu geladenen Daten
+        "404":
+          description: Kein Report vorhanden
+      tags:
+      - Reports
   /api/reports/{activityId}/resend:
     post:
       operationId: resendReport
@@ -184,26 +204,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResendResultDto"
           description: Versand-Service nicht erreichbar oder Report nicht ladbar
-      tags:
-      - Reports
-  /api/reports/{activityId}/streams:
-    get:
-      operationId: getStreams
-      parameters:
-      - in: path
-        name: activityId
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/StreamDataDto"
-          description: Streams der Fahrt
-        "404":
-          description: Fahrt bei intervals.icu unbekannt
       tags:
       - Reports
 components:

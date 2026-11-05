@@ -70,7 +70,7 @@ mvn -pl report-service spring-boot:run        # http://localhost:8082 (/api/repo
 mvn -pl training-service spring-boot:run      # http://localhost:8083 (/api/fitness, /api/recommendation)
 mvn -pl ai-service spring-boot:run            # braucht GEMINI_API_KEY
 mvn -pl delivery-service spring-boot:run
-mvn -pl ftp-service spring-boot:run           # FTP-Test-Erkennung, braucht den report-service
+mvn -pl ftp-service spring-boot:run           # FTP-Test-Erkennung, braucht den intervals-service
 mvn -pl weather-service spring-boot:run       # http://localhost:8085, Wetter fuer Outdoor-Fahrten (Open-Meteo, ohne Key)
 ```
 
@@ -174,8 +174,11 @@ Der **report-service** besitzt alles rund um die Analyse einer Fahrt:
   laufendem Job werden übersprungen.
 - **KI:** baut den Prompt selbst (`AnalysisPrompt`), schickt ihn an den ai-service (`cycling/ai/request/report`) und
   liest die JSON-Antwort (`cycling/ai/result/report`); Abbruch nach `ANALYSIS_JOB_TIMEOUT` (15 min).
-- **Speicher:** eigene H2 (`report.mv.db`) mit Analysen, Power-Curves und Analyse-Jobs.
-- **Report-Seite:** `GET /api/reports/{id}` lädt die Analyse und holt Streams/Zonen frisch vom intervals-service.
+- **Speicher:** eigene H2 (`report.mv.db`) mit Analysen, Power-Curves, Wetter, Report-Daten (Streams, Zonen) und
+  Analyse-Jobs.
+- **Report-Seite:** `GET /api/reports/{id}` kommt komplett aus der H2, auch ohne intervals-service. Der Button
+  „Daten neu laden“ (`POST /api/reports/{id}/refresh`) holt Streams, Zonen, Power-Curve und Wetter frisch, ohne
+  neue KI-Bewertung.
 - **Versand:** nach der Analyse automatisch, sonst per „Erneut senden“ (`POST /api/reports/{id}/resend`).
 
 | Endpoint | Liefert |
@@ -436,7 +439,7 @@ cycling/
 │                               #   abends Fitness-, morgens Empfehlungs-Nachricht, ohne Speicher
 ├── ai-service/                 # Gemini: generische KI-Aufträge (Prompt rein, Text raus) über MQTT
 ├── delivery-service/           # Mail + Discord für alle Quellen, eigene H2 für Nachrichten + Versandstatus
-├── ftp-service/                # erkennt 20-Minuten-FTP-Tests (FTP, LTHR, MaxHR) über MQTT, Streams per REST, ohne Speicher
+├── ftp-service/                # erkennt 20-Minuten-FTP-Tests (FTP, LTHR, MaxHR) über MQTT, Streams per REST vom intervals-service, ohne Speicher
 ├── weather-api/                # REST-Vertrag des weather-service (Pfad + Records) und WeatherClient
 ├── weather-service/            # Temperatur, Wind, Regen zu Ort + Zeit von Open-Meteo (REST, ohne Speicher, kurzer Cache)
 ├── mosquitto/config/           # Broker-Konfiguration

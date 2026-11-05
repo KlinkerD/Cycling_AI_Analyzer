@@ -26,6 +26,7 @@ class AnalysisServiceAnalyzeTest {
     private final IntervalsData intervals = mock(IntervalsData.class);
     private final ActivityAnalysisRepository repository = mock(ActivityAnalysisRepository.class);
     private final PowerCurveService powerCurves = mock(PowerCurveService.class);
+    private final ReportSnapshotStore snapshots = mock(ReportSnapshotStore.class);
     private AnalysisService service;
 
     @BeforeEach
@@ -33,7 +34,7 @@ class AnalysisServiceAnalyzeTest {
         service = new AnalysisService(
                 intervals, mock(ZoneCalculatorService.class), repository,
                 powerCurves, new FtpResolver(200),
-                new RideWeatherService(null, mock(WeatherPointRepository.class)));
+                new RideWeatherService(null, mock(WeatherPointRepository.class)), snapshots);
 
         when(intervals.getAthleteThresholds())
                 .thenReturn(new AthleteThresholdsDto("Test", 250, 235, null, null, null));

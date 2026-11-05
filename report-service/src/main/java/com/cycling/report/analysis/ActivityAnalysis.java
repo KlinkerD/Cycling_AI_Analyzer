@@ -5,6 +5,7 @@ import com.cycling.types.ActivityId;
 import com.cycling.web.ApiNonNull;
 import jakarta.persistence.*;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +24,10 @@ public class ActivityAnalysis {
 
     private String activityName;
     private LocalDateTime activityDate;
+    /** Typ laut intervals.icu, z. B. Ride oder VirtualRide; null bei Analysen aus alter Version. */
+    private String activityType;
+    /** Startzeit in UTC (fuer das Wetter); null bei Analysen aus alter Version. */
+    private Instant startDate;
     private Double distanceKm;
     private Integer durationSeconds;
     private Double avgPowerWatts;
@@ -104,6 +109,22 @@ public class ActivityAnalysis {
 
     public void setActivityDate(LocalDateTime activityDate) {
         this.activityDate = activityDate;
+    }
+
+    public String getActivityType() {
+        return activityType;
+    }
+
+    public void setActivityType(String activityType) {
+        this.activityType = activityType;
+    }
+
+    public Instant getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(Instant startDate) {
+        this.startDate = startDate;
     }
 
     public Double getDistanceKm() {

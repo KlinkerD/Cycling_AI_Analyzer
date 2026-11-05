@@ -19,12 +19,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** Nachtragen von Indoor-Kennung und FTP beim Oeffnen gespeicherter Reports. */
+/** Nachtragen von Indoor-Kennung und FTP beim Oeffnen gespeicherter Reports ohne gespeicherte Daten. */
 class AnalysisServiceReportTest {
 
     private final IntervalsData intervals = mock(IntervalsData.class);
     private final ActivityAnalysisRepository repository = mock(ActivityAnalysisRepository.class);
     private final PowerCurveService powerCurves = mock(PowerCurveService.class);
+    private final ReportSnapshotStore snapshots = mock(ReportSnapshotStore.class);
     private AnalysisService service;
 
     @BeforeEach
@@ -35,10 +36,11 @@ class AnalysisServiceReportTest {
                 repository,
                 powerCurves,
                 new FtpResolver(200),
-                new RideWeatherService(null, mock(WeatherPointRepository.class)));
+                new RideWeatherService(null, mock(WeatherPointRepository.class)),
+                snapshots);
         when(intervals.getAthleteThresholds())
                 .thenReturn(new AthleteThresholdsDto("Test", 250, 235, null, null, null));
-        when(intervals.getZoneBands(any())).thenReturn(IntervalsData.ZoneBands.empty());
+        when(intervals.getZoneBandsOrThrow(any())).thenReturn(IntervalsData.ZoneBands.empty());
     }
 
     /** Analyse aus alter Version: NP 200 W, 1 h, mit Outdoor-FTP 250 W gerechnet, ohne indoor/ftpUsed. */
@@ -54,7 +56,7 @@ class AnalysisServiceReportTest {
     }
 
     private void activityFromIntervals(Boolean indoor, Integer icuFtp) {
-        when(intervals.getActivityZones(ActivityId.of("i1")))
+        when(intervals.getActivityZonesOrThrow(ActivityId.of("i1")))
                 .thenReturn(new ActivityZonesDto(List.of(), List.of(), indoor, icuFtp));
     }
 
@@ -71,7 +73,7 @@ class AnalysisServiceReportTest {
         verify(repository).save(a);
         verify(powerCurves).buildReportSet(eq(a), anyList(), eq(235));
         // Kartenzonen mit derselben FTP wie IF/TSS
-        verify(intervals).getZoneBands(235);
+        verify(intervals).getZoneBandsOrThrow(235);
     }
 
     @Test

@@ -121,7 +121,7 @@ channels:
     title: FTP-Test-Erkennung anfordern
     description: |
       Manuell aus dem Frontend ausgelöst (Button „FTP-Test auswerten“ auf der Report-Seite). Der
-      ftp-service holt die Streams per REST beim report-service (`GET /api/reports/{activityId}/streams`).
+      ftp-service holt die Streams per REST beim intervals-service (`IntervalsClient`).
     messages:
       detectFtpRequest:
         $ref: '#/components/messages/DetectFtpRequest'

@@ -57,6 +57,14 @@ export class ActivityService {
     return this.api.getReport(activityId);
   }
 
+  /**
+   * "Daten neu laden": Streams, Zonen, Power-Curve und Wetter frisch holen (ohne neue KI-Bewertung).
+   * 502/503 = intervals-service nicht erreichbar, der gespeicherte Stand bleibt.
+   */
+  refreshReport(activityId: string): Observable<ReportDto> {
+    return this.api.refreshReport(activityId);
+  }
+
   /** Sendet den Report an alle aktiven Kanaele (Mail, Discord). 409 = kein Kanal aktiv, 503 = Service weg. */
   resendReport(activityId: string): Observable<ResendResultDto> {
     return this.api.resendReport(activityId);

@@ -14,7 +14,7 @@
     <artifactId>ftp-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>ftp-service</name>
-    <description>Erkennt 20-Minuten-FTP-Tests in einer Fahrt und berechnet FTP, LTHR und MaxHR (MQTT rein/raus, Streams per REST vom report-service)</description>
+    <description>Erkennt 20-Minuten-FTP-Tests in einer Fahrt und berechnet FTP, LTHR und MaxHR (MQTT rein/raus, Streams per REST vom intervals-service)</description>
 
     <properties>
         <java.version>25</java.version>
@@ -24,6 +24,11 @@
         <dependency>
             <groupId>com.cycling</groupId>
             <artifactId>cycling-messaging</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.cycling</groupId>
+            <artifactId>intervals-api</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>

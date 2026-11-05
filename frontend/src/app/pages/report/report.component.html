@@ -23,6 +23,11 @@
       </div>
       <span class="spacer"></span>
       <div class="head-actions">
+        <button mat-stroked-button (click)="refresh()" [disabled]="refreshing()"
+                matTooltip="Streams, Zonen und Wetter neu laden (ohne neue KI-Bewertung)">
+          <mat-icon>{{ refreshing() ? 'hourglass_top' : 'refresh' }}</mat-icon>
+          {{ refreshing() ? 'Wird geladen…' : 'Daten neu laden' }}
+        </button>
         <button mat-stroked-button (click)="detectFtp()"
                 [disabled]="ftpStarting() || ftpDetection()?.status === Ftp.PENDING"
                 matTooltip="Sucht einen 20-Minuten-FTP-Test in dieser Fahrt">

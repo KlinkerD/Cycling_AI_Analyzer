@@ -54,6 +54,7 @@ export class ReportComponent implements OnInit {
   readonly report = signal<ReportDto | null>(null);
   readonly loading = signal(true);
   readonly resending = signal(false);
+  readonly refreshing = signal(false);
   activityId = '';
 
   // FTP-Test-Erkennung
@@ -336,6 +337,29 @@ export class ReportComponent implements OnInit {
   }
 
   // ---- Aktionen -------------------------------------------------------------
+
+  refresh(): void {
+    if (this.refreshing()) return;
+    this.refreshing.set(true);
+    this.activityService.refreshReport(this.activityId).subscribe({
+      next: raw => {
+        const report = this.normalize(raw);
+        this.build(report);
+        this.report.set(report);
+        this.refreshing.set(false);
+        this.snackBar.open('Daten und Wetter neu geladen.', 'OK', { duration: 4000 });
+      },
+      error: err => {
+        this.refreshing.set(false);
+        const message = err?.status === 502 || err?.status === 503
+          ? 'intervals.icu nicht erreichbar – der gespeicherte Stand bleibt.'
+          : err?.status === 404
+            ? 'Fahrt nicht gefunden.'
+            : 'Neu laden fehlgeschlagen. Bitte Logs prüfen.';
+        this.snackBar.open(message, 'OK', { duration: 5000 });
+      }
+    });
+  }
 
   resend(): void {
     if (this.resending()) return;

@@ -1,5 +1,6 @@
 package com.cycling.ftp;
 
+import com.cycling.intervals.client.IntervalsClient;
 import com.cycling.messaging.MqttMessaging;
 import com.cycling.messaging.MqttSettings;
 import com.cycling.messaging.Topics;
@@ -9,14 +10,11 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.web.client.RestClient;
 
-import java.net.http.HttpClient;
 import java.time.Duration;
 
 /**
- * Verdrahtet den ftp-service: MQTT rein ({@code DetectFtpRequest}), REST zum report-service (Streams),
+ * Verdrahtet den ftp-service: MQTT rein ({@code DetectFtpRequest}), REST zum intervals-service (Streams),
  * MQTT raus ({@code DetectFtpResponse}). Kein Webserver, kein Speicher.
  */
 @Configuration
@@ -33,14 +31,11 @@ public class FtpConfig {
     }
 
     @Bean
-    public ReportStreamsClient reportStreamsClient(
-            @Value("${report-service.base-url}") String baseUrl,
-            @Value("${report-service.connect-timeout:5s}") Duration connectTimeout,
-            @Value("${report-service.read-timeout:60s}") Duration readTimeout) {
-        HttpClient httpClient = HttpClient.newBuilder().connectTimeout(connectTimeout).build();
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
-        requestFactory.setReadTimeout(readTimeout);
-        return new ReportStreamsClient(RestClient.builder().baseUrl(baseUrl).requestFactory(requestFactory).build());
+    public IntervalsStreamsClient intervalsStreamsClient(
+            @Value("${intervals-service.base-url}") String baseUrl,
+            @Value("${intervals-service.connect-timeout:5s}") Duration connectTimeout,
+            @Value("${intervals-service.read-timeout:60s}") Duration readTimeout) {
+        return new IntervalsStreamsClient(IntervalsClient.create(baseUrl, connectTimeout, readTimeout));
     }
 
     @Bean
@@ -57,7 +52,7 @@ public class FtpConfig {
     }
 
     @Bean
-    public FtpRequestHandler ftpRequestHandler(ReportStreamsClient streamsClient, FtpDetector detector,
+    public FtpRequestHandler ftpRequestHandler(IntervalsStreamsClient streamsClient, FtpDetector detector,
                                                MqttMessaging messaging) {
         FtpRequestHandler handler = new FtpRequestHandler(streamsClient, detector, messaging);
         messaging.subscribe(Topics.DETECT_FTP_REQUEST, DetectFtpRequest.class, handler::handle);

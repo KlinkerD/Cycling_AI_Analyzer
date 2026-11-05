@@ -20,6 +20,7 @@ import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -43,6 +44,22 @@ public class IntervalsData {
         return client.activities(LocalDate.parse(from), LocalDate.parse(to)).stream().map(ActivityDto::from).toList();
     }
 
+    /**
+     * Eine Aktivitaet aus der Liste rund um ihr Datum (+/- 1 Tag, wegen Zeitzonen); leer, wenn sie dort nicht
+     * auftaucht oder der Abruf scheitert.
+     */
+    public Optional<ActivityDto> findActivity(ActivityId activityId, LocalDate around) {
+        if (around == null) return Optional.empty();
+        try {
+            return client.activities(around.minusDays(1), around.plusDays(1)).stream()
+                    .filter(a -> activityId.equals(a.id()))
+                    .findFirst()
+                    .map(ActivityDto::from);
+        } catch (IntervalsUnavailableException e) {
+            return Optional.empty();
+        }
+    }
+
     public StreamDataDto getStreams(ActivityId activityId) {
         IntervalsStreams s = client.streams(activityId);
         return new StreamDataDto(list(s.distance()), list(s.watts()), list(s.heartrate()), list(s.velocity()),
@@ -55,13 +72,21 @@ public class IntervalsData {
      * aktuellen bpm-Grenzen.
      */
     public ZoneBands getZoneBands(Integer ftp) {
-        IntervalsAthleteZones zones = client.athleteZonesOrEmpty();
-        List<ZoneBandDto> power = zones.powerZones().stream()
+        return toBands(client.athleteZonesOrEmpty(), ftp);
+    }
+
+    /** Wie {@link #getZoneBands}, wirft aber {@link IntervalsUnavailableException}, statt leer zu liefern. */
+    public ZoneBands getZoneBandsOrThrow(Integer ftp) {
+        return toBands(client.athleteZones(), ftp);
+    }
+
+    private static ZoneBands toBands(IntervalsAthleteZones zones, Integer ftp) {
+        List<ZoneBandDto> power = (zones.powerZones() != null ? zones.powerZones() : List.<IntervalsZone>of()).stream()
                 .filter(z -> z.index() >= 1 && z.index() <= 7)
                 .map(z -> powerBand(z, ftp))
                 .filter(Objects::nonNull)
                 .toList();
-        List<ZoneBandDto> hr = zones.hrZones().stream()
+        List<ZoneBandDto> hr = (zones.hrZones() != null ? zones.hrZones() : List.<IntervalsZone>of()).stream()
                 .filter(z -> z.lowerValue() != null)
                 .map(z -> new ZoneBandDto(z.name(), z.lowerValue(), z.upperValue(), z.color()))
                 .toList();
@@ -95,6 +120,11 @@ public class IntervalsData {
         return client.activityZonesIfAvailable(activityId)
                 .map(IntervalsData::toZones)
                 .orElseGet(() -> new ActivityZonesDto(List.of(), List.of(), null, null));
+    }
+
+    /** Wie {@link #getActivityZones}, wirft aber {@link IntervalsUnavailableException}, statt leer zu liefern. */
+    public ActivityZonesDto getActivityZonesOrThrow(ActivityId activityId) {
+        return toZones(client.activityZones(activityId));
     }
 
     /** Power-Curve als "Dauer in s -> Watt"; fail-soft leer. */

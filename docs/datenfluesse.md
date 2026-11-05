@@ -42,7 +42,7 @@ flowchart LR
     DS -->|Mail / Discord| OUT[(Empfänger)]
     RS -. detect/ftp/request .-> FT[ftp-service]
     FT -. detect/ftp/response .-> RS
-    FT -->|REST Streams| RS
+    FT -->|REST Streams| IS
     RS -->|REST Wetter| WS[weather-service<br/>Cache]
     WS -->|HTTPS| OM[(Open-Meteo)]
 ```
@@ -86,7 +86,7 @@ sequenceDiagram
     Note over RS: JSON lesen (unlesbar = Job FAILED)
     RS->>IS: Streams, Zonen, Power-Curve (REST)
     RS->>WS: Wetter erneut (aus dem Cache, gleiche Werte wie im Prompt)
-    Note over RS: Analyse + Wetter speichern (Upsert), Job DONE
+    Note over RS: Analyse, Wetter und Report-Daten<br/>(Streams, Zonen) speichern (Upsert), Job DONE
     RS-)DS: delivery/request/report (DeliveryMessage, messageId = Job-ID)
     FE->>RS: GET /api/reports/{id}
     RS-->>FE: ReportDto
@@ -95,19 +95,31 @@ sequenceDiagram
 - Ohne Antwort nach `ANALYSIS_JOB_TIMEOUT` (15 min) wird der Job FAILED; ein spätes Ergebnis wird trotzdem übernommen.
 - Rendern (QuickChart) oder Senden scheitert → Wiederholung nach 1, 5 und 15 Minuten, danach „Erneut senden“.
 
-## Report-Seite und „Erneut senden“
+## Report-Seite, „Daten neu laden“ und „Erneut senden“
+
+Ein Report kommt komplett aus der H2 (Analyse, Streams, Zonen, Kartenzonen, Power-Curve, Wetter). Anzeigen und
+erneut senden klappt also auch ohne intervals-service. Nur Reports aus alter Version ohne gespeicherte Daten laden
+diese beim ersten Öffnen einmal live nach.
 
 ```mermaid
 sequenceDiagram
     participant FE as Frontend
     participant RS as report-service
     participant IS as intervals-service
+    participant WS as weather-service
     participant DS as delivery-service
 
     DS-)RS: delivery/status (retained: online, Kanäle)
     FE->>RS: GET /api/reports/{id}
-    RS->>IS: Streams, Schwellen, Zonen (REST)
+    Note over RS: alles aus der H2
     RS-->>FE: ReportDto (404 ohne Analyse)
+    opt Button „Daten neu laden“
+        FE->>RS: POST /api/reports/{id}/refresh
+        RS->>IS: Streams, Zonen, Kartenzonen, Power-Curve (REST)
+        RS->>WS: Wetter (nur Outdoor mit GPS)
+        Note over RS: speichern; KI-Bewertung bleibt
+        RS-->>FE: ReportDto (502/503: gespeicherter Stand bleibt)
+    end
     FE->>RS: POST /api/reports/{id}/resend
     alt kein Kanal aktiv
         RS-->>FE: 409 disabled
@@ -135,8 +147,7 @@ sequenceDiagram
     Note over RS: läuft schon ein Lauf → dessen Status zurück
     RS-)FT: detect/ftp/request (DetectFtpRequest, neue requestId)
     RS-->>FE: 202 FtpDetectionDto (PENDING)
-    FT->>RS: GET /api/reports/{id}/streams
-    RS->>IS: Streams (REST)
+    FT->>IS: Streams (REST)
     Note over FT: bester 20-min-Block, Kriterien prüfen
     FT-)RS: detect/ftp/response (DetectFtpResponse)
     Note over RS: fremde requestId = alter Lauf → verwerfen
@@ -207,9 +218,9 @@ sequenceDiagram
 | | `POST /api/reports/{id}/analysis` | Analyse starten (202 + Job) |
 | | `GET /api/reports/analysis-jobs/{jobId}` · `GET /api/reports/{id}/analysis-job` | Job-Status |
 | | `GET /api/reports/{id}` | Report |
+| | `POST /api/reports/{id}/refresh` | Streams, Zonen und Wetter neu laden (ohne KI) |
 | | `POST /api/reports/{id}/resend` | Versand anstoßen |
 | | `POST /api/reports/{id}/ftp-detection` · `GET /api/reports/{id}/ftp-detection` | FTP-Test-Erkennung starten (202) / Ergebnis |
-| | `GET /api/reports/{id}/streams` | Nur die Streams (Quelle für den ftp-service) |
 | training-service | `GET /api/fitness/athlete[?refresh]` | Schwellen + Zonen |
 | training-service | `PUT /api/fitness/athlete/thresholds` | Schwellen + Gewicht nach intervals.icu schreiben |
 | | `GET /api/fitness/wellness?from&to[&refresh]` | CTL/ATL/Form |

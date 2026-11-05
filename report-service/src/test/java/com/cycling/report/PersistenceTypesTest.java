@@ -5,6 +5,11 @@ import com.cycling.report.analysis.ActivityAnalysisRepository;
 import com.cycling.report.analysis.AnalysisJob;
 import com.cycling.report.analysis.AnalysisJobRepository;
 import com.cycling.report.analysis.AnalysisJobStatus;
+import com.cycling.report.analysis.ReportData;
+import com.cycling.report.analysis.ReportSnapshotStore;
+import com.cycling.report.api.StreamDataDto;
+import com.cycling.report.api.ZoneBandDto;
+import com.cycling.report.api.ZoneDistributionDto;
 import com.cycling.report.ftp.FtpDetection;
 import com.cycling.report.ftp.FtpDetectionRepository;
 import com.cycling.report.weather.RideWeatherPoint;
@@ -18,6 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,6 +51,8 @@ class PersistenceTypesTest {
     private FtpDetectionRepository ftp;
     @Autowired
     private RideWeatherService weather;
+    @Autowired
+    private ReportSnapshotStore snapshots;
     @Autowired
     private JdbcTemplate jdbc;
 
@@ -81,6 +89,23 @@ class PersistenceTypesTest {
             assertThat(d.getActivityId()).isEqualTo(ActivityId.of("i2"));
             assertThat(d.getRequestId()).isEqualTo(requestId);
         });
+    }
+
+    @Test
+    void reportSnapshotIsReplacedAndLoaded() {
+        StreamDataDto streams = new StreamDataDto(List.of(0.0, 5.5), Arrays.asList(200, null), List.of(140, 141),
+                List.of(), List.of(), List.of(0, 1), List.of(), List.of(48.1, 48.2), List.of(11.5, 11.6));
+        ReportData first = new ReportData(streams, List.of(), List.of(), List.of(), List.of());
+        ReportData second = new ReportData(streams,
+                List.of(new ZoneDistributionDto("Z2", "Endurance", 60, 100.0, "#42a5f5")), List.of(),
+                List.of(new ZoneBandDto("Z2", 140, null, "#42a5f5")), List.of());
+
+        snapshots.save(ActivityId.of("i4"), first);
+        snapshots.save(ActivityId.of("i4"), second);
+
+        assertThat(snapshots.load(ActivityId.of("i4"))).contains(second);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM report_snapshot WHERE activity_id = 'i4'", Integer.class))
+                .isEqualTo(1);
     }
 
     @Test

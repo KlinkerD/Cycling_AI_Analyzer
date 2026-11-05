@@ -3,8 +3,8 @@ package com.cycling.ftp;
 import java.util.List;
 
 /**
- * Die Streams einer Fahrt, soweit der ftp-service sie braucht (Ausschnitt aus dem {@code StreamDataDto}
- * des report-service). Alle Listen sind indexgleich; einzelne Werte koennen null sein.
+ * Die Streams einer Fahrt, soweit der ftp-service sie braucht (Ausschnitt aus {@code IntervalsStreams}).
+ * Alle Listen sind indexgleich; einzelne Werte koennen null sein.
  *
  * @param time      Sekunden ab Fahrtbeginn
  * @param watts     Leistung in Watt

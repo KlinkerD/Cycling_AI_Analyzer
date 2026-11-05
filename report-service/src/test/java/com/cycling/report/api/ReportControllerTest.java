@@ -158,24 +158,20 @@ class ReportControllerTest {
     }
 
     @Test
-    void streamsReturnOnlyTheTimeSeries() throws Exception {
-        when(intervals.getStreams(ActivityId.of("i1"))).thenReturn(new StreamDataDto(List.of(), List.of(200, 210), List.of(140, 141),
-                List.of(), List.of(), List.of(0, 1), List.of(), List.of(53.5, 53.6), List.of(10.0, 10.1)));
+    void refreshAnswersNotFoundWithoutReport() throws Exception {
+        when(analysisService.refresh(ActivityId.of("i9"))).thenThrow(new ReportNotFoundException(ActivityId.of("i9")));
 
-        mvc.perform(get("/api/reports/i1/streams"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.watts[1]").value(210))
-                .andExpect(jsonPath("$.time[1]").value(1))
-                .andExpect(jsonPath("$.lat[1]").value(53.6))
-                .andExpect(jsonPath("$.lng[0]").value(10.0));
+        mvc.perform(post("/api/reports/i9/refresh")).andExpect(status().isNotFound());
     }
 
     @Test
-    void streamsAnswerNotFoundForUnknownActivity() throws Exception {
-        when(intervals.getStreams(ActivityId.of("x"))).thenThrow(new IntervalsUnavailableException(
-                org.springframework.http.HttpStatus.NOT_FOUND, "NOT_FOUND", "unbekannt", null, null));
+    void refreshPassesIntervalsErrorsOn() throws Exception {
+        when(analysisService.refresh(ActivityId.of("i1"))).thenThrow(new IntervalsUnavailableException(
+                "intervals-service nicht erreichbar", null));
 
-        mvc.perform(get("/api/reports/x/streams")).andExpect(status().isNotFound());
+        mvc.perform(post("/api/reports/i1/refresh"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(IntervalsUnavailableException.SERVICE_UNREACHABLE));
     }
 
     @Test

@@ -19,8 +19,8 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # intervals-service: einzige Anbindung an intervals.icu. REST-API mit Cache fuer report- und
-  # training-service, meldet neue Aktivitaeten und Fitness-Aenderungen per MQTT. Kein Port nach aussen.
+  # intervals-service: einzige Anbindung an intervals.icu. REST-API mit Cache fuer report-, training- und
+  # ftp-service, meldet neue Aktivitaeten und Fitness-Aenderungen per MQTT. Kein Port nach aussen.
   intervals-service:
     build:
       context: .
@@ -147,7 +147,7 @@ services:
     restart: unless-stopped
 
   # ftp-service: erkennt auf Anfrage (Button auf der Report-Seite) einen 20-Minuten-FTP-Test in einer Fahrt
-  # und berechnet FTP, LTHR und MaxHR. Streams per REST vom report-service, Auftrag/Ergebnis per MQTT.
+  # und berechnet FTP, LTHR und MaxHR. Streams per REST vom intervals-service, Auftrag/Ergebnis per MQTT.
   # Kein Webserver, kein Speicher.
   ftp-service:
     build:
@@ -156,7 +156,7 @@ services:
     container_name: cycling-ftp
     environment:
       - MQTT_BROKER_URL=tcp://mosquitto:1883
-      - REPORT_SERVICE_URL=http://report-service:8080
+      - INTERVALS_SERVICE_URL=http://intervals-service:8080
       # Schwellwerte der Erkennung (Defaults siehe ftp-service/src/main/resources/application.properties)
       - FTP_DETECTION_MIN_REST_RATIO=${FTP_DETECTION_MIN_REST_RATIO:-1.25}
       - FTP_DETECTION_MIN_FINAL_HR_FRACTION=${FTP_DETECTION_MIN_FINAL_HR_FRACTION:-0.90}
@@ -164,7 +164,7 @@ services:
     depends_on:
       mosquitto:
         condition: service_healthy
-      report-service:
+      intervals-service:
         condition: service_healthy
     restart: unless-stopped
 

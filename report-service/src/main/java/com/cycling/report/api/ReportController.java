@@ -100,13 +100,32 @@ public class ReportController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /** GET /api/reports/{activityId} - gespeicherter Report mit frisch geladenen Streams und Zonen. */
+    /**
+     * GET /api/reports/{activityId} - gespeicherter Report samt Streams und Zonen aus der DB (ohne
+     * intervals-service; nur Reports aus alter Version laden die Daten einmalig nach).
+     */
     @GetMapping("/{activityId}")
     @ApiResponse(responseCode = "200", description = "Gespeicherter Report")
     @ApiResponse(responseCode = "404", description = "Kein Report vorhanden", content = @Content)
     public ResponseEntity<ReportDto> getReport(@PathVariable ActivityId activityId) {
         try {
             return ResponseEntity.ok(analysisService.getReport(activityId));
+        } catch (ReportNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * POST /api/reports/{activityId}/refresh
+     * "Daten neu laden": Streams, Zonen, Power-Curve und Wetter frisch holen und speichern. Die KI-Bewertung
+     * bleibt unveraendert. Ist der intervals-service nicht erreichbar, bleibt der gespeicherte Stand (502/503).
+     */
+    @PostMapping("/{activityId}/refresh")
+    @ApiResponse(responseCode = "200", description = "Report mit neu geladenen Daten")
+    @ApiResponse(responseCode = "404", description = "Kein Report vorhanden", content = @Content)
+    public ResponseEntity<ReportDto> refreshReport(@PathVariable ActivityId activityId) {
+        try {
+            return ResponseEntity.ok(analysisService.refresh(activityId));
         } catch (ReportNotFoundException e) {
             return ResponseEntity.notFound().build();
         }
@@ -137,17 +156,6 @@ public class ReportController {
                             "Report konnte nicht geladen werden (intervals-service nicht erreichbar)."));
             case NOT_FOUND -> ResponseEntity.notFound().build();
         };
-    }
-
-    /**
-     * GET /api/reports/{activityId}/streams - nur die Zeitreihen einer Fahrt (ohne Analyse, Zonen, Trend).
-     * Quelle fuer den ftp-service.
-     */
-    @GetMapping("/{activityId}/streams")
-    @ApiResponse(responseCode = "200", description = "Streams der Fahrt")
-    @ApiResponse(responseCode = "404", description = "Fahrt bei intervals.icu unbekannt", content = @Content)
-    public ResponseEntity<StreamDataDto> getStreams(@PathVariable ActivityId activityId) {
-        return ResponseEntity.ok(intervals.getStreams(activityId));
     }
 
     /**

@@ -26,7 +26,7 @@ class FtpRequestHandlerTest {
 
     private static final StreamData STREAMS = new StreamData(List.of(0), List.of(200), List.of(150));
 
-    private final ReportStreamsClient client = mock(ReportStreamsClient.class);
+    private final IntervalsStreamsClient client = mock(IntervalsStreamsClient.class);
     private final FtpDetector detector = mock(FtpDetector.class);
     private final MessagePublisher publisher = mock(MessagePublisher.class);
     private final FtpRequestHandler handler = new FtpRequestHandler(client, detector, publisher);
@@ -60,13 +60,13 @@ class FtpRequestHandlerTest {
 
     @Test
     void publishesErrorWhenStreamsAreUnavailable() {
-        when(client.streams(I1)).thenThrow(new IllegalStateException("report-service nicht erreichbar"));
+        when(client.streams(I1)).thenThrow(new IllegalStateException("intervals-service nicht erreichbar"));
 
         handler.handle(new DetectFtpRequest(R1, I1));
 
         DetectFtpResponse response = published();
         assertThat(response.isFtpDetected()).isFalse();
-        assertThat(response.error()).isEqualTo("report-service nicht erreichbar");
+        assertThat(response.error()).isEqualTo("intervals-service nicht erreichbar");
         assertThat(response.requestId()).isEqualTo(R1);
     }
 

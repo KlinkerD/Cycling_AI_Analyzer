@@ -14,7 +14,7 @@
     <artifactId>intervals-api</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>intervals-api</name>
-    <description>REST-Vertrag des intervals-service (Pfade und Antwort-Records) plus gemeinsamer Client fuer report- und training-service</description>
+    <description>REST-Vertrag des intervals-service (Pfade und Antwort-Records) plus gemeinsamer Client fuer report-, training- und ftp-service</description>
 
     <properties>
         <java.version>25</java.version>

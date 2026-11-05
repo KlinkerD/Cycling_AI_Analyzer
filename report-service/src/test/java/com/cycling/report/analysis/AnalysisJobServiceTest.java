@@ -56,7 +56,7 @@ class AnalysisJobServiceTest {
     private final Consumer<ReportDelivery> delivery = mock(Consumer.class);
     private final Map<UUID, AnalysisJob> stored = new HashMap<>();
     private final AnalysisJobService service = new AnalysisJobService(analysis, repository, publisher, delivery,
-            new ObjectMapper(), CLOCK, Duration.ofMinutes(15));
+            AnalysisJobService.jobJsonMapper(), CLOCK, Duration.ofMinutes(15));
 
     @BeforeEach
     void setUp() {
@@ -75,7 +75,23 @@ class AnalysisJobServiceTest {
         dto.setName("Runde");
         dto.setMovingTime(3600);
         dto.setNormalizedPower(210.0);
+        // Zeiten mit drin: der Job speichert das DTO als JSON (java.time muss serialisierbar sein)
+        dto.setStartDateLocal(LocalDateTime.parse("2026-11-01T08:30:00"));
+        dto.setStartDate(Instant.parse("2026-11-01T07:30:00Z"));
         return dto;
+    }
+
+    @Test
+    void storedActivityJsonKeepsIdAndTimes() throws Exception {
+        String json = AnalysisJobService.jobJsonMapper().writeValueAsString(activity());
+
+        assertThat(json).contains("\"id\":\"i1\"")
+                .contains("\"startDateLocal\":\"2026-11-01T08:30:00\"")
+                .contains("\"startDate\":\"2026-11-01T07:30:00Z\"");
+        ActivityDto back = AnalysisJobService.jobJsonMapper().readValue(json, ActivityDto.class);
+        assertThat(back.id()).isEqualTo(ActivityId.of("i1"));
+        assertThat(back.startDateLocal()).isEqualTo(LocalDateTime.parse("2026-11-01T08:30:00"));
+        assertThat(back.startDate()).isEqualTo(Instant.parse("2026-11-01T07:30:00Z"));
     }
 
     private static PreparedAnalysis prepared() {

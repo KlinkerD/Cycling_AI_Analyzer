@@ -10,7 +10,10 @@ import com.cycling.messaging.contract.AiRequest;
 import com.cycling.messaging.contract.AiResult;
 import com.cycling.report.ReportDelivery;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -162,6 +165,17 @@ public class AnalysisJobService {
             job.markFailed("Keine Antwort vom ai-service innerhalb von " + timeout.toMinutes() + " Minuten", now());
             jobRepository.save(job);
         }
+    }
+
+    /**
+     * Mapper fuer das im Job gespeicherte {@link ActivityDto}: java.time als ISO-Text, unbekannte Felder alter
+     * Jobs werden ignoriert.
+     */
+    public static ObjectMapper jobJsonMapper() {
+        return new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     static AiRequest toRequest(UUID requestId, PreparedAnalysis prepared) {

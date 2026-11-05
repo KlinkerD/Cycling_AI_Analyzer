@@ -3,6 +3,7 @@ package com.cycling.report.analysis;
 import com.cycling.types.ActivityId;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,7 +18,15 @@ public interface ActivityAnalysisRepository extends JpaRepository<ActivityAnalys
 
     List<ActivityAnalysis> findTop10ByOrderByActivityDateDesc();
 
-    @org.springframework.data.jpa.repository.Query("SELECT a.activityId FROM ActivityAnalysis a")
-    List<ActivityId> findAllActivityIds();
+    /**
+     * Als Text gelesen: Bei Rueckgabetyp {@code List<ActivityId>} wuerde Spring Data die Abfrage als
+     * DTO-Projektion ({@code SELECT new ActivityId(..)}) umschreiben, und das scheitert am Converter.
+     */
+    @Query(value = "SELECT activity_id FROM activity_analysis", nativeQuery = true)
+    List<String> findAllActivityIdValues();
+
+    default List<ActivityId> findAllActivityIds() {
+        return findAllActivityIdValues().stream().map(ActivityId::of).toList();
+    }
 }
 

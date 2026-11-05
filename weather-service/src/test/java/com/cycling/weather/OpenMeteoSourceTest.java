@@ -75,6 +75,36 @@ class OpenMeteoSourceTest {
     }
 
     @Test
+    void emptyForecastFallsBackToArchive() {
+        String empty = """
+                {"latitude":48.12,"longitude":11.58,"utc_offset_seconds":0,
+                 "minutely_15":{"time":[1761980400,1761981300],
+                   "temperature_2m":[null,null],"wind_speed_10m":[null,null],"wind_gusts_10m":[null,null],
+                   "wind_direction_10m":[null,null],"precipitation":[null,null]}}""";
+        String archived = """
+                {"latitude":48.12,"longitude":11.58,"utc_offset_seconds":0,
+                 "hourly":{"time":[1761980400,1761984000],
+                   "temperature_2m":[6.0,7.0],"wind_speed_10m":[10,11],"wind_gusts_10m":[20,21],
+                   "wind_direction_10m":[200,210],"precipitation":[0.0,0.2]}}""";
+        forecastServer.expect(once(), requestTo(startsWith("http://forecast/v1/forecast")))
+                .andRespond(withSuccess(empty, MediaType.APPLICATION_JSON));
+        archiveServer.expect(once(), requestTo(startsWith("http://archive/v1/archive")))
+                .andExpect(queryParam("hourly",
+                        "temperature_2m,wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation"))
+                .andRespond(withSuccess(archived, MediaType.APPLICATION_JSON));
+
+        List<Series> series = source.fetch(List.of(new Location(48.12, 11.58)),
+                LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 1));
+
+        assertThat(series).singleElement().satisfies(s -> {
+            assertThat(s.stepMinutes()).isEqualTo(60);
+            assertThat(s.temperatureC()).containsExactly(6.0, 7.0);
+        });
+        forecastServer.verify();
+        archiveServer.verify();
+    }
+
+    @Test
     void oldRideUsesHourlyArchive() {
         archiveServer.expect(once(), requestTo(startsWith("http://archive/v1/archive")))
                 .andExpect(queryParam("hourly",

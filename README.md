@@ -344,7 +344,8 @@ Bei der Analyse einer **Outdoor-Fahrt** (Indoor-Kennung `false`, Typ `Ride`, mit
 alle 10 Minuten einen Punkt der Fahrt (plus das Ende) und fragt beim **weather-service** Temperatur, Wind, Böen,
 Windrichtung und Niederschlag ab (`POST /api/weather/points`, Vertrag im Modul `weather-api`, Zeiten in UTC aus
 `start_date` von intervals.icu). Der weather-service holt die Werte ohne API-Key bei **Open-Meteo**: Fahrten der
-letzten 90 Tage aus der Forecast-API im 15-Minuten-Takt, ältere aus der Archive-API (stündlich), jeweils zeitlich
+letzten 45 Tage aus der Forecast-API im 15-Minuten-Takt, ältere aus der Archive-API (stündlich; auch, wenn die
+Forecast-API für den Zeitraum nur leere Werte liefert), jeweils zeitlich
 interpoliert. Punkte in derselben Rasterzelle (~2 km) teilen sich einen Wert, alle Orte gehen in einem Aufruf.
 
 - Das Wetter wird mit der Analyse gespeichert (Tabelle `weather_point`), Report und „Erneut senden“ lesen nur noch daraus.

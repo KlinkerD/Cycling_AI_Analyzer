@@ -242,6 +242,21 @@
         </ng-template>
       </mat-tab>
 
+      <!-- Karte -->
+      <mat-tab label="Karte" [disabled]="!hasRoute">
+        <ng-template matTabContent>
+          <div class="tab-body">
+            <section class="panel">
+              <div class="panel-head">
+                <mat-icon>map</mat-icon>
+                <h3>Fahrtverlauf</h3>
+              </div>
+              <app-route-map [streams]="r.streams" [powerBands]="r.powerZoneBands" [hrBands]="r.hrZoneBands" />
+            </section>
+          </div>
+        </ng-template>
+      </mat-tab>
+
       <!-- Zonen & Kurve -->
       <mat-tab label="Zonen & Kurve" [disabled]="!powerZones.length && !hrZones.length && !curveData">
         <ng-template matTabContent>

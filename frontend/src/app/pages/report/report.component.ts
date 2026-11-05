@@ -18,6 +18,8 @@ import { RangeSliderComponent, SparkPoint } from '../../shared/charts/range-slid
 import { alpha, metricColor, scoreColor, token } from '../../shared/theme';
 import { formatCurveDuration, formatDuration, shortDate } from '../../shared/format';
 import { Pt, StreamCharts, TimeHighlight, buildStreamCharts } from './stream-charts';
+import { RouteMapComponent } from './route-map.component';
+import { hasRoute } from './route-coloring';
 
 /** Laenge des FTP-Testblocks (entspricht ftp.detection.window-seconds im ftp-service). */
 const FTP_TEST_SECONDS = 20 * 60;
@@ -37,7 +39,7 @@ interface ZoneRow {
     DatePipe, DecimalPipe, NgTemplateOutlet, RouterLink,
     MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule,
     MatTabsModule, MatTooltipModule,
-    BaseChartDirective, RangeSliderComponent
+    BaseChartDirective, RangeSliderComponent, RouteMapComponent
   ],
   templateUrl: './report.component.html',
   styleUrl: './report.component.scss'
@@ -66,6 +68,9 @@ export class ReportComponent implements OnInit {
   // Verläufe
   readonly streamGroup = new ZoomGroup();
   streams: StreamCharts | null = null;
+
+  // Karte (nur mit GPS)
+  hasRoute = false;
 
   // Zonen
   powerZones: ZoneRow[] = [];
@@ -113,6 +118,7 @@ export class ReportComponent implements OnInit {
 
   private build(report: ReportDto): void {
     this.streams = buildStreamCharts(report.streams, this.streamGroup, this.ftpHighlight());
+    this.hasRoute = hasRoute(report.streams);
     this.powerZones = this.zoneRows(report.powerZones);
     this.hrZones = this.zoneRows(report.hrZones);
     this.buildCurve(report.powerCurveSet);

@@ -9,7 +9,7 @@ Analysiere deine Radtrainings aus **intervals.icu** mit **Google Gemini AI** und
 | Backend | Spring Boot 4 + Java 25, aufgeteilt in intervals-service, report-service, training-service, ai-service, delivery-service, ftp-service |
 | Messaging | MQTT (Eclipse Mosquitto, Paho-v5-Client) |
 | API-Vertrag | OpenAPI (springdoc) je Service → OpenAPI Generator (typescript-angular), ein Client pro Service |
-| Frontend | Angular 21 + Angular Material 3, Chart.js (mit Zoom-Plugin) |
+| Frontend | Angular 21 + Angular Material 3, Chart.js (mit Zoom-Plugin), Leaflet (Karte, OpenStreetMap-Kacheln) |
 | KI | Google Gemini (Standard: gemini-2.5-flash) |
 | Datenbank | H2 (persistent, File-basiert), je eine für report-service und delivery-service |
 | Deployment | Docker Compose |
@@ -201,11 +201,20 @@ Der **report-service** besitzt alles rund um die Analyse einer Fahrt:
 | Herzfrequenzzonen | Max-HR-basierte Zonen Z1–Z5 |
 | Trainingsfortschritt | Durchschnittsleistung & Score der letzten Trainings |
 
+### Karte (Fahrtverlauf)
+- Tab **Karte** im Report: Route auf OpenStreetMap, einfärbbar nach Leistungszonen, HF-Zonen, Tempo oder einfarbig;
+  Hover zeigt km, Fahrzeit, Watt, Puls und Tempo. Ohne GPS (z. B. Rolle ohne Zwift) ist der Tab ausgegraut.
+- Leistungszonen mit der FTP der Fahrt (`ftpUsed`, wie IF/TSS), HF-Zonen mit den aktuellen Grenzen. Die Grenzen
+  liefert der Report mit (`powerZoneBands`, `hrZoneBands`), damit Karte und Versandbild gleich gefärbt sind.
+  Werte werden über ±15 Punkte geglättet, Tempo in sechs Stufen zwischen 5. und 95. Perzentil.
+- Zwift-Fahrten liefern Watopia-Koordinaten; ihre Route liegt auf der Karte an diesem (realen) Ort.
+
 ### Versand (Mail / Discord)
 
 Absender bauen den Inhalt, der delivery-service stellt zu:
 
-- **report-service** rendert nach jeder Analyse (und bei „Erneut senden“) die Charts und baut daraus eine neutrale
+- **report-service** rendert nach jeder Analyse (und bei „Erneut senden“) das Kartenbild (erstes Bild, 800×500,
+  nach Leistungszonen, sonst Tempo; selbst gezeichnet auf OSM-Kacheln) und die Charts und baut daraus eine neutrale
   `DeliveryMessage` (Titel, Felder, Abschnitte, PNG-Anhänge) auf `cycling/delivery/request/report`. Welche Kanäle
   aktiv sind, weiß er aus `cycling/delivery/status`. Fehlschläge beim Rendern oder Senden werden nach 1, 5 und
   15 Minuten wiederholt, danach hilft „Erneut senden“.
@@ -226,6 +235,7 @@ delivery-service:
 | `DISCORD_CHANNEL_ID` / `REPORT_MAIL_TO` | Ziel `default` für Discord bzw. Mail |
 | `DELIVERY_DISCORD_DESTINATIONS_<NAME>` | weiteres Discord-Ziel, z. B. `..._REPORTS=1234…` |
 | `DELIVERY_MAIL_DESTINATIONS_<NAME>` | weiteres Mail-Ziel |
+| `REPORT_MAP_TILE_URL` (report-service) | Kachel-URL für das Kartenbild (`{z}/{x}/{y}`), Default OpenStreetMap; leer = Route ohne Kartenhintergrund. Laden die Kacheln nicht, kommt die Route ebenfalls auf neutralen Grund |
 | `REPORT_TARGETS` (report-service) | wohin Reports gehen, z. B. `DISCORD:reports,MAIL:default`; leer = `default` jedes aktiven Kanals |
 | `FITNESS_TARGETS` (training-service) | wohin die Fitness-Zusammenfassung geht; Default `DISCORD:fitness` (braucht `DELIVERY_DISCORD_DESTINATIONS_FITNESS`) |
 | `RECOMMENDATION_TARGETS` (training-service) | wohin die Tagesempfehlung geht; Default `DISCORD:recommendation` (braucht `DELIVERY_DISCORD_DESTINATIONS_RECOMMENDATION`) |

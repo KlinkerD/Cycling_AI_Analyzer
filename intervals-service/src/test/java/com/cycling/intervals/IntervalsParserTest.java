@@ -43,6 +43,7 @@ class IntervalsParserTest {
         JsonNode root = json("""
                 [
                   {"id":"i1","name":"Morgenrunde","type":"Ride","start_date_local":"2026-11-01T08:30:00",
+                   "start_date":"2026-11-01T07:30:00Z",
                    "distance":42000.0,"moving_time":5400,"elapsed_time":5600,
                    "average_watts":170.0,"icu_average_watts":180.0,"icu_weighted_avg_watts":195.0,
                    "max_watts":600,"average_heartrate":139,"icu_average_heartrate":140.0,
@@ -56,6 +57,7 @@ class IntervalsParserTest {
         assertThat(rides).extracting(IntervalsActivity::id).containsExactly("i1", "i3");
         IntervalsActivity ride = rides.getFirst();
         assertThat(ride.startDateLocal()).isEqualTo("2026-11-01T08:30:00");
+        assertThat(ride.startDate()).isEqualTo("2026-11-01T07:30:00Z");
         assertThat(ride.movingTime()).isEqualTo(5400);
         assertThat(ride.averageWatts()).isEqualTo(180.0);
         assertThat(ride.normalizedPower()).isEqualTo(195.0);

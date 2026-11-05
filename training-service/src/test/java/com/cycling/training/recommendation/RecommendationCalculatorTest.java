@@ -126,6 +126,6 @@ class RecommendationCalculatorTest {
 
     private static IntervalsActivity ride(String name, String start, Double load, Double intensity, Double distance) {
         return new IntervalsActivity("i", name, start, "Ride", distance, null, null, null, null, null, null, null,
-                null, null, load, intensity);
+                null, null, load, intensity, null);
     }
 }

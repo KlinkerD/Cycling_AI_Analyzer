@@ -18,6 +18,8 @@ COPY ai-service/pom.xml ./ai-service/pom.xml
 COPY training-service/pom.xml ./training-service/pom.xml
 
 COPY ftp-service/pom.xml ./ftp-service/pom.xml
+COPY weather-api/pom.xml ./weather-api/pom.xml
+COPY weather-service/pom.xml ./weather-service/pom.xml
 
 RUN --mount=type=cache,target=/root/.m2     mvn -q -B -pl delivery-service -am package -DskipTests
 

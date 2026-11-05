@@ -2,6 +2,8 @@ package com.cycling.report.analysis;
 
 import com.cycling.report.api.ActivityDto;
 import com.cycling.report.api.StreamDataDto;
+import com.cycling.report.weather.RideWeatherService;
+import com.cycling.report.weather.WeatherPointRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -28,7 +30,8 @@ class AnalysisServiceAnalyzeTest {
     void setUp() {
         service = new AnalysisService(
                 intervals, mock(ZoneCalculatorService.class), repository,
-                powerCurves, new FtpResolver(200));
+                powerCurves, new FtpResolver(200),
+                new RideWeatherService(null, mock(WeatherPointRepository.class)));
 
         when(intervals.getAthleteThresholds())
                 .thenReturn(new AthleteThresholdsDto("Test", 250, 235, null, null, null));

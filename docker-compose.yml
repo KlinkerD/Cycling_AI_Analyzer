@@ -60,6 +60,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # weather-service: Temperatur, Wind und Regen zu Ort und Zeitpunkt von Open-Meteo (ohne API-Key), per REST
+  # fuer den report-service. Zustandslos mit kurzem Cache, kein Port nach aussen.
+  weather-service:
+    build:
+      context: .
+      dockerfile: weather-service/Dockerfile
+    container_name: cycling-weather
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
   # report-service: analysiert neue Fahrten (KI-Auftrag an den ai-service), speichert die Analysen (H2),
   # liefert Aktivitaetsliste und Report-Seite per REST (/api/reports) und schickt Reports an den delivery-service.
   report-service:
@@ -72,6 +87,8 @@ services:
     environment:
       - MQTT_BROKER_URL=tcp://mosquitto:1883
       - INTERVALS_SERVICE_URL=http://intervals-service:8080
+      # Wetter fuer Outdoor-Fahrten (leer = ohne Wetter)
+      - WEATHER_SERVICE_URL=${WEATHER_SERVICE_URL-http://weather-service:8080}
       - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/report;AUTO_SERVER=TRUE
       - CYCLING_FTP=${CYCLING_FTP:-250}
       - CYCLING_MAX_HR=${CYCLING_MAX_HR:-190}
@@ -91,6 +108,9 @@ services:
         condition: service_healthy
       intervals-service:
         condition: service_healthy
+      # nur gestartet, nicht gesund: ohne Wetter laeuft die Analyse trotzdem
+      weather-service:
+        condition: service_started
     restart: unless-stopped
 
   # training-service: Zustand des Athleten und Tagesempfehlung. Liefert Fitness-Chart und Athleten-Profil

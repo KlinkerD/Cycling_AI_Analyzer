@@ -37,7 +37,7 @@ final class ReportFixtures {
 
     static ReportContent report(ReportContent.Analysis analysis) {
         return new ReportContent(analysis, streams(List.of(85, 90)), List.of(), List.of(), List.of(),
-                new ReportContent.PowerCurveSet(null, List.of(), null), List.of(), List.of());
+                new ReportContent.PowerCurveSet(null, List.of(), null), List.of(), List.of(), List.of());
     }
 
     static byte[] png(String marker) {

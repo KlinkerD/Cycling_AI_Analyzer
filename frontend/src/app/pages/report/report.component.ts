@@ -117,7 +117,7 @@ export class ReportComponent implements OnInit {
   }
 
   private build(report: ReportDto): void {
-    this.streams = buildStreamCharts(report.streams, this.streamGroup, this.ftpHighlight());
+    this.streams = buildStreamCharts(report.streams, this.streamGroup, this.ftpHighlight(), report.weather ?? []);
     this.hasRoute = hasRoute(report.streams);
     this.powerZones = this.zoneRows(report.powerZones);
     this.hrZones = this.zoneRows(report.hrZones);
@@ -398,7 +398,7 @@ export class ReportComponent implements OnInit {
     // Chart neu bauen, damit der erkannte Block hinterlegt wird (oder die alte Markierung verschwindet)
     const report = this.report();
     if (report && (wasDetected || detection.status === this.Ftp.DETECTED)) {
-      this.streams = buildStreamCharts(report.streams, this.streamGroup, this.ftpHighlight());
+      this.streams = buildStreamCharts(report.streams, this.streamGroup, this.ftpHighlight(), report.weather ?? []);
     }
   }
 

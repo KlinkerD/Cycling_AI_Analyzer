@@ -488,6 +488,7 @@ components:
         activityId: { type: string, examples: [i123456] }
         name: { type: [string, 'null'] }
         startDateLocal: { type: [string, 'null'], description: 'Lokale Startzeit, z. B. 2026-11-01T08:30:00' }
+        startDate: { type: [string, 'null'], description: 'Startzeit in UTC, z. B. 2026-11-01T07:30:00Z (fehlt bei alten Meldungen)' }
         type: { type: [string, 'null'], examples: [Ride, VirtualRide] }
         distance: { type: [number, 'null'], description: Meter }
         movingTime: { type: [integer, 'null'], description: Sekunden }

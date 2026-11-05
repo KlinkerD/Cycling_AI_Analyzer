@@ -25,7 +25,7 @@ class ActivityDetectedHandlerTest {
 
     private static ActivityDetected detected(String id) {
         return new ActivityDetected(id, "Fahrt " + id, "2026-11-02T08:00:00", "Ride", 30000.0, 3600, 3700,
-                180.0, 195.0, 500.0, 140.0, 170.0, 8.0, 200.0);
+                180.0, 195.0, 500.0, 140.0, 170.0, 8.0, 200.0, "2026-11-02T07:00:00Z");
     }
 
     @Test

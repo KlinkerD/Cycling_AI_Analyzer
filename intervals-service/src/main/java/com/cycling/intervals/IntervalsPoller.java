@@ -114,6 +114,6 @@ public class IntervalsPoller {
     private static ActivityDetected toMessage(IntervalsActivity a) {
         return new ActivityDetected(a.id(), a.name(), a.startDateLocal(), a.type(), a.distance(), a.movingTime(),
                 a.elapsedTime(), a.averageWatts(), a.normalizedPower(), a.maxWatts(), a.averageHeartrate(),
-                a.maxHeartrate(), a.averageSpeed(), a.totalElevationGain());
+                a.maxHeartrate(), a.averageSpeed(), a.totalElevationGain(), a.startDate());
     }
 }

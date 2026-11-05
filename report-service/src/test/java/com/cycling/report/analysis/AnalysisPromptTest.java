@@ -28,7 +28,7 @@ class AnalysisPromptTest {
     private static String prompt(ActivityAnalysis current, List<ActivityAnalysis> previous) {
         return AnalysisPrompt.build(new PreparedAnalysis(current, null,
                 List.of(new ZoneDistributionDto("Z2", "Ausdauer", 1800, 50.0, "#0f0")), List.of(), previous,
-                current.getFtpUsed(), 190));
+                current.getFtpUsed(), 190, List.of(), null));
     }
 
     @Test

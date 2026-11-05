@@ -15,6 +15,7 @@ import java.util.List;
  * @param powerCurveSet Bestleistungen der Fahrt und der vorherigen; null = Chart entfaellt
  * @param powerZoneBands Leistungszonen in Watt (FTP der Fahrt) zum Einfaerben der Karte; leer = nach Tempo
  * @param hrZoneBands    Herzfrequenzzonen in bpm
+ * @param weather        Wetter alle 10 Minuten (Outdoor-Fahrten); leer = Chart entfaellt
  */
 public record ReportContent(
         Analysis analysis,
@@ -24,7 +25,8 @@ public record ReportContent(
         List<TrendPoint> trend,
         PowerCurveSet powerCurveSet,
         List<ZoneBand> powerZoneBands,
-        List<ZoneBand> hrZoneBands
+        List<ZoneBand> hrZoneBands,
+        List<WeatherPoint> weather
 ) {
 
     public ReportContent {
@@ -33,6 +35,7 @@ public record ReportContent(
         powerZones = powerZones == null ? List.of() : List.copyOf(powerZones);
         hrZones = hrZones == null ? List.of() : List.copyOf(hrZones);
         trend = trend == null ? List.of() : List.copyOf(trend);
+        weather = weather == null ? List.of() : List.copyOf(weather);
     }
 
     /** Kennzahlen und KI-Bewertung einer Fahrt. Alle Werte optional (null = unbekannt). */
@@ -74,6 +77,15 @@ public record ReportContent(
             List<Double> lat,        // Grad; leer ohne GPS
             List<Double> lng         // Grad
     ) {
+    }
+
+    /**
+     * Wetter an einem Punkt der Fahrt. Werte koennen null sein.
+     *
+     * @param precipitationMmPerHour Niederschlagsintensitaet; Summe = Intensitaet mal Abstand zum vorherigen Punkt
+     */
+    public record WeatherPoint(int minuteOfRide, Double distanceKm, Double temperatureC, Double windSpeedKmh,
+                               Double windGustKmh, Double precipitationMmPerHour) {
     }
 
     /** Grenzen einer Zone in Watt bzw. bpm; {@code upper} null = nach oben offen. */

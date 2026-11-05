@@ -20,6 +20,7 @@ public class ActivityDto {
     private String id;
     private String name;
     private String startDateLocal;
+    private String startDate;
     private Double distance;
     private Integer movingTime;
     private Integer elapsedTime;
@@ -36,23 +37,25 @@ public class ActivityDto {
     public static ActivityDto from(IntervalsActivity a) {
         return of(a.id(), a.name(), a.startDateLocal(), a.type(), a.distance(), a.movingTime(), a.elapsedTime(),
                 a.averageWatts(), a.normalizedPower(), a.maxWatts(), a.averageHeartrate(), a.maxHeartrate(),
-                a.averageSpeed(), a.totalElevationGain());
+                a.averageSpeed(), a.totalElevationGain(), a.startDate());
     }
 
     public static ActivityDto from(ActivityDetected a) {
         return of(a.activityId(), a.name(), a.startDateLocal(), a.type(), a.distance(), a.movingTime(),
                 a.elapsedTime(), a.averageWatts(), a.normalizedPower(), a.maxWatts(), a.averageHeartrate(),
-                a.maxHeartrate(), a.averageSpeed(), a.totalElevationGain());
+                a.maxHeartrate(), a.averageSpeed(), a.totalElevationGain(), a.startDate());
     }
 
     private static ActivityDto of(String id, String name, String startDateLocal, String type, Double distance,
                                   Integer movingTime, Integer elapsedTime, Double averageWatts,
                                   Double normalizedPower, Double maxWatts, Double averageHeartrate,
-                                  Double maxHeartrate, Double averageSpeed, Double totalElevationGain) {
+                                  Double maxHeartrate, Double averageSpeed, Double totalElevationGain,
+                                  String startDate) {
         ActivityDto dto = new ActivityDto();
         dto.id = id;
         dto.name = name;
         dto.startDateLocal = startDateLocal;
+        dto.startDate = startDate;
         dto.type = type;
         dto.distance = distance;
         dto.movingTime = movingTime;
@@ -71,6 +74,7 @@ public class ActivityDto {
     public void setId(String v) { this.id = v; }
     public void setName(String v) { this.name = v; }
     public void setStartDateLocal(String v) { this.startDateLocal = v; }
+    public void setStartDate(String v) { this.startDate = v; }
     public void setDistance(Double v) { this.distance = v; }
     public void setMovingTime(Integer v) { this.movingTime = v; }
     public void setElapsedTime(Integer v) { this.elapsedTime = v; }
@@ -88,6 +92,8 @@ public class ActivityDto {
     @ApiNonNull @JsonProperty("id") public String id() { return id; }
     @JsonProperty("name") public String name() { return name; }
     @JsonProperty("startDateLocal") public String startDateLocal() { return startDateLocal; }
+    /** Startzeit in UTC, z. B. "2026-11-01T07:30:00Z"; null bei alten Daten (dann kein Wetter). */
+    @JsonProperty("startDate") public String startDate() { return startDate; }
     /** Meter. */
     @JsonProperty("distance") public Double distance() { return distance; }
     /** Sekunden. */

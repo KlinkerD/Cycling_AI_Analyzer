@@ -1,5 +1,5 @@
 import { ChartData, ChartOptions, Scale } from 'chart.js';
-import { StreamDataDto } from '../../api/report';
+import { StreamDataDto, WeatherPointDto } from '../../api/report';
 import { ZoomGroup } from '../../shared/charts/zoom-group';
 import { SparkPoint } from '../../shared/charts/range-slider.component';
 import { alpha, metricColor, token } from '../../shared/theme';
@@ -9,8 +9,10 @@ export type Pt = { x: number; y: number };
 type LineData = ChartData<'line', Pt[]>;
 
 export interface StreamChart {
-  key: 'speed' | 'powerHr' | 'cadence';
+  key: 'speed' | 'weather' | 'powerHr' | 'cadence';
   title: string;
+  /** Kurzer Hinweis neben der Legende, z. B. die Regenmenge. */
+  note?: string;
   height: number;
   data: LineData;
   options: ChartOptions<'line'>;
@@ -34,12 +36,14 @@ export interface TimeHighlight {
 const AXIS_WIDTH = 48;
 
 /**
- * Baut die gestapelten Verlaufs-Charts (Speed+Höhe, Leistung+HF, Kadenz) aus den Rohdaten.
+ * Baut die gestapelten Verlaufs-Charts (Speed+Höhe, Wetter, Leistung+HF, Kadenz) aus den Rohdaten.
  * Alle teilen sich eine lineare X-Achse; Chart.js dünnt je Zoomstufe aus (LTTB).
  * {@code highlight} (z. B. der erkannte FTP-Test) wird im Leistungs-Chart farbig hinterlegt.
+ * {@code weather} (alle 10 Minuten, nur Outdoor) ergibt den Temperatur-/Wind-Chart.
  */
 export function buildStreamCharts(streams: StreamDataDto, group: ZoomGroup,
-                                  highlight: TimeHighlight | null = null): StreamCharts | null {
+                                  highlight: TimeHighlight | null = null,
+                                  weather: WeatherPointDto[] = []): StreamCharts | null {
   const distance = streams.distance ?? [];
   const time = streams.time ?? [];
   const useDistance = range(distance) > 100; // > 100 m Bewegung, sonst (Rolle ohne Distanz) Zeit
@@ -92,6 +96,9 @@ export function buildStreamCharts(streams: StreamDataDto, group: ZoomGroup,
     });
   }
 
+  const weatherChart = buildWeatherChart(weather, axis, group);
+  if (weatherChart) charts.push(weatherChart);
+
   if (power.length || hr.length) {
     const datasets: LineData['datasets'] = [];
     if (power.length) datasets.push(line('Leistung', power, metricColor('power'), 'yLeft', { fill: 'start', fillAlpha: 0.14, order: 2 }));
@@ -141,6 +148,86 @@ export function buildStreamCharts(streams: StreamDataDto, group: ZoomGroup,
   const sparkSource = power.length ? power : speed.length ? speed : hr;
   const sparkColor = power.length ? metricColor('power') : speed.length ? metricColor('speed') : metricColor('hr');
   return { axis, charts, spark: sparkSource, sparkColor };
+}
+
+/** Wetterpunkt mit Windrichtung fürs Tooltip. */
+type WeatherPt = Pt & { dir?: number | null };
+
+/**
+ * Temperatur (links) und Wind (rechts, Böen gestrichelt) alle 10 Minuten auf derselben X-Achse wie die
+ * anderen Charts. Windrichtung nur im Tooltip, Regenmenge als Hinweis. Null bei weniger als zwei Temperaturen.
+ */
+function buildWeatherChart(weather: WeatherPointDto[], axis: 'distance' | 'time', group: ZoomGroup): StreamChart | null {
+  const x = (w: WeatherPointDto): number | null =>
+    axis === 'distance' ? (w.distanceKm ?? null) : w.minuteOfRide * 60;
+  const series = (value: (w: WeatherPointDto) => number | null | undefined): WeatherPt[] => {
+    const out: WeatherPt[] = [];
+    for (const w of weather) {
+      const xv = x(w);
+      const v = value(w);
+      if (xv == null || v == null) continue;
+      out.push({ x: xv, y: v, dir: w.windDirectionDeg });
+    }
+    return out;
+  };
+
+  const temp = series(w => w.temperatureC);
+  if (temp.length < 2) return null;
+  const wind = series(w => w.windSpeedKmh);
+  const gust = series(w => w.windGustKmh);
+
+  const tempColor = metricColor('temp');
+  const windColor = metricColor('wind');
+  const datasets: LineData['datasets'] = [
+    { ...line('Temperatur', temp, tempColor, 'yLeft', { width: 2, order: 1 }), pointRadius: 2 }
+  ];
+  if (wind.length) {
+    datasets.push({ ...line('Wind', wind, windColor, 'yRight', { order: 2 }), pointRadius: 2 });
+  }
+  if (gust.length) {
+    datasets.push({ ...line('Böen', gust, alpha(windColor, 0.7), 'yRight', { width: 1, order: 3 }), borderDash: [5, 4] });
+  }
+
+  const options = streamOptions(group, axis, {
+    left: { label: '°C', color: tempColor },
+    right: wind.length ? { label: 'km/h', color: windColor, min: 0 } : null
+  }, (label, v) => label === 'Temperatur' ? `${formatDecimal(v, 1)} °C` : `${v.toFixed(0)} km/h`);
+  options.plugins!.tooltip!.callbacks!.label = item => {
+    const raw = item.raw as WeatherPt;
+    const v = item.parsed.y ?? 0;
+    if (item.dataset.label === 'Temperatur') return ` Temperatur: ${formatDecimal(v, 1)} °C`;
+    const from = item.dataset.label === 'Wind' && raw.dir != null ? `${compass(raw.dir)}, ` : '';
+    return ` ${item.dataset.label}: ${from}${v.toFixed(0)} km/h`;
+  };
+
+  return {
+    key: 'weather',
+    title: 'Temperatur' + (wind.length ? ' & Wind' : ''),
+    note: rainNote(weather),
+    height: 160,
+    data: { datasets },
+    options
+  };
+}
+
+/** "Regen: 1,2 mm" aus Intensität mal Abstand zum vorherigen Punkt; undefined ohne Regen. */
+function rainNote(weather: WeatherPointDto[]): string | undefined {
+  let mm = 0;
+  for (let i = 1; i < weather.length; i++) {
+    const rate = weather[i].precipitationMmPerHour;
+    if (rate != null) mm += rate * (weather[i].minuteOfRide - weather[i - 1].minuteOfRide) / 60;
+  }
+  return mm >= 0.05 ? `Regen: ${formatDecimal(mm, 1)} mm` : undefined;
+}
+
+/** Himmelsrichtung, aus der der Wind kommt (8 Sektoren). */
+function compass(deg: number): string {
+  const names = ['N', 'NO', 'O', 'SO', 'S', 'SW', 'W', 'NW'];
+  return names[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+}
+
+function formatDecimal(v: number, digits: number): string {
+  return v.toLocaleString('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 function line(

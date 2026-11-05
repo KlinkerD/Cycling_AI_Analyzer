@@ -11,6 +11,7 @@ package com.cycling.messaging.contract;
  * @param movingTime     Sekunden
  * @param elapsedTime    Sekunden
  * @param averageSpeed   m/s
+ * @param startDate      Startzeit in UTC, z. B. "2026-11-01T07:30:00Z"; null bei alten Meldungen
  */
 public record ActivityDetected(
         String activityId,
@@ -26,6 +27,7 @@ public record ActivityDetected(
         Double averageHeartrate,
         Double maxHeartrate,
         Double averageSpeed,
-        Double totalElevationGain
+        Double totalElevationGain,
+        String startDate
 ) {
 }

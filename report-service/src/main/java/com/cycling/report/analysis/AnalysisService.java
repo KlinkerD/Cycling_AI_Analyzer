@@ -1,13 +1,18 @@
 package com.cycling.report.analysis;
 
 import com.cycling.report.api.*;
+import com.cycling.report.weather.RideWeatherPoint;
+import com.cycling.report.weather.RideWeatherService;
+import com.cycling.report.weather.WeatherSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.stream.Collectors;
 
@@ -21,13 +26,16 @@ public class AnalysisService {
     private final ActivityAnalysisRepository repository;
     private final PowerCurveService powerCurveService;
     private final FtpResolver ftpResolver;
+    private final RideWeatherService weather;
 
     public AnalysisService(IntervalsData intervalsClient,
                            ZoneCalculatorService zoneCalculator,
                            ActivityAnalysisRepository repository,
                            PowerCurveService powerCurveService,
-                           FtpResolver ftpResolver) {
+                           FtpResolver ftpResolver,
+                           RideWeatherService weather) {
         this.ftpResolver = ftpResolver;
+        this.weather = weather;
         this.intervalsClient = intervalsClient;
         this.zoneCalculator = zoneCalculator;
         this.repository = repository;
@@ -95,7 +103,16 @@ public class AnalysisService {
                 .limit(3)
                 .collect(Collectors.toList());
 
-        return new PreparedAnalysis(analysis, streams, powerZones, hrZones, lastThree, ftp, maxHr);
+        // Wetter nur fuer echte Outdoor-Fahrten: unbekannte Indoor-Kennung (zones.indoor() null) = kein Wetter
+        List<RideWeatherPoint> rideWeather = weather.fetch(activityId, zones.indoor(), activityDto.type(),
+                activityDto.startDate(), streams);
+        Map<String, WeatherSummary> previousWeather = new LinkedHashMap<>();
+        for (ActivityAnalysis prev : lastThree) {
+            weather.summary(prev.getActivityId()).ifPresent(s -> previousWeather.put(prev.getActivityId(), s));
+        }
+
+        return new PreparedAnalysis(analysis, streams, powerZones, hrZones, lastThree, ftp, maxHr, rideWeather,
+                previousWeather);
     }
 
     /**
@@ -123,6 +140,12 @@ public class AnalysisService {
         // Speichern (upsert)
         repository.findByActivityId(activityId).ifPresent(existing -> analysis.setId(existing.getId()));
         ActivityAnalysis saved = repository.save(analysis);
+        List<WeatherPointDto> weatherPoints = prepared.weather().stream().map(RideWeatherPoint::toDto).toList();
+        try {
+            weather.replace(activityId, prepared.weather());
+        } catch (RuntimeException e) {
+            log.warn("Wetter fuer {} konnte nicht gespeichert werden: {}", activityId, e.getMessage());
+        }
 
         // Lazy Backfill: fuer die 3 vorherigen Aktivitaeten Power-Curve nachladen, falls noch nicht vorhanden
         powerCurveService.ensurePowerCurves(prepared.lastThree());
@@ -135,7 +158,7 @@ public class AnalysisService {
         log.info("Analyse für {} abgeschlossen. Score: {}/10", analysis.getActivityName(), aiResult.score());
         IntervalsData.ZoneBands bands = intervalsClient.getZoneBands(prepared.ftp());
         return new ReportDto(AnalysisDto.from(saved), prepared.streams(), prepared.powerZones(), prepared.hrZones(), trend,
-                powerCurveSet, bands.power(), bands.hr());
+                powerCurveSet, bands.power(), bands.hr(), weatherPoints);
     }
 
     public List<String> getAnalyzedIds() {
@@ -184,7 +207,7 @@ public class AnalysisService {
 
         IntervalsData.ZoneBands bands = intervalsClient.getZoneBands(ftp);
         return new ReportDto(AnalysisDto.from(analysis), streams, powerZones, hrZones, trend, powerCurveSet,
-                bands.power(), bands.hr());
+                bands.power(), bands.hr(), weather.load(activityId));
     }
 
     private List<TrendDataDto> buildTrend() {

@@ -30,6 +30,8 @@ public class ReportChartRenderer {
                 routeMap.render(report.streams(), report.powerZoneBands()));
         add(charts, ReportCharts.SPEED_ALT, "Geschwindigkeit & Höhe über Distanz",
                 quickChart.renderSpeedAndAltitude(report.streams()));
+        add(charts, ReportCharts.WEATHER, "Temperatur & Wind über Distanz",
+                quickChart.renderWeather(report.weather()));
         add(charts, ReportCharts.POWER_HR, "Leistung & Herzfrequenz über Distanz",
                 quickChart.renderPowerAndHr(report.streams()));
         add(charts, ReportCharts.CADENCE, "Kadenz über Distanz",

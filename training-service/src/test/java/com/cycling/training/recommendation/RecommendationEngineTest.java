@@ -45,7 +45,7 @@ class RecommendationEngineTest {
         public List<IntervalsActivity> activities(LocalDate from, LocalDate to) {
             if (activitiesError != null) throw activitiesError;
             return List.of(new IntervalsActivity("i1", "Runde", "2026-11-02T08:00:00", "Ride", 40000.0, null, null,
-                    null, null, null, null, null, null, null, 70.0, 0.75));
+                    null, null, null, null, null, null, null, 70.0, 0.75, null));
         }
     }
 

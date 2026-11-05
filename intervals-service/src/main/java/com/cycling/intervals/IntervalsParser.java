@@ -76,7 +76,8 @@ public final class IntervalsParser {
                 firstNonNull(dbl(n, "icu_average_speed"), dbl(n, "average_speed")),
                 firstNonNull(dbl(n, "icu_elevation_gain"), dbl(n, "total_elevation_gain")),
                 dbl(n, "icu_training_load"),
-                percentToFactor(dbl(n, "icu_intensity")));
+                percentToFactor(dbl(n, "icu_intensity")),
+                text(n, "start_date"));
     }
 
     /** intervals.icu liefert die Intensitaet in Prozent (78.4), der Vertrag als Faktor (0.784). */

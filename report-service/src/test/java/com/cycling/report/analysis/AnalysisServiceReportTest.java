@@ -1,5 +1,7 @@
 package com.cycling.report.analysis;
 
+import com.cycling.report.weather.RideWeatherService;
+import com.cycling.report.weather.WeatherPointRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +32,8 @@ class AnalysisServiceReportTest {
                 mock(ZoneCalculatorService.class),
                 repository,
                 powerCurves,
-                new FtpResolver(200));
+                new FtpResolver(200),
+                new RideWeatherService(null, mock(WeatherPointRepository.class)));
         when(intervals.getAthleteThresholds())
                 .thenReturn(new AthleteThresholdsDto("Test", 250, 235, null, null, null));
         when(intervals.getZoneBands(any())).thenReturn(IntervalsData.ZoneBands.empty());

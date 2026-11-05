@@ -41,7 +41,8 @@ class MessageCodecTest {
     @Test
     void activityDetectedSurvivesRoundTrip() {
         ActivityDetected detected = new ActivityDetected("i1", "Runde", "2026-11-01T08:30:00", "Ride",
-                42000.0, 5400, 5600, 180.0, 195.0, 600.0, 140.0, 175.0, 7.8, null);
+                42000.0, 5400, 5600, 180.0, 195.0, 600.0, 140.0, 175.0, 7.8, null,
+                "2026-11-01T07:30:00Z");
 
         assertThat(codec.decode(codec.encode(detected), ActivityDetected.class)).isEqualTo(detected);
     }

@@ -41,7 +41,7 @@ class ReportResendServiceTest {
         StreamDataDto streams = new StreamDataDto(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
                 List.of(), List.of());
         when(analysisService.getReport("i1"))
-                .thenReturn(new ReportDto(AnalysisDto.from(analysis), streams, List.of(), List.of(), List.of(), null, List.of(), List.of()));
+                .thenReturn(new ReportDto(AnalysisDto.from(analysis), streams, List.of(), List.of(), List.of(), null, List.of(), List.of(), List.of()));
     }
 
     @Test

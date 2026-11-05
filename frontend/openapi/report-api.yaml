@@ -253,6 +253,9 @@ components:
           type: number
           format: double
           nullable: true
+        startDate:
+          type: string
+          nullable: true
         startDateLocal:
           type: string
           nullable: true
@@ -276,6 +279,7 @@ components:
       - movingTime
       - name
       - normalizedPower
+      - startDate
       - startDateLocal
       - totalElevationGain
       - type
@@ -562,6 +566,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TrendDataDto"
+        weather:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeatherPointDto"
       required:
       - analysis
       - hrZoneBands
@@ -571,6 +579,7 @@ components:
       - powerZones
       - streams
       - trend
+      - weather
     ResendResultDto:
       type: object
       properties:
@@ -690,6 +699,55 @@ components:
       - avgSpeedKmh
       - distanceKm
       - overallScore
+    WeatherPointDto:
+      type: object
+      properties:
+        distanceKm:
+          type: number
+          format: double
+          nullable: true
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double
+        minuteOfRide:
+          type: integer
+          format: int32
+        precipitationMmPerHour:
+          type: number
+          format: double
+          nullable: true
+        temperatureC:
+          type: number
+          format: double
+          nullable: true
+        time:
+          type: string
+        windDirectionDeg:
+          type: number
+          format: double
+          nullable: true
+        windGustKmh:
+          type: number
+          format: double
+          nullable: true
+        windSpeedKmh:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - distanceKm
+      - lat
+      - lng
+      - minuteOfRide
+      - precipitationMmPerHour
+      - temperatureC
+      - time
+      - windDirectionDeg
+      - windGustKmh
+      - windSpeedKmh
     ZoneBandDto:
       type: object
       properties:

@@ -20,6 +20,9 @@ import com.cycling.report.ftp.FtpDetectionService;
 import com.cycling.report.map.HttpTileSource;
 import com.cycling.report.map.RouteMapRenderer;
 import com.cycling.report.map.TileSource;
+import com.cycling.report.weather.RideWeatherService;
+import com.cycling.report.weather.WeatherPointRepository;
+import com.cycling.weather.client.WeatherClient;
 import com.cycling.web.CyclingWebConfig;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -78,6 +81,19 @@ public class ReportConfig {
                                        @Value("${intervals-service.connect-timeout:5s}") Duration connectTimeout,
                                        @Value("${intervals-service.read-timeout:60s}") Duration readTimeout) {
         return new IntervalsData(IntervalsClient.create(baseUrl, connectTimeout, readTimeout));
+    }
+
+    /**
+     * Wetter der Fahrt vom weather-service. Leere URL = kein Wetter. Kurzer Lese-Timeout: das Wetter ist ein
+     * Extra, die Analyse soll nicht darauf warten (der Client wiederholt einmal).
+     */
+    @Bean
+    public RideWeatherService rideWeatherService(@Value("${weather-service.base-url:}") String baseUrl,
+                                                 @Value("${weather-service.connect-timeout:3s}") Duration connectTimeout,
+                                                 @Value("${weather-service.read-timeout:10s}") Duration readTimeout,
+                                                 WeatherPointRepository repository) {
+        WeatherClient client = baseUrl.isBlank() ? null : WeatherClient.create(baseUrl, connectTimeout, readTimeout);
+        return new RideWeatherService(client, repository);
     }
 
     // ---- Versand --------------------------------------------------------------------------------

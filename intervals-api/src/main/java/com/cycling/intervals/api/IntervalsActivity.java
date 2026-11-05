@@ -11,6 +11,7 @@ package com.cycling.intervals.api;
  * @param averageSpeed   m/s
  * @param trainingLoad   TSS laut intervals.icu ({@code icu_training_load}); null, wenn nicht berechnet
  * @param intensityFactor IF laut intervals.icu ({@code icu_intensity} / 100, z. B. 0.78); null, wenn nicht berechnet
+ * @param startDate      Startzeit in UTC ({@code start_date}), z. B. "2026-11-01T07:30:00Z"; null, wenn unbekannt
  */
 public record IntervalsActivity(
         String id,
@@ -28,6 +29,7 @@ public record IntervalsActivity(
         Double averageSpeed,
         Double totalElevationGain,
         Double trainingLoad,
-        Double intensityFactor
+        Double intensityFactor,
+        String startDate
 ) {
 }

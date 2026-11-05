@@ -76,6 +76,8 @@ services:
       - CYCLING_FTP=${CYCLING_FTP:-250}
       - CYCLING_MAX_HR=${CYCLING_MAX_HR:-190}
       - QUICKCHART_BASE_URL=${QUICKCHART_BASE_URL:-https://quickchart.io}
+      # Kartenkacheln fuer das Kartenbild im Versand (leer = Route ohne Karte)
+      - REPORT_MAP_TILE_URL=${REPORT_MAP_TILE_URL:-https://tile.openstreetmap.org/{z}/{x}/{y}.png}
       # Ziele der Reports, z. B. DISCORD:reports,MAIL:default (leer = "default" jedes aktiven Kanals)
       - REPORT_TARGETS=${REPORT_TARGETS:-}
     healthcheck:

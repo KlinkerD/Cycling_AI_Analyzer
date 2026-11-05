@@ -17,6 +17,9 @@ import com.cycling.report.analysis.IntervalsData;
 import com.cycling.report.analysis.ReportResendService;
 import com.cycling.report.ftp.FtpDetectionRepository;
 import com.cycling.report.ftp.FtpDetectionService;
+import com.cycling.report.map.HttpTileSource;
+import com.cycling.report.map.RouteMapRenderer;
+import com.cycling.report.map.TileSource;
 import com.cycling.web.CyclingWebConfig;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -78,6 +81,15 @@ public class ReportConfig {
     }
 
     // ---- Versand --------------------------------------------------------------------------------
+
+    /** Kartenbild fuer den Versand; leere Kachel-URL = nur die Route auf neutralem Grund. */
+    @Bean
+    public RouteMapRenderer routeMapRenderer(@Value("${report.map.tile-url:}") String tileUrl,
+                                             @Value("${report.map.user-agent:cycling-ai-analyzer}") String userAgent,
+                                             @Value("${report.map.attribution:}") String attribution) {
+        TileSource tiles = tileUrl.isBlank() ? TileSource.none() : new HttpTileSource(tileUrl, userAgent, attribution);
+        return new RouteMapRenderer(tiles);
+    }
 
     @Bean
     public ReportMessageBuilder reportMessageBuilder(@Value("${report.targets:}") String targets) {

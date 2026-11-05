@@ -1,0 +1,228 @@
+:host {
+  display: block;
+}
+
+.page > .panel,
+.page > .notice,
+.zone-grid {
+  margin-bottom: var(--gap);
+}
+
+// ---- Zeitraum und Aufteilung ------------------------------------------------
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 12px 16px;
+
+  .spacer {
+    flex: 1;
+  }
+}
+
+.toggles {
+  --mat-standard-button-toggle-height: 32px;
+  --mat-standard-button-toggle-shape: 8px;
+  --mat-standard-button-toggle-divider-color: var(--border);
+  --mat-standard-button-toggle-selected-state-background-color: var(--accent-soft);
+  --mat-standard-button-toggle-selected-state-text-color: var(--accent);
+  --mat-standard-button-toggle-text-color: var(--text-muted);
+  --mat-standard-button-toggle-label-text-size: 12px;
+  border-color: var(--border);
+}
+
+.date-range {
+  width: 230px;
+  --mat-form-field-container-height: 36px;
+  --mat-form-field-container-vertical-padding: 6px;
+  --mat-form-field-container-text-size: 13px;
+  font-size: 13px;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+// ---- Kennzahlen ---------------------------------------------------------------
+.kpi-row.five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+
+  .kpi-value {
+    font-size: 24px;
+  }
+}
+
+.delta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+
+  &.up {
+    color: #4ade80;
+  }
+
+  &.down {
+    color: #f87171;
+  }
+}
+
+// ---- Verlauf --------------------------------------------------------------------
+.chart-head {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+
+.chart-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(21, 26, 34, 0.6);
+  z-index: 1;
+}
+
+// ---- Zonen ----------------------------------------------------------------------
+.zone-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+
+  @media (max-width: 960px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stacked-bar {
+  display: flex;
+  height: 26px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  gap: 2px;
+
+  .segment {
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    cursor: default;
+
+    span {
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(0, 0, 0, 0.7);
+      overflow: hidden;
+    }
+  }
+}
+
+.zones-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+
+  th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    padding: 0 8px 6px 0;
+  }
+
+  td {
+    padding: 6px 8px 6px 0;
+    border-top: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td:first-child {
+    white-space: normal;
+  }
+
+  .right {
+    text-align: right;
+  }
+
+  .share {
+    position: relative;
+    width: 34%;
+  }
+
+  .share-bar {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    height: 4px;
+    margin-top: -2px;
+    border-radius: 2px;
+    opacity: 0.35;
+    max-width: 60%;
+  }
+}
+
+.zone-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 6px;
+}
+
+.zone-name {
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+// ---- Handy ------------------------------------------------------------------------
+@media (max-width: 960px) {
+  .kpi-row.five {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .kpi-row.five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    .kpi-value {
+      font-size: 20px;
+    }
+  }
+
+  .toolbar {
+    .spacer {
+      display: none;
+    }
+
+    .toggles,
+    .date-range {
+      width: 100%;
+    }
+
+    .toggles mat-button-toggle {
+      flex: 1;
+    }
+  }
+
+  .chart-head .toggles {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .zone-name {
+    display: block;
+    margin: 0 0 0 14px;
+  }
+}

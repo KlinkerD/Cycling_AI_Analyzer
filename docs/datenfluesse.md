@@ -5,13 +5,13 @@ Wie die Services zusammenspielen. Die Verträge selbst stehen in drei Quellen:
 | Was | Wo |
 |---|---|
 | MQTT zwischen den Services | [`asyncapi.yaml`](asyncapi.yaml) (AsyncAPI 3.0), im Code `cycling-messaging` |
-| REST Frontend → Services | `frontend/openapi/report-api.yaml`, `training-api.yaml` (aus springdoc erzeugt) |
+| REST Frontend → Services | `frontend/openapi/report-api.yaml`, `training-api.yaml`, `stats-api.yaml` (aus springdoc erzeugt) |
 | REST Services → intervals-service | Modul `intervals-api` (`IntervalsApi`, Records, gemeinsamer `IntervalsClient`) |
 | REST report-service → weather-service | Modul `weather-api` (`WeatherApi`, Records, `WeatherClient`) |
 
 Faustregel: **REST nur dort, wo das Frontend fragt** (und für Abrufe beim intervals-service), **MQTT zwischen den
-Services**. Jeder Service besitzt seine Daten selbst; nur der report-service und der delivery-service haben eine
-Datenbank (je eine eigene H2).
+Services**. Jeder Service besitzt seine Daten selbst; nur der report-service, der stats-service und der delivery-service
+haben eine Datenbank (je eine eigene H2).
 
 ## Überblick
 
@@ -24,12 +24,15 @@ flowchart LR
     FE -->|/api/...| NG
     NG -->|/api/reports| RS[report-service<br/>H2 report.mv.db]
     NG -->|/api/fitness<br/>/api/recommendation| TS[training-service]
+    NG -->|/api/stats| SS[stats-service<br/>H2 stats.mv.db]
 
     RS -->|REST| IS[intervals-service<br/>Cache]
     TS -->|REST| IS
+    SS -->|REST| IS
     IS -->|HTTPS| ICU[(intervals.icu)]
 
     IS -. activity/detected .-> RS
+    IS -. activity/detected .-> SS
     IS -. wellness/updated .-> TS
     RS -. ai/request/report .-> AI[ai-service<br/>Gemini]
     AI -. ai/result/report .-> RS
@@ -210,6 +213,33 @@ sequenceDiagram
     RCS-)DS: delivery/request/recommendation (messageId recommendation-daily-DATUM)
 ```
 
+## Statistik (stats-service)
+
+Eigene Datenbank mit einer Zeile pro Fahrt; das Frontend fragt nur den stats-service, nie den intervals-service.
+
+```mermaid
+sequenceDiagram
+    participant FE as Frontend
+    participant SS as stats-service
+    participant IS as intervals-service
+
+    Note over SS: beim Start: Erstimport ab 1.1. des Vorjahres
+    SS->>IS: activities (1.1. Vorjahr bis heute)
+    loop je noch nicht gespeicherte Fahrt
+        SS->>IS: activities/{id}/zones
+    end
+
+    IS-)SS: activity/detected (ActivityDetected)
+    opt Fahrt noch unbekannt
+        SS->>IS: activities (Tag der Fahrt), activities/{id}/zones
+    end
+
+    Note over SS: nachts (3:30): letzte 30 Tage neu, gelöschte Fahrten entfernen, fehlende Zonen nachholen
+
+    FE->>SS: GET /api/stats?from&to&groupBy · /api/stats/year-to-date
+    SS-->>FE: StatsDto / YearToDateDto (aus der eigenen DB)
+```
+
 ## REST-Endpunkte fürs Frontend
 
 | Service | Endpoint | Zweck |
@@ -225,6 +255,9 @@ sequenceDiagram
 | training-service | `PUT /api/fitness/athlete/thresholds` | Schwellen + Gewicht nach intervals.icu schreiben |
 | | `GET /api/fitness/wellness?from&to[&refresh]` | CTL/ATL/Form |
 | | `GET /api/recommendation` · `POST /api/recommendation/refresh` | Tagesempfehlung |
+| stats-service | `GET /api/stats?from&to&groupBy` | Summen und Zeit in Zonen je Woche/Monat/Jahr |
+| | `GET /api/stats/year-to-date?groupBy` | 1.1. bis heute plus derselbe Zeitraum im Vorjahr |
+| | `GET /api/stats/status` | gespeicherte Fahrten, Erstimport läuft |
 
 Fehler vom intervals-service kommen bei beiden als ProblemDetail mit `code` an (502/503/404, ggf. `Retry-After`).
 
@@ -232,7 +265,7 @@ Fehler vom intervals-service kommen bei beiden als ProblemDetail mit `code` an (
 
 | Topic | Von → an | Payload | Retained |
 |---|---|---|---|
-| `cycling/intervals/activity/detected` | intervals → report | `ActivityDetected` | nein |
+| `cycling/intervals/activity/detected` | intervals → report, stats | `ActivityDetected` | nein |
 | `cycling/intervals/wellness/updated` | intervals → training | `WellnessUpdated` | ja |
 | `cycling/ai/request/{report,training}` | Absender → ai | `AiRequest` (fertiger Prompt) | nein |
 | `cycling/ai/result/{report,training}` | ai → Absender | `AiResult` (Antworttext) | nein |

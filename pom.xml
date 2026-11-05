@@ -30,5 +30,6 @@
     <module>training-service</module>
     <module>ftp-service</module>
     <module>weather-service</module>
+    <module>stats-service</module>
   </modules>
 </project>

@@ -46,6 +46,10 @@ jobs:
             context: .
             dockerfile: ./weather-service/Dockerfile
             image: ghcr.io/${{ github.repository_owner }}/cycling-weather
+          - name: stats-service
+            context: .
+            dockerfile: ./stats-service/Dockerfile
+            image: ghcr.io/${{ github.repository_owner }}/cycling-stats
           - name: frontend
             context: ./frontend
             dockerfile: ./frontend/Dockerfile

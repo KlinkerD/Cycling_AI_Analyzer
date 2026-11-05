@@ -9,6 +9,7 @@ import { provideCharts } from 'ng2-charts';
 import { routes } from './app.routes';
 import { provideApi as provideReportApi } from './api/report';
 import { provideApi as provideTrainingApi } from './api/training';
+import { provideApi as provideStatsApi } from './api/stats';
 import { GERMAN_DATE_FORMATS, GermanDateAdapter } from './shared/german-date-adapter';
 
 registerLocaleData(localeDe);
@@ -19,9 +20,11 @@ export const appConfig: ApplicationConfig = {
     provideAnimations(),
     provideHttpClient(),
     // Generierte API-Clients: relative URLs (/api/reports -> report-service,
-    // /api/fitness und /api/recommendation -> training-service); Dev-Proxy bzw. nginx leiten weiter.
+    // /api/fitness und /api/recommendation -> training-service, /api/stats -> stats-service);
+    // Dev-Proxy bzw. nginx leiten weiter.
     provideReportApi(''),
     provideTrainingApi(''),
+    provideStatsApi(''),
     provideCharts(),
     { provide: LOCALE_ID, useValue: 'de-DE' },
     { provide: MAT_DATE_LOCALE, useValue: 'de-DE' },

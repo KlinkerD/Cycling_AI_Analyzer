@@ -336,7 +336,7 @@ ProblemDetail mit `code`; alle nutzen den gemeinsamen `IntervalsClient` aus dems
 | Endpoint | Liefert |
 |---|---|
 | `GET /api/intervals/activities?from&to` | Rad-Aktivitäten (Ride, VirtualRide) |
-| `GET /api/intervals/activities/{id}/streams` | Zeitreihen (Leistung, HF, Tempo, Höhe, Trittfrequenz) |
+| `GET /api/intervals/activities/{id}/streams` | Zeitreihen (Leistung, HF, Tempo, Höhe, Trittfrequenz, GPS lat/lng) |
 | `GET /api/intervals/activities/{id}/zones` | Zonenzeiten, Indoor-Kennung, `icu_ftp` |
 | `GET /api/intervals/activities/{id}/power-curve` | Power-Curve |
 | `GET /api/intervals/athlete/thresholds` · `/athlete/zones` | FTP, LTHR, Max-HF, Gewicht · Power-/HF-Zonen |

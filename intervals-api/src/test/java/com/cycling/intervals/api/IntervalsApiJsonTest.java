@@ -50,7 +50,8 @@ class IntervalsApiJsonTest {
     void wellnessAndStreamsSurviveRoundTrip() throws Exception {
         IntervalsWellnessPoint point = new IntervalsWellnessPoint("2026-11-01", 55.2, 60.1, -4.9, 3.4);
         IntervalsStreams streams = new IntervalsStreams(List.of(0.0, 10.0), Arrays.asList(150, null),
-                List.of(120, 125), List.of(8.0, 8.1), List.of(100.0, 101.0), List.of(0, 1), List.of());
+                List.of(120, 125), List.of(8.0, 8.1), List.of(100.0, 101.0), List.of(0, 1), List.of(),
+                List.of(53.55, 53.56), List.of(9.99, 10.0));
 
         assertThat(roundTrip(point, IntervalsWellnessPoint.class)).isEqualTo(point);
         assertThat(roundTrip(streams, IntervalsStreams.class)).isEqualTo(streams);

@@ -117,6 +117,27 @@ class IntervalsParserTest {
         assertThat(streams.watts()).containsExactly(100, 110);
         assertThat(streams.cadence()).containsExactly(85, 90);
         assertThat(streams.altitude()).containsExactly(100.5, 101.0);
+        assertThat(streams.lat()).isEmpty();
+        assertThat(streams.lng()).isEmpty();
+    }
+
+    @Test
+    void readsLatLngFromDataAndData2() throws Exception {
+        IntervalsStreams streams = IntervalsParser.streams(json("""
+                [{"type":"latlng","data":[53.55,null,53.56],"data2":[9.99,null,10.0]},
+                 {"type":"time","data":[0,1,2]}]"""));
+
+        assertThat(streams.lat()).containsExactly(53.55, null, 53.56);
+        assertThat(streams.lng()).containsExactly(9.99, null, 10.0);
+    }
+
+    @Test
+    void latLngIsEmptyWithoutGps() throws Exception {
+        IntervalsStreams streams = IntervalsParser.streams(json("""
+                [{"type":"watts","data":[150,160]}]"""));
+
+        assertThat(streams.lat()).isEmpty();
+        assertThat(streams.lng()).isEmpty();
     }
 
     // ---- Wellness ------------------------------------------------------------------------------

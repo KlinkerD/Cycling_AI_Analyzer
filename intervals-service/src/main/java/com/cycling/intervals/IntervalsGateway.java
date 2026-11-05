@@ -40,8 +40,9 @@ public class IntervalsGateway {
         return rides;
     }
 
+    /** {@code GET /activity/{id}/streams}: Standard-Streams plus GPS ({@code latlng}). */
     public IntervalsStreams streams(String activityId) {
-        return IntervalsParser.streams(json(activityPath(activityId) + "/streams"));
+        return IntervalsParser.streams(json(activityPath(activityId) + "/streams?types=latlng&includeDefaults=true"));
     }
 
     /** {@code GET /athlete/{id}}: Schwellenwerte und Zonen. */

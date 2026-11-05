@@ -88,13 +88,16 @@ public final class IntervalsParser {
 
     /**
      * {@code GET /activity/{id}/streams}: Array von {"type": "...", "data": [...]}; alternativ ein Objekt
-     * {"watts": [...], ...}.
+     * {"watts": [...], ...}. GPS kommt als {"type": "latlng", "data": [lat...], "data2": [lng...]}.
      */
     public static IntervalsStreams streams(JsonNode root) {
         Map<String, JsonNode> streams = new HashMap<>();
+        JsonNode lng = null;
         if (root != null && root.isArray()) {
             for (JsonNode stream : root) {
-                streams.put(stream.path("type").asText(), stream.path("data"));
+                String type = stream.path("type").asText();
+                streams.put(type, stream.path("data"));
+                if ("latlng".equals(type)) lng = stream.path("data2");
             }
         } else if (root != null && root.isObject()) {
             root.fields().forEachRemaining(e -> streams.put(e.getKey(), e.getValue()));
@@ -106,7 +109,9 @@ public final class IntervalsParser {
                 doubles(streams.getOrDefault("velocity_smooth", streams.get("velocity"))),
                 doubles(streams.get("altitude")),
                 ints(streams.get("time")),
-                ints(streams.getOrDefault("cadence", streams.get("rpm"))));
+                ints(streams.getOrDefault("cadence", streams.get("rpm"))),
+                doubles(streams.get("latlng")),
+                doubles(lng));
     }
 
     // ---- Wellness ----------------------------------------------------------------------------

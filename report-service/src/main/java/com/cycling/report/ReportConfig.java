@@ -24,8 +24,6 @@ import com.cycling.report.weather.RideWeatherService;
 import com.cycling.report.weather.WeatherPointRepository;
 import com.cycling.weather.client.WeatherClient;
 import com.cycling.web.CyclingWebConfig;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.models.OpenAPI;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -136,10 +134,8 @@ public class ReportConfig {
                                                  ReportRequestHandler reportRequestHandler,
                                                  Clock clock,
                                                  @Value("${analysis.job-timeout:15m}") Duration timeout) {
-        // Eigener Mapper nur fuer das im Job gespeicherte ActivityDto (unbekannte Felder alter Jobs ignorieren).
-        ObjectMapper jobJson = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         return new AnalysisJobService(analysisService, jobRepository, messaging, reportRequestHandler::handle,
-                jobJson, clock, timeout);
+                AnalysisJobService.jobJsonMapper(), clock, timeout);
     }
 
     @Bean

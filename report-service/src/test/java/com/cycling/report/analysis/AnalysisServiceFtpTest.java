@@ -1,5 +1,7 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
+
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -9,7 +11,7 @@ class AnalysisServiceFtpTest {
     /** Alte Indoor-Analyse: NP 200 W, 1 h, damals mit Outdoor-FTP 250 W gerechnet (IF 0.80, TSS 64). */
     private static ActivityAnalysis oldIndoorAnalysis() {
         ActivityAnalysis a = new ActivityAnalysis();
-        a.setActivityId("i1");
+        a.setActivityId(ActivityId.of("i1"));
         a.setNormalizedPowerWatts(200.0);
         a.setDurationSeconds(3600);
         a.setIntensityFactor(0.80);

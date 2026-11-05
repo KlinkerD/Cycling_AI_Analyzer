@@ -9,6 +9,7 @@ import com.cycling.intervals.api.IntervalsPowerCurve;
 import com.cycling.intervals.api.IntervalsStreams;
 import com.cycling.intervals.api.IntervalsThresholdsUpdate;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
+import com.cycling.types.ActivityId;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -71,7 +72,7 @@ public class IntervalsClient {
         return list(IntervalsApi.WELLNESS, from, to, new ParameterizedTypeReference<>() { });
     }
 
-    public IntervalsStreams streams(String activityId) {
+    public IntervalsStreams streams(ActivityId activityId) {
         return get(IntervalsApi.ACTIVITY_STREAMS, IntervalsStreams.class, activityId);
     }
 
@@ -83,11 +84,11 @@ public class IntervalsClient {
         return get(IntervalsApi.ATHLETE_ZONES, IntervalsAthleteZones.class);
     }
 
-    public IntervalsActivityZones activityZones(String activityId) {
+    public IntervalsActivityZones activityZones(ActivityId activityId) {
         return get(IntervalsApi.ACTIVITY_ZONES, IntervalsActivityZones.class, activityId);
     }
 
-    public IntervalsPowerCurve powerCurve(String activityId) {
+    public IntervalsPowerCurve powerCurve(ActivityId activityId) {
         return get(IntervalsApi.ACTIVITY_POWER_CURVE, IntervalsPowerCurve.class, activityId);
     }
 
@@ -146,7 +147,7 @@ public class IntervalsClient {
     }
 
     /** Zonen einer Aktivitaet; leer, wenn der Abruf scheitert (Indoor-Kennung und FTP dann unbekannt). */
-    public Optional<IntervalsActivityZones> activityZonesIfAvailable(String activityId) {
+    public Optional<IntervalsActivityZones> activityZonesIfAvailable(ActivityId activityId) {
         try {
             return Optional.of(activityZones(activityId));
         } catch (IntervalsUnavailableException e) {
@@ -156,7 +157,7 @@ public class IntervalsClient {
     }
 
     /** Power-Curve; ohne Punkte, wenn der Abruf scheitert. */
-    public IntervalsPowerCurve powerCurveOrEmpty(String activityId) {
+    public IntervalsPowerCurve powerCurveOrEmpty(ActivityId activityId) {
         try {
             IntervalsPowerCurve curve = powerCurve(activityId);
             return curve.points() != null ? curve : new IntervalsPowerCurve(List.of());

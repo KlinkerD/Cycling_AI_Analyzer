@@ -4,7 +4,7 @@
  */
 export type Metric =
   | 'power' | 'hr' | 'cadence' | 'speed' | 'altitude' | 'score'
-  | 'fitness' | 'fatigue' | 'form';
+  | 'fitness' | 'fatigue' | 'form' | 'temp' | 'wind';
 
 const FALLBACK: Record<string, string> = {
   '--c-power': '#a78bfa',
@@ -16,6 +16,8 @@ const FALLBACK: Record<string, string> = {
   '--c-fitness': '#38bdf8',
   '--c-fatigue': '#f472b6',
   '--c-form': '#e5e7eb',
+  '--c-temp': '#fb923c',
+  '--c-wind': '#67e8f9',
   '--text-muted': '#8d96a5',
   '--text': '#e7e9ee',
   '--grid': 'rgba(255,255,255,0.06)',

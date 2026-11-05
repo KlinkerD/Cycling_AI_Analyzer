@@ -1,8 +1,11 @@
 package com.cycling.delivery;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /** Versandstatus einer Nachricht an ein Ziel. Eine Zeile pro (messageId, channel, destination). */
 @Entity
@@ -16,7 +19,8 @@ public class Delivery {
     private Long id;
 
     @Column(nullable = false)
-    private String messageId;
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    private UUID messageId;
 
     /** Herkunft laut Topic, z. B. "report" oder "fitness". */
     @Column(nullable = false)
@@ -51,7 +55,7 @@ public class Delivery {
     protected Delivery() {
     }
 
-    public Delivery(String messageId, String source, DeliveryChannel channel, String destination, LocalDateTime queuedAt) {
+    public Delivery(UUID messageId, String source, DeliveryChannel channel, String destination, LocalDateTime queuedAt) {
         this.messageId = messageId;
         this.source = source;
         this.channel = channel;
@@ -65,7 +69,7 @@ public class Delivery {
     }
 
     public Long getId() { return id; }
-    public String getMessageId() { return messageId; }
+    public UUID getMessageId() { return messageId; }
     public String getSource() { return source; }
     public DeliveryChannel getChannel() { return channel; }
     public String getDestination() { return destination; }

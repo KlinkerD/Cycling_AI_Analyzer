@@ -1,5 +1,9 @@
 package com.cycling.messaging.contract;
 
+import com.cycling.types.ActivityId;
+
+import java.util.UUID;
+
 /**
  * ftp-service -> report-service: Ergebnis der FTP-Test-Erkennung fuer eine Fahrt.
  * <ul>
@@ -17,8 +21,8 @@ package com.cycling.messaging.contract;
  * @param error              Fehlertext, null wenn die Erkennung gelaufen ist
  */
 public record DetectFtpResponse(
-        String requestId,
-        String activityId,
+        UUID requestId,
+        ActivityId activityId,
         boolean isFtpDetected,
         Integer ftp,
         Integer maxHr,
@@ -28,11 +32,11 @@ public record DetectFtpResponse(
         String error
 ) {
 
-    public static DetectFtpResponse notDetected(String requestId, String activityId) {
+    public static DetectFtpResponse notDetected(UUID requestId, ActivityId activityId) {
         return new DetectFtpResponse(requestId, activityId, false, null, null, null, null, null, null);
     }
 
-    public static DetectFtpResponse failed(String requestId, String activityId, String error) {
+    public static DetectFtpResponse failed(UUID requestId, ActivityId activityId, String error) {
         return new DetectFtpResponse(requestId, activityId, false, null, null, null, null, null, error);
     }
 }

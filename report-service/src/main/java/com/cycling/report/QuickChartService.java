@@ -98,6 +98,80 @@ public class QuickChartService {
     }
 
     /**
+     * Temperatur (Grad C, links) und Wind (km/h, rechts: Mittel durchgezogen, Boeen gestrichelt) alle 10 Minuten.
+     * X-Achse ist die Distanz, ohne Distanz die Minute. Hat es geregnet, steht die Gesamtmenge im Titel.
+     * Null bei weniger als zwei Punkten mit Temperatur (Indoor, kein Wetter).
+     */
+    public byte[] renderWeather(List<ReportContent.WeatherPoint> weather) {
+        if (weather == null || weather.stream().filter(w -> w.temperatureC() != null).count() < 2) return null;
+
+        boolean byDistance = weather.stream().allMatch(w -> w.distanceKm() != null);
+        List<Double> xs = new ArrayList<>(weather.size());
+        List<Double> temp = new ArrayList<>(weather.size());
+        List<Double> wind = new ArrayList<>(weather.size());
+        List<Double> gust = new ArrayList<>(weather.size());
+        double precipMm = 0;
+        for (int i = 0; i < weather.size(); i++) {
+            ReportContent.WeatherPoint w = weather.get(i);
+            xs.add(byDistance ? w.distanceKm() : (double) w.minuteOfRide());
+            temp.add(w.temperatureC());
+            wind.add(w.windSpeedKmh());
+            gust.add(w.windGustKmh());
+            if (i > 0 && w.precipitationMmPerHour() != null) {
+                precipMm += w.precipitationMmPerHour() * (w.minuteOfRide() - weather.get(i - 1).minuteOfRide()) / 60.0;
+            }
+        }
+        boolean hasWind = hasAny(wind);
+
+        List<Map<String, Object>> datasets = new ArrayList<>();
+        Map<String, Object> tempDs = axisDataset("Temperatur (°C)", temp, "rgba(244,81,30,1)", "rgba(0,0,0,0)",
+                false, "yTemp", 2.0, 1);
+        tempDs.put("pointRadius", 2);
+        tempDs.put("tension", 0.3);
+        datasets.add(tempDs);
+        if (hasWind) {
+            Map<String, Object> windDs = axisDataset("Wind (km/h)", wind, "rgba(3,155,229,1)", "rgba(0,0,0,0)",
+                    false, "yWind", 1.5, 2);
+            windDs.put("pointRadius", 2);
+            windDs.put("tension", 0.3);
+            datasets.add(windDs);
+            if (hasAny(gust)) {
+                Map<String, Object> gustDs = axisDataset("Böen (km/h)", gust, "rgba(3,155,229,0.8)",
+                        "rgba(0,0,0,0)", false, "yWind", 1.0, 3);
+                gustDs.put("borderDash", List.of(5, 4));
+                gustDs.put("pointRadius", 0);
+                gustDs.put("tension", 0.3);
+                datasets.add(gustDs);
+            }
+        }
+
+        Map<String, Object> scales = new LinkedHashMap<>();
+        scales.put("x", Map.of("type", "linear",
+                "title", Map.of("display", true, "text", byDistance ? "Distanz (km)" : "Minuten seit Start")));
+        Map<String, Object> yTemp = new LinkedHashMap<>();
+        yTemp.put("type", "linear");
+        yTemp.put("position", "left");
+        yTemp.put("title", Map.of("display", true, "text", "°C"));
+        yTemp.put("beginAtZero", false);
+        scales.put("yTemp", yTemp);
+        if (hasWind) {
+            Map<String, Object> yWind = new LinkedHashMap<>();
+            yWind.put("type", "linear");
+            yWind.put("position", "right");
+            yWind.put("title", Map.of("display", true, "text", "km/h"));
+            yWind.put("beginAtZero", true);
+            yWind.put("grid", Map.of("drawOnChartArea", false));
+            scales.put("yWind", yWind);
+        }
+
+        String title = "Temperatur" + (hasWind ? " & Wind" : "") + (byDistance ? " über Distanz" : " über Zeit");
+        if (precipMm >= 0.05) {
+            title += String.format(java.util.Locale.GERMANY, " · Regen: %.1f mm gesamt", precipMm);
+        }
+        return postMultiAxis(title, xs, datasets, scales, true);
+    }
+
+    /**
      * Leistung (W, links als gefuellte Flaeche) kombiniert mit der Herzfrequenz
      * (bpm, rechts als Linie). Fehlt eine der beiden Metriken, wird nur die vorhandene gezeigt.
      */

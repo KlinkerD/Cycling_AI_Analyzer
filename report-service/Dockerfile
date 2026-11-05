@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
 
 COPY pom.xml .
+COPY cycling-types ./cycling-types
 COPY cycling-messaging ./cycling-messaging
 COPY intervals-api ./intervals-api
 COPY intervals-service/pom.xml ./intervals-service/pom.xml
@@ -18,6 +19,8 @@ COPY cycling-web ./cycling-web
 COPY ai-service/pom.xml ./ai-service/pom.xml
 
 COPY ftp-service/pom.xml ./ftp-service/pom.xml
+COPY weather-api ./weather-api
+COPY weather-service/pom.xml ./weather-service/pom.xml
 
 RUN --mount=type=cache,target=/root/.m2     mvn -q -B -pl report-service -am package -DskipTests
 

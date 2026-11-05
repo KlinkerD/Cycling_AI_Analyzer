@@ -1,5 +1,9 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
+
+import com.cycling.report.weather.RideWeatherService;
+import com.cycling.report.weather.WeatherPointRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +34,8 @@ class AnalysisServiceReportTest {
                 mock(ZoneCalculatorService.class),
                 repository,
                 powerCurves,
-                new FtpResolver(200));
+                new FtpResolver(200),
+                new RideWeatherService(null, mock(WeatherPointRepository.class)));
         when(intervals.getAthleteThresholds())
                 .thenReturn(new AthleteThresholdsDto("Test", 250, 235, null, null, null));
         when(intervals.getZoneBands(any())).thenReturn(IntervalsData.ZoneBands.empty());
@@ -39,17 +44,17 @@ class AnalysisServiceReportTest {
     /** Analyse aus alter Version: NP 200 W, 1 h, mit Outdoor-FTP 250 W gerechnet, ohne indoor/ftpUsed. */
     private ActivityAnalysis storedOldAnalysis() {
         ActivityAnalysis a = new ActivityAnalysis();
-        a.setActivityId("i1");
+        a.setActivityId(ActivityId.of("i1"));
         a.setNormalizedPowerWatts(200.0);
         a.setDurationSeconds(3600);
         a.setIntensityFactor(0.80);
         a.setTrainingLoad(64.0);
-        when(repository.findByActivityId("i1")).thenReturn(Optional.of(a));
+        when(repository.findByActivityId(ActivityId.of("i1"))).thenReturn(Optional.of(a));
         return a;
     }
 
     private void activityFromIntervals(Boolean indoor, Integer icuFtp) {
-        when(intervals.getActivityZones("i1"))
+        when(intervals.getActivityZones(ActivityId.of("i1")))
                 .thenReturn(new ActivityZonesDto(List.of(), List.of(), indoor, icuFtp));
     }
 
@@ -58,7 +63,7 @@ class AnalysisServiceReportTest {
         ActivityAnalysis a = storedOldAnalysis();
         activityFromIntervals(true, null);
 
-        service.getReport("i1");
+        service.getReport(ActivityId.of("i1"));
 
         assertThat(a.getIndoor()).isTrue();
         assertThat(a.getFtpUsed()).isEqualTo(235);
@@ -74,7 +79,7 @@ class AnalysisServiceReportTest {
         ActivityAnalysis a = storedOldAnalysis();
         activityFromIntervals(true, 240);
 
-        service.getReport("i1");
+        service.getReport(ActivityId.of("i1"));
 
         assertThat(a.getFtpUsed()).isEqualTo(240);
     }
@@ -86,7 +91,7 @@ class AnalysisServiceReportTest {
         a.setFtpUsed(250);
         activityFromIntervals(true, 235);
 
-        service.getReport("i1");
+        service.getReport(ActivityId.of("i1"));
 
         assertThat(a.getIndoor()).isFalse();
         assertThat(a.getFtpUsed()).isEqualTo(250);
@@ -100,7 +105,7 @@ class AnalysisServiceReportTest {
         ActivityAnalysis a = storedOldAnalysis();
         activityFromIntervals(null, null);
 
-        service.getReport("i1");
+        service.getReport(ActivityId.of("i1"));
 
         assertThat(a.getIndoor()).isFalse();
         assertThat(a.getFtpUsed()).isEqualTo(250);

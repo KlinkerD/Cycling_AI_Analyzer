@@ -229,6 +229,9 @@
                         <span class="legend-dot" [style.background]="d.borderColor"></span>
                         <span>{{ d.label }}</span>
                       }
+                      @if (c.note) {
+                        <span class="stack-note">{{ c.note }}</span>
+                      }
                     </div>
                     <div class="chart-box" [style.height.px]="c.height">
                       <canvas baseChart type="line" [data]="c.data" [options]="c.options"></canvas>

@@ -27,14 +27,14 @@ class DeliveryDispatcherTest {
     @Test
     void messageIsAcceptedWithSourceFromTopicAndSentInBackground() {
         when(deliveryService.accept("fitness", message)).thenReturn(List.of(
-                new Delivery("m1", "fitness", DeliveryChannel.DISCORD, "default", LocalDateTime.now())));
+                new Delivery(MessageFixtures.id("m1"), "fitness", DeliveryChannel.DISCORD, "default", LocalDateTime.now())));
 
         dispatcher.handle("cycling/delivery/request/fitness", message);
 
         verify(deliveryService, never()).deliverPending(any());
         assertThat(queued).hasSize(1);
         queued.getFirst().run();
-        verify(deliveryService).deliverPending("m1");
+        verify(deliveryService).deliverPending(MessageFixtures.id("m1"));
     }
 
     @Test
@@ -62,7 +62,7 @@ class DeliveryDispatcherTest {
     @Test
     void failingDeliveryDoesNotKillTheExecutorTask() {
         when(deliveryService.accept("report", message)).thenReturn(List.of(
-                new Delivery("m1", "report", DeliveryChannel.MAIL, "default", LocalDateTime.now())));
+                new Delivery(MessageFixtures.id("m1"), "report", DeliveryChannel.MAIL, "default", LocalDateTime.now())));
         doThrow(new IllegalStateException("DB weg")).when(deliveryService).deliverPending(any());
 
         dispatcher.handle("cycling/delivery/request/report", message);

@@ -1,5 +1,7 @@
 package com.cycling.report;
 
+import com.cycling.types.ActivityId;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -15,6 +17,7 @@ import java.util.List;
  * @param powerCurveSet Bestleistungen der Fahrt und der vorherigen; null = Chart entfaellt
  * @param powerZoneBands Leistungszonen in Watt (FTP der Fahrt) zum Einfaerben der Karte; leer = nach Tempo
  * @param hrZoneBands    Herzfrequenzzonen in bpm
+ * @param weather        Wetter alle 10 Minuten (Outdoor-Fahrten); leer = Chart entfaellt
  */
 public record ReportContent(
         Analysis analysis,
@@ -24,7 +27,8 @@ public record ReportContent(
         List<TrendPoint> trend,
         PowerCurveSet powerCurveSet,
         List<ZoneBand> powerZoneBands,
-        List<ZoneBand> hrZoneBands
+        List<ZoneBand> hrZoneBands,
+        List<WeatherPoint> weather
 ) {
 
     public ReportContent {
@@ -33,11 +37,12 @@ public record ReportContent(
         powerZones = powerZones == null ? List.of() : List.copyOf(powerZones);
         hrZones = hrZones == null ? List.of() : List.copyOf(hrZones);
         trend = trend == null ? List.of() : List.copyOf(trend);
+        weather = weather == null ? List.of() : List.copyOf(weather);
     }
 
     /** Kennzahlen und KI-Bewertung einer Fahrt. Alle Werte optional (null = unbekannt). */
     public record Analysis(
-            String activityId,
+            ActivityId activityId,
             String activityName,
             LocalDateTime activityDate,
             Double distanceKm,
@@ -76,6 +81,15 @@ public record ReportContent(
     ) {
     }
 
+    /**
+     * Wetter an einem Punkt der Fahrt. Werte koennen null sein.
+     *
+     * @param precipitationMmPerHour Niederschlagsintensitaet; Summe = Intensitaet mal Abstand zum vorherigen Punkt
+     */
+    public record WeatherPoint(int minuteOfRide, Double distanceKm, Double temperatureC, Double windSpeedKmh,
+                               Double windGustKmh, Double precipitationMmPerHour) {
+    }
+
     /** Grenzen einer Zone in Watt bzw. bpm; {@code upper} null = nach oben offen. */
     public record ZoneBand(String name, int lower, Integer upper, String color) {
     }
@@ -86,7 +100,7 @@ public record ReportContent(
 
     /** Eine analysierte Fahrt im Trend-Chart. */
     public record TrendPoint(
-            String activityId,
+            ActivityId activityId,
             String activityName,
             LocalDateTime activityDate,
             Double avgPowerWatts,
@@ -104,7 +118,7 @@ public record ReportContent(
     public record PowerCurveSet(PowerCurve current, List<PowerCurve> previous, Integer ftpWatts) {
     }
 
-    public record PowerCurve(String activityId, String activityName, LocalDateTime activityDate,
+    public record PowerCurve(ActivityId activityId, String activityName, LocalDateTime activityDate,
                              List<PowerCurvePoint> points) {
     }
 

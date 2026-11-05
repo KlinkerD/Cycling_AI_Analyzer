@@ -1,5 +1,7 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.web.ApiNonNull;
 import jakarta.persistence.*;
 
@@ -17,7 +19,7 @@ public class ActivityAnalysis {
 
     @Column(unique = true, nullable = false)
     @ApiNonNull
-    private String activityId;
+    private ActivityId activityId;
 
     private String activityName;
     private LocalDateTime activityDate;
@@ -80,11 +82,11 @@ public class ActivityAnalysis {
         this.id = id;
     }
 
-    public String getActivityId() {
+    public ActivityId getActivityId() {
         return activityId;
     }
 
-    public void setActivityId(String activityId) {
+    public void setActivityId(ActivityId activityId) {
         this.activityId = activityId;
     }
 

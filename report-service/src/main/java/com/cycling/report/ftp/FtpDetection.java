@@ -1,13 +1,17 @@
 package com.cycling.report.ftp;
 
+import com.cycling.types.ActivityId;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * Ergebnis der FTP-Test-Erkennung einer Fahrt. Genau eins pro Aktivitaet; ein neuer Lauf ueberschreibt
@@ -17,11 +21,13 @@ import java.time.LocalDateTime;
 @Table(name = "ftp_detection")
 public class FtpDetection {
 
+    /** Intern Text: JPA wendet Converter nicht auf {@code @Id} an. Nach aussen {@link ActivityId}. */
     @Id
     private String activityId;
 
     @Column(nullable = false)
-    private String requestId;
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    private UUID requestId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -48,13 +54,13 @@ public class FtpDetection {
     protected FtpDetection() {
     }
 
-    public FtpDetection(String activityId, String requestId, LocalDateTime requestedAt) {
-        this.activityId = activityId;
+    public FtpDetection(ActivityId activityId, UUID requestId, LocalDateTime requestedAt) {
+        this.activityId = activityId.value();
         restart(requestId, requestedAt);
     }
 
     /** Neuer Lauf: altes Ergebnis verwerfen. */
-    public void restart(String requestId, LocalDateTime at) {
+    public void restart(UUID requestId, LocalDateTime at) {
         this.requestId = requestId;
         this.status = FtpDetectionStatus.PENDING;
         this.requestedAt = at;
@@ -97,11 +103,11 @@ public class FtpDetection {
         windowStartSeconds = null;
     }
 
-    public String getActivityId() {
-        return activityId;
+    public ActivityId getActivityId() {
+        return ActivityId.of(activityId);
     }
 
-    public String getRequestId() {
+    public UUID getRequestId() {
         return requestId;
     }
 

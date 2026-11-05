@@ -9,6 +9,7 @@ import java.util.List;
  *
  * @param powerZoneBands Leistungszonen Z1-Z7 in Watt, mit der FTP der Fahrt ({@code ftpUsed}); fuer die Karte
  * @param hrZoneBands    Herzfrequenzzonen in bpm (aktuelle Grenzen); fuer die Karte
+ * @param weather        Wetter alle 10 Minuten (Outdoor-Fahrten); leer ohne Wetter
  */
 public record ReportDto(
         @ApiNonNull AnalysisDto analysis,
@@ -18,5 +19,11 @@ public record ReportDto(
         List<TrendDataDto> trend,
         PowerCurveSetDto powerCurveSet,
         List<ZoneBandDto> powerZoneBands,
-        List<ZoneBandDto> hrZoneBands
-) {}
+        List<ZoneBandDto> hrZoneBands,
+        @ApiNonNull List<WeatherPointDto> weather
+) {
+
+    public ReportDto {
+        weather = weather == null ? List.of() : List.copyOf(weather);
+    }
+}

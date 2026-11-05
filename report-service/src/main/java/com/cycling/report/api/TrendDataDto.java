@@ -1,10 +1,12 @@
 package com.cycling.report.api;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.web.ApiNonNull;
 import java.time.LocalDateTime;
 
 public record TrendDataDto(
-        @ApiNonNull String activityId,
+        @ApiNonNull ActivityId activityId,
         String activityName,
         LocalDateTime activityDate,
         Double avgPowerWatts,

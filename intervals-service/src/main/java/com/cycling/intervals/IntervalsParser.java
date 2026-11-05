@@ -9,8 +9,14 @@ import com.cycling.intervals.api.IntervalsStreams;
 import com.cycling.intervals.api.IntervalsWellnessPoint;
 import com.cycling.intervals.api.IntervalsZone;
 import com.cycling.intervals.api.IntervalsZoneShare;
+import com.cycling.types.ActivityId;
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -47,7 +53,7 @@ public final class IntervalsParser {
         if (root == null || !root.isArray()) return out;
         for (JsonNode node : root) {
             String type = text(node, "type");
-            if ("Ride".equalsIgnoreCase(type) || "VirtualRide".equalsIgnoreCase(type)) {
+            if (("Ride".equalsIgnoreCase(type) || "VirtualRide".equalsIgnoreCase(type)) && text(node, "id") != null) {
                 out.add(activity(node));
             }
         }
@@ -61,9 +67,9 @@ public final class IntervalsParser {
     public static IntervalsActivity activity(JsonNode n) {
         Double icuWeighted = dbl(n, "icu_weighted_avg_watts");
         return new IntervalsActivity(
-                text(n, "id"),
+                ActivityId.of(text(n, "id")),
                 text(n, "name"),
-                text(n, "start_date_local"),
+                localDateTime(text(n, "start_date_local")),
                 text(n, "type"),
                 dbl(n, "distance"),
                 integer(n, "moving_time"),
@@ -76,7 +82,8 @@ public final class IntervalsParser {
                 firstNonNull(dbl(n, "icu_average_speed"), dbl(n, "average_speed")),
                 firstNonNull(dbl(n, "icu_elevation_gain"), dbl(n, "total_elevation_gain")),
                 dbl(n, "icu_training_load"),
-                percentToFactor(dbl(n, "icu_intensity")));
+                percentToFactor(dbl(n, "icu_intensity")),
+                instant(text(n, "start_date")));
     }
 
     /** intervals.icu liefert die Intensitaet in Prozent (78.4), der Vertrag als Faktor (0.784). */
@@ -419,6 +426,27 @@ public final class IntervalsParser {
     private static String text(JsonNode n, String field) {
         JsonNode v = n.path(field);
         return v.isMissingNode() || v.isNull() ? null : v.asText();
+    }
+
+    /** "2026-11-01T08:30:00" (ohne Zone); null, wenn fehlend oder unlesbar. */
+    static LocalDateTime localDateTime(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return LocalDateTime.parse(value.replace(' ', 'T'));
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    /** "2026-11-01T07:30:00Z" bzw. mit Offset; ohne Offset als UTC gelesen; null, wenn fehlend oder unlesbar. */
+    static Instant instant(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return OffsetDateTime.parse(value).toInstant();
+        } catch (DateTimeParseException e) {
+            LocalDateTime local = localDateTime(value);
+            return local == null ? null : local.toInstant(ZoneOffset.UTC);
+        }
     }
 
     private static Double dbl(JsonNode n, String field) {

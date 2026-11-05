@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -14,7 +15,7 @@ class DeliveryMessageCodecTest {
     private final MessageCodec codec = new MessageCodec();
 
     private static DeliveryMessage message() {
-        return new DeliveryMessage("r1", "🚴 Morgenrunde", "01.11.2026", "#4caf50",
+        return new DeliveryMessage(UUID.fromString("00000000-0000-0000-0000-000000000001"), "🚴 Morgenrunde", "01.11.2026", "#4caf50",
                 List.of(new DeliveryMessage.Field("Score", "8 / 10")),
                 List.of(new DeliveryMessage.Section("📝 Fazit", "Solide Einheit", "#3f51b5")),
                 List.of(new DeliveryMessage.Attachment("speedAltChart", "Geschwindigkeit", new byte[]{(byte) 0x89, 'P', 'N', 'G', 0})),
@@ -42,7 +43,7 @@ class DeliveryMessageCodecTest {
     @Test
     void missingListsBecomeEmpty() {
         byte[] json = """
-                {"messageId":"m1","title":"Hallo"}
+                {"messageId":"00000000-0000-0000-0000-000000000002","title":"Hallo"}
                 """.getBytes(StandardCharsets.UTF_8);
 
         DeliveryMessage decoded = codec.decode(json, DeliveryMessage.class);

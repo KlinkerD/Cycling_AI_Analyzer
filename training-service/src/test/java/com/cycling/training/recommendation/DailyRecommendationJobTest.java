@@ -1,22 +1,28 @@
 package com.cycling.training.recommendation;
 
 import com.cycling.intervals.client.IntervalsUnavailableException;
+import com.cycling.messaging.contract.AiResult;
 import com.cycling.messaging.contract.DeliveryMessage;
 import com.cycling.messaging.contract.DeliveryMessage.Target;
-import com.cycling.messaging.contract.AiResult;
-import com.cycling.messaging.Topics;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** Versand um 09:00 mit KI-Text, spaetestens nach 2 Minuten mit Fallback, nachgeholt bis 12:00, nie doppelt. */
 class DailyRecommendationJobTest {
+
+    /** Feste UUID pro Name, damit Tests lesbar bleiben. */
+    private static UUID uuid(String name) {
+        return UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
 
     private final MutableClock clock = new MutableClock(LocalDateTime.of(2026, 11, 3, 8, 59));
     private final RecordingPublisher publisher = new RecordingPublisher();
@@ -34,7 +40,7 @@ class DailyRecommendationJobTest {
         return publisher.on(DailyRecommendationJob.TOPIC, DeliveryMessage.class);
     }
 
-    private String pendingRequestId() {
+    private UUID pendingRequestId() {
         return engine.latest().orElseThrow().requestId();
     }
 
@@ -55,7 +61,7 @@ class DailyRecommendationJobTest {
 
         assertThat(delivered()).hasSize(1);
         DeliveryMessage message = delivered().getFirst();
-        assertThat(message.messageId()).isEqualTo("recommendation-daily-2026-11-03");
+        assertThat(message.messageId()).isEqualTo(RecommendationMessageBuilder.messageId(LocalDate.parse("2026-11-03")));
         assertThat(message.targets()).containsExactly(new Target("DISCORD", "recommendation"));
         assertThat(message.sections().getFirst().text()).isEqualTo("Heute Sweet Spot!");
         assertThat(message.footer()).doesNotContain("KI-Text nicht");
@@ -96,7 +102,7 @@ class DailyRecommendationJobTest {
     void refreshInBetweenDoesNotBlockTheDailySend() {
         clock.set(LocalDateTime.of(2026, 11, 3, 9, 0));
         job.check();
-        engine.compute("refresh-button"); // ersetzt den offenen KI-Auftrag des Jobs
+        engine.compute(uuid("refresh-button")); // ersetzt den offenen KI-Auftrag des Jobs
 
         clock.advance(Duration.ofMinutes(2));
         job.check();
@@ -174,7 +180,7 @@ class DailyRecommendationJobTest {
         engine.applyText(new AiResult(pendingRequestId(), true, null, "Text"));
 
         assertThat(delivered()).extracting(DeliveryMessage::messageId)
-                .containsExactly("recommendation-daily-2026-11-03", "recommendation-daily-2026-11-04");
+                .containsExactly(RecommendationMessageBuilder.messageId(LocalDate.parse("2026-11-03")), RecommendationMessageBuilder.messageId(LocalDate.parse("2026-11-04")));
     }
 
     @Test

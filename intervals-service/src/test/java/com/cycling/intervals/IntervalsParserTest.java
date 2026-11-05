@@ -1,5 +1,8 @@
 package com.cycling.intervals;
 
+import java.time.LocalDateTime;
+import java.time.Instant;
+import com.cycling.types.ActivityId;
 import com.cycling.intervals.api.IntervalsActivity;
 import com.cycling.intervals.api.IntervalsActivityZones;
 import com.cycling.intervals.api.IntervalsAthleteThresholds;
@@ -43,6 +46,7 @@ class IntervalsParserTest {
         JsonNode root = json("""
                 [
                   {"id":"i1","name":"Morgenrunde","type":"Ride","start_date_local":"2026-11-01T08:30:00",
+                   "start_date":"2026-11-01T07:30:00Z",
                    "distance":42000.0,"moving_time":5400,"elapsed_time":5600,
                    "average_watts":170.0,"icu_average_watts":180.0,"icu_weighted_avg_watts":195.0,
                    "max_watts":600,"average_heartrate":139,"icu_average_heartrate":140.0,
@@ -53,9 +57,10 @@ class IntervalsParserTest {
 
         List<IntervalsActivity> rides = IntervalsParser.rideActivities(root);
 
-        assertThat(rides).extracting(IntervalsActivity::id).containsExactly("i1", "i3");
+        assertThat(rides).extracting(IntervalsActivity::id).containsExactly(ActivityId.of("i1"), ActivityId.of("i3"));
         IntervalsActivity ride = rides.getFirst();
-        assertThat(ride.startDateLocal()).isEqualTo("2026-11-01T08:30:00");
+        assertThat(ride.startDateLocal()).isEqualTo(LocalDateTime.parse("2026-11-01T08:30:00"));
+        assertThat(ride.startDate()).isEqualTo(Instant.parse("2026-11-01T07:30:00Z"));
         assertThat(ride.movingTime()).isEqualTo(5400);
         assertThat(ride.averageWatts()).isEqualTo(180.0);
         assertThat(ride.normalizedPower()).isEqualTo(195.0);

@@ -1,5 +1,7 @@
 package com.cycling.report.api;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.ftp.FtpDetection;
 import com.cycling.web.ApiNonNull;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -8,7 +10,7 @@ import java.time.LocalDateTime;
 
 /** Ergebnis der FTP-Test-Erkennung einer Fahrt; die Werte sind nur bei DETECTED gesetzt. */
 public record FtpDetectionDto(
-        @ApiNonNull String activityId,
+        @ApiNonNull ActivityId activityId,
         @ApiNonNull @Schema(allowableValues = {"PENDING", "DETECTED", "NOT_DETECTED", "FAILED"}) String status,
         @Schema(description = "Watt, 20-Minuten-Mittel * 0,95") Integer ftp,
         @Schema(description = "bpm, mittlerer Puls im 20-Minuten-Block") Integer lthr,

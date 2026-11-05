@@ -7,8 +7,9 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
-public interface MessageRepository extends JpaRepository<StoredMessage, String> {
+public interface MessageRepository extends JpaRepository<StoredMessage, UUID> {
 
     /** Loescht den Inhalt (Bilder) aelterer Nachrichten, die Zeile bleibt fuer die Historie. */
     @Transactional

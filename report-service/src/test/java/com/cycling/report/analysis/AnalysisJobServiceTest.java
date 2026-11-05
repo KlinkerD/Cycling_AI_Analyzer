@@ -1,5 +1,8 @@
 package com.cycling.report.analysis;
 
+import java.util.UUID;
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.ReportDelivery;
 import com.cycling.report.api.ActivityDto;
 import com.cycling.report.api.AnalysisDto;
@@ -38,6 +41,11 @@ import static org.mockito.Mockito.when;
 
 class AnalysisJobServiceTest {
 
+    /** Feste UUID pro Name, damit Tests lesbar bleiben. */
+    private static UUID uuid(String name) {
+        return UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-11-02T10:00:00Z"), ZoneOffset.UTC);
     private static final LocalDateTime NOW = LocalDateTime.now(CLOCK);
 
@@ -46,7 +54,7 @@ class AnalysisJobServiceTest {
     private final MessagePublisher publisher = mock(MessagePublisher.class);
     @SuppressWarnings("unchecked")
     private final Consumer<ReportDelivery> delivery = mock(Consumer.class);
-    private final Map<String, AnalysisJob> stored = new HashMap<>();
+    private final Map<UUID, AnalysisJob> stored = new HashMap<>();
     private final AnalysisJobService service = new AnalysisJobService(analysis, repository, publisher, delivery,
             new ObjectMapper(), CLOCK, Duration.ofMinutes(15));
 
@@ -57,13 +65,13 @@ class AnalysisJobServiceTest {
             stored.put(job.getId(), job);
             return job;
         });
-        when(repository.findById(any())).thenAnswer(inv -> Optional.ofNullable(stored.get(inv.<String>getArgument(0))));
+        when(repository.findById(any())).thenAnswer(inv -> Optional.ofNullable(stored.get(inv.<UUID>getArgument(0))));
         when(repository.findFirstByActivityIdAndStatusOrderByCreatedAtDesc(any(), any())).thenReturn(Optional.empty());
     }
 
     private static ActivityDto activity() {
         ActivityDto dto = new ActivityDto();
-        dto.setId("i1");
+        dto.setId(ActivityId.of("i1"));
         dto.setName("Runde");
         dto.setMovingTime(3600);
         dto.setNormalizedPower(210.0);
@@ -72,7 +80,7 @@ class AnalysisJobServiceTest {
 
     private static PreparedAnalysis prepared() {
         ActivityAnalysis a = new ActivityAnalysis();
-        a.setActivityId("i1");
+        a.setActivityId(ActivityId.of("i1"));
         a.setActivityName("Runde");
         a.setActivityDate(LocalDateTime.of(2026, 11, 1, 9, 30));
         a.setIndoor(false);
@@ -81,7 +89,7 @@ class AnalysisJobServiceTest {
         prev.setActivityName("Vorher");
         return new PreparedAnalysis(a, null,
                 List.of(new ZoneDistributionDto("Z2", "Ausdauer", 1800, 50.0, "#0f0")), List.of(),
-                List.of(prev), 250, 190);
+                List.of(prev), 250, 190, List.of(), null);
     }
 
     /** Fertiger Report, wie ihn AnalysisService.complete liefert. */
@@ -92,21 +100,21 @@ class AnalysisJobServiceTest {
         StreamDataDto streams = new StreamDataDto(List.of(0.0, 10.0), List.of(150, 160), List.of(120, 125),
                 List.of(8.0, 8.1), List.of(100.0, 101.0), List.of(0, 1), List.of(), List.of(), List.of());
         return new ReportDto(AnalysisDto.from(a), streams, List.of(new ZoneDistributionDto("Z2", "Ausdauer", 1800, 50.0, "#0f0")),
-                List.of(), List.of(), null, List.of(), List.of());
+                List.of(), List.of(), null, List.of(), List.of(), List.of());
     }
 
     private static final AiAssessment ASSESSMENT = new AiAssessment(8, "s", "a", "p", "z");
 
-    private static AiResult success(String jobId) {
+    private static AiResult success(UUID jobId) {
         return AiResult.ok(jobId, """
                 {"score": 8, "strengths": "s", "anomalies": "a", "progress": "p", "summary": "z"}""");
     }
 
     @Test
     void startSavesJobAndPublishesRequestWithJobIdAsCorrelation() {
-        when(analysis.prepare(eq("i1"), any())).thenReturn(prepared());
+        when(analysis.prepare(eq(ActivityId.of("i1")), any())).thenReturn(prepared());
 
-        AnalysisJob job = service.start("i1", activity());
+        AnalysisJob job = service.start(ActivityId.of("i1"), activity());
 
         assertThat(job.getStatus()).isEqualTo(AnalysisJobStatus.PENDING);
         ArgumentCaptor<AiRequest> captor = ArgumentCaptor.forClass(AiRequest.class);
@@ -120,20 +128,20 @@ class AnalysisJobServiceTest {
 
     @Test
     void startReturnsRunningJobInsteadOfStartingAgain() {
-        AnalysisJob running = new AnalysisJob("j-old", "i1", "{}", NOW);
-        when(repository.findFirstByActivityIdAndStatusOrderByCreatedAtDesc("i1", AnalysisJobStatus.PENDING))
+        AnalysisJob running = new AnalysisJob(uuid("j-old"), ActivityId.of("i1"), "{}", NOW);
+        when(repository.findFirstByActivityIdAndStatusOrderByCreatedAtDesc(ActivityId.of("i1"), AnalysisJobStatus.PENDING))
                 .thenReturn(Optional.of(running));
 
-        assertThat(service.start("i1", activity())).isSameAs(running);
+        assertThat(service.start(ActivityId.of("i1"), activity())).isSameAs(running);
         verify(publisher, never()).publish(any(), any());
     }
 
     @Test
     void brokerOutageMarksJobFailed() {
-        when(analysis.prepare(eq("i1"), any())).thenReturn(prepared());
+        when(analysis.prepare(eq(ActivityId.of("i1")), any())).thenReturn(prepared());
         doThrow(new MessagingException("nicht verbunden", null)).when(publisher).publish(any(), any());
 
-        AnalysisJob job = service.start("i1", activity());
+        AnalysisJob job = service.start(ActivityId.of("i1"), activity());
 
         assertThat(job.getStatus()).isEqualTo(AnalysisJobStatus.FAILED);
         assertThat(job.getError()).contains("nicht verbunden");
@@ -141,8 +149,8 @@ class AnalysisJobServiceTest {
 
     @Test
     void successfulResultStoresAnalysisAndRequestsDelivery() {
-        when(analysis.prepare(eq("i1"), any())).thenReturn(prepared());
-        AnalysisJob job = service.start("i1", activity());
+        when(analysis.prepare(eq(ActivityId.of("i1")), any())).thenReturn(prepared());
+        AnalysisJob job = service.start(ActivityId.of("i1"), activity());
         when(analysis.complete(any(), eq(ASSESSMENT))).thenReturn(report());
 
         service.complete(success(job.getId()));
@@ -152,7 +160,7 @@ class AnalysisJobServiceTest {
         verify(delivery).accept(captor.capture());
         ReportDelivery request = captor.getValue();
         assertThat(request.requestId()).isEqualTo(job.getId());
-        assertThat(request.activityId()).isEqualTo("i1");
+        assertThat(request.activityId()).isEqualTo(ActivityId.of("i1"));
         assertThat(request.report().analysis().activityName()).isEqualTo("Runde");
         assertThat(request.report().analysis().overallScore()).isEqualTo(8);
         assertThat(request.report().analysis().activityDate()).isEqualTo(LocalDateTime.of(2026, 11, 1, 9, 30));
@@ -163,14 +171,14 @@ class AnalysisJobServiceTest {
 
     @Test
     void storedActivityKeepsNormalizedPowerForCompletion() {
-        when(analysis.prepare(eq("i1"), any())).thenReturn(prepared());
-        AnalysisJob job = service.start("i1", activity());
+        when(analysis.prepare(eq(ActivityId.of("i1")), any())).thenReturn(prepared());
+        AnalysisJob job = service.start(ActivityId.of("i1"), activity());
         when(analysis.complete(any(), any())).thenReturn(report());
 
         service.complete(success(job.getId()));
 
         ArgumentCaptor<ActivityDto> captor = ArgumentCaptor.forClass(ActivityDto.class);
-        verify(analysis, org.mockito.Mockito.times(2)).prepare(eq("i1"), captor.capture());
+        verify(analysis, org.mockito.Mockito.times(2)).prepare(eq(ActivityId.of("i1")), captor.capture());
         ActivityDto restored = captor.getAllValues().get(1);
         assertThat(restored.name()).isEqualTo("Runde");
         assertThat(restored.movingTime()).isEqualTo(3600);
@@ -179,11 +187,11 @@ class AnalysisJobServiceTest {
 
     @Test
     void duplicateResultIsIgnored() {
-        AnalysisJob done = new AnalysisJob("j1", "i1", "{}", NOW);
+        AnalysisJob done = new AnalysisJob(uuid("j1"), ActivityId.of("i1"), "{}", NOW);
         done.markDone(NOW);
-        stored.put("j1", done);
+        stored.put(uuid("j1"), done);
 
-        service.complete(success("j1"));
+        service.complete(success(uuid("j1")));
 
         verify(analysis, never()).complete(any(), any());
         verify(delivery, never()).accept(any());
@@ -191,51 +199,51 @@ class AnalysisJobServiceTest {
 
     @Test
     void failingDeliveryStillMarksJobDone() {
-        stored.put("j1", new AnalysisJob("j1", "i1", "{\"id\":\"i1\"}", NOW));
+        stored.put(uuid("j1"), new AnalysisJob(uuid("j1"), ActivityId.of("i1"), "{\"id\":\"i1\"}", NOW));
         when(analysis.complete(any(), any())).thenReturn(report());
         doThrow(new IllegalStateException("weg")).when(delivery).accept(any());
 
-        service.complete(success("j1"));
+        service.complete(success(uuid("j1")));
 
-        assertThat(stored.get("j1").getStatus()).isEqualTo(AnalysisJobStatus.DONE);
+        assertThat(stored.get(uuid("j1")).getStatus()).isEqualTo(AnalysisJobStatus.DONE);
     }
 
     @Test
     void failedResultMarksJobFailed() {
-        stored.put("j1", new AnalysisJob("j1", "i1", "{}", NOW));
+        stored.put(uuid("j1"), new AnalysisJob(uuid("j1"), ActivityId.of("i1"), "{}", NOW));
 
-        service.complete(AiResult.failed("j1", "HTTP 429"));
+        service.complete(AiResult.failed(uuid("j1"), "HTTP 429"));
 
-        assertThat(stored.get("j1").getStatus()).isEqualTo(AnalysisJobStatus.FAILED);
-        assertThat(stored.get("j1").getError()).contains("HTTP 429");
+        assertThat(stored.get(uuid("j1")).getStatus()).isEqualTo(AnalysisJobStatus.FAILED);
+        assertThat(stored.get(uuid("j1")).getError()).contains("HTTP 429");
     }
 
     @Test
     void unreadableAnswerMarksJobFailedWithoutSaving() {
-        stored.put("j1", new AnalysisJob("j1", "i1", "{}", NOW));
+        stored.put(uuid("j1"), new AnalysisJob(uuid("j1"), ActivityId.of("i1"), "{}", NOW));
 
-        service.complete(AiResult.ok("j1", "Das ist kein JSON"));
+        service.complete(AiResult.ok(uuid("j1"), "Das ist kein JSON"));
 
-        assertThat(stored.get("j1").getStatus()).isEqualTo(AnalysisJobStatus.FAILED);
-        assertThat(stored.get("j1").getError()).contains("kein gueltiges JSON");
+        assertThat(stored.get(uuid("j1")).getStatus()).isEqualTo(AnalysisJobStatus.FAILED);
+        assertThat(stored.get(uuid("j1")).getError()).contains("kein gueltiges JSON");
         verify(analysis, never()).complete(any(), any());
     }
 
     @Test
     void lateResultAfterTimeoutIsStillApplied() {
-        AnalysisJob expired = new AnalysisJob("j1", "i1", "{\"id\":\"i1\"}", NOW.minusMinutes(30));
+        AnalysisJob expired = new AnalysisJob(uuid("j1"), ActivityId.of("i1"), "{\"id\":\"i1\"}", NOW.minusMinutes(30));
         expired.markFailed("Timeout", NOW);
-        stored.put("j1", expired);
+        stored.put(uuid("j1"), expired);
         when(analysis.complete(any(), any())).thenReturn(report());
 
-        service.complete(success("j1"));
+        service.complete(success(uuid("j1")));
 
-        assertThat(stored.get("j1").getStatus()).isEqualTo(AnalysisJobStatus.DONE);
+        assertThat(stored.get(uuid("j1")).getStatus()).isEqualTo(AnalysisJobStatus.DONE);
     }
 
     @Test
     void staleJobsAreExpired() {
-        AnalysisJob stale = new AnalysisJob("j1", "i1", "{}", NOW.minusMinutes(20));
+        AnalysisJob stale = new AnalysisJob(uuid("j1"), ActivityId.of("i1"), "{}", NOW.minusMinutes(20));
         when(repository.findByStatusAndCreatedAtBefore(AnalysisJobStatus.PENDING, NOW.minusMinutes(15)))
                 .thenReturn(List.of(stale));
 

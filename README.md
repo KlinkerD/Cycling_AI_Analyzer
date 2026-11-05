@@ -6,7 +6,7 @@ Analysiere deine Radtrainings aus **intervals.icu** mit **Google Gemini AI** und
 
 | Schicht | Technologie |
 |---|---|
-| Backend | Spring Boot 4 + Java 25, aufgeteilt in intervals-service, report-service, training-service, ai-service, delivery-service, ftp-service |
+| Backend | Spring Boot 4 + Java 25, aufgeteilt in intervals-service, report-service, training-service, ai-service, delivery-service, ftp-service, weather-service |
 | Messaging | MQTT (Eclipse Mosquitto, Paho-v5-Client) |
 | API-Vertrag | OpenAPI (springdoc) je Service → OpenAPI Generator (typescript-angular), ein Client pro Service |
 | Frontend | Angular 21 + Angular Material 3, Chart.js (mit Zoom-Plugin), Leaflet (Karte, OpenStreetMap-Kacheln) |
@@ -62,15 +62,16 @@ docker compose up -d mosquitto
 # und MQTT_BROKER_URL=tcp://localhost:<port> für die Services setzen.
 ```
 
-**intervals-service, report-service, training-service, ai-service, delivery-service, ftp-service** (jeweils in eigenem Terminal):
+**intervals-service, report-service, training-service, ai-service, delivery-service, ftp-service, weather-service** (jeweils in eigenem Terminal):
 ```bash
-mvn install -DskipTests                       # einmalig, baut auch cycling-messaging, intervals-api und cycling-web
+mvn install -DskipTests                       # einmalig, baut auch cycling-messaging, intervals-api, weather-api und cycling-web
 mvn -pl intervals-service spring-boot:run     # http://localhost:8081, braucht INTERVALS_API_KEY/INTERVALS_ATHLETE_ID
 mvn -pl report-service spring-boot:run        # http://localhost:8082 (/api/reports), Swagger-UI: /swagger-ui.html
 mvn -pl training-service spring-boot:run      # http://localhost:8083 (/api/fitness, /api/recommendation)
 mvn -pl ai-service spring-boot:run            # braucht GEMINI_API_KEY
 mvn -pl delivery-service spring-boot:run
 mvn -pl ftp-service spring-boot:run           # FTP-Test-Erkennung, braucht den report-service
+mvn -pl weather-service spring-boot:run       # http://localhost:8085, Wetter fuer Outdoor-Fahrten (Open-Meteo, ohne Key)
 ```
 
 **Frontend** (braucht Node 20.19+ oder 22.12+):
@@ -334,6 +335,25 @@ eine neue Quelle – am ai-service ändert sich nichts.
 
 ---
 
+## 🌦️ Wetter für Outdoor-Fahrten (weather-service)
+
+Bei der Analyse einer **Outdoor-Fahrt** (Indoor-Kennung `false`, Typ `Ride`, mit GPS) wählt der report-service
+alle 10 Minuten einen Punkt der Fahrt (plus das Ende) und fragt beim **weather-service** Temperatur, Wind, Böen,
+Windrichtung und Niederschlag ab (`POST /api/weather/points`, Vertrag im Modul `weather-api`, Zeiten in UTC aus
+`start_date` von intervals.icu). Der weather-service holt die Werte ohne API-Key bei **Open-Meteo**: Fahrten der
+letzten 90 Tage aus der Forecast-API im 15-Minuten-Takt, ältere aus der Archive-API (stündlich), jeweils zeitlich
+interpoliert. Punkte in derselben Rasterzelle (~2 km) teilen sich einen Wert, alle Orte gehen in einem Aufruf.
+
+- Das Wetter wird mit der Analyse gespeichert (Tabelle `weather_point`), Report und „Erneut senden“ lesen nur noch daraus.
+- Gemini bekommt einen Abschnitt **WETTER** mit Kennzahlen und dem Verlauf, inkl. Gegen-/Rücken-/Seitenwind
+  (aus der Fahrtrichtung über ~500 m berechnet), und bei den Vergleichsfahrten deren Temperatur und Wind.
+- Report (Mail/Discord) und Frontend (Tab „Verläufe“) zeigen einen Graphen **Temperatur & Wind** über die Distanz;
+  Regen erscheint als Hinweis mit der Gesamtmenge.
+- Fällt der weather-service aus, läuft die Analyse ohne Wetter weiter (Timeout 10 s, eine Wiederholung).
+  `WEATHER_SERVICE_URL=` (leer) schaltet das Wetter ab. Alte Analysen bekommen Wetter erst bei einer Neuanalyse.
+
+---
+
 ## 🔗 intervals.icu-Anbindung (intervals-service)
 
 Nur der **intervals-service** spricht mit intervals.icu und kennt `INTERVALS_API_KEY` / `INTERVALS_ATHLETE_ID`.
@@ -417,6 +437,8 @@ cycling/
 ├── ai-service/                 # Gemini: generische KI-Aufträge (Prompt rein, Text raus) über MQTT
 ├── delivery-service/           # Mail + Discord für alle Quellen, eigene H2 für Nachrichten + Versandstatus
 ├── ftp-service/                # erkennt 20-Minuten-FTP-Tests (FTP, LTHR, MaxHR) über MQTT, Streams per REST, ohne Speicher
+├── weather-api/                # REST-Vertrag des weather-service (Pfad + Records) und WeatherClient
+├── weather-service/            # Temperatur, Wind, Regen zu Ort + Zeit von Open-Meteo (REST, ohne Speicher, kurzer Cache)
 ├── mosquitto/config/           # Broker-Konfiguration
 ├── docs/                       # Datenflüsse (Markdown + Mermaid) und AsyncAPI-Spec der MQTT-Topics
 ├── frontend/                   # Angular 21

@@ -1,5 +1,7 @@
 package com.cycling.report;
 
+import java.util.UUID;
+import com.cycling.types.ActivityId;
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.MessagingException;
 import com.cycling.messaging.Topics;
@@ -23,6 +25,11 @@ import static org.mockito.Mockito.when;
 
 class ReportRequestHandlerTest {
 
+    /** Feste UUID pro Name, damit Tests lesbar bleiben. */
+    private static UUID uuid(String name) {
+        return UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     private static final List<Duration> DELAYS =
             List.of(Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofMinutes(15));
 
@@ -35,7 +42,7 @@ class ReportRequestHandlerTest {
     private final MessagePublisher publisher = mock(MessagePublisher.class);
     private final ReportRequestHandler handler =
             new ReportRequestHandler(renderer, new ReportMessageBuilder(List.of()), publisher, scheduler, DELAYS);
-    private final ReportDelivery request = new ReportDelivery("r1", "i1", ReportFixtures.report("i1"));
+    private final ReportDelivery request = new ReportDelivery(uuid("r1"), ActivityId.of("i1"), ReportFixtures.report("i1"));
 
     ReportRequestHandlerTest() {
         when(renderer.render(any())).thenReturn(new ReportCharts(List.of()));
@@ -57,7 +64,7 @@ class ReportRequestHandlerTest {
 
         ArgumentCaptor<DeliveryMessage> captor = ArgumentCaptor.forClass(DeliveryMessage.class);
         verify(publisher).publish(eq(Topics.DELIVERY_REQUEST_REPORT), captor.capture());
-        assertThat(captor.getValue().messageId()).isEqualTo("r1");
+        assertThat(captor.getValue().messageId()).isEqualTo(uuid("r1"));
         assertThat(captor.getValue().title()).isEqualTo("🚴 Morgenrunde");
         verify(renderer).render(request.report());
         assertThat(scheduled).isEmpty();
@@ -65,7 +72,7 @@ class ReportRequestHandlerTest {
 
     @Test
     void requestWithoutReportIsDroppedWithoutRetry() {
-        handler.handle(new ReportDelivery("r1", "i1", null));
+        handler.handle(new ReportDelivery(uuid("r1"), ActivityId.of("i1"), null));
 
         assertThat(scheduled).isEmpty();
         verify(renderer, never()).render(any());

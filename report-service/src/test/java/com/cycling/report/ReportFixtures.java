@@ -1,5 +1,6 @@
 package com.cycling.report;
 
+import com.cycling.types.ActivityId;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,7 +21,7 @@ final class ReportFixtures {
     /** Analyse mit den Werten, die einzelne Tests variieren. */
     static ReportContent.Analysis analysis(String activityId, Integer score, String anomalies,
                                            LocalDateTime activityDate, LocalDateTime analyzedAt) {
-        return new ReportContent.Analysis(activityId, "Morgenrunde", activityDate, 42.5, 5400,
+        return new ReportContent.Analysis(ActivityId.of(activityId), "Morgenrunde", activityDate, 42.5, 5400,
                 180.0, null, null, null, null, null, null, null, score,
                 "Gleichmaessig getreten", anomalies, "Mehr Leistung als letzte Woche", "Solide Einheit", analyzedAt);
     }
@@ -37,7 +38,7 @@ final class ReportFixtures {
 
     static ReportContent report(ReportContent.Analysis analysis) {
         return new ReportContent(analysis, streams(List.of(85, 90)), List.of(), List.of(), List.of(),
-                new ReportContent.PowerCurveSet(null, List.of(), null), List.of(), List.of());
+                new ReportContent.PowerCurveSet(null, List.of(), null), List.of(), List.of(), List.of());
     }
 
     static byte[] png(String marker) {

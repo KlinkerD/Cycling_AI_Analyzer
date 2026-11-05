@@ -10,6 +10,8 @@ import com.cycling.messaging.contract.DeliveryMessage.Target;
 import com.cycling.messaging.contract.WellnessUpdated;
 import com.cycling.messaging.contract.WellnessUpdated.Values;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -36,8 +38,12 @@ public class FitnessMessageBuilder {
         this.targets = List.copyOf(targets);
     }
 
-    public static String messageId(LocalDate date) {
-        return MESSAGE_ID_PREFIX + date;
+    /**
+     * Fuer jeden Tag immer dieselbe UUID (aus "fitness-daily-" + Datum abgeleitet), damit der delivery-service eine
+     * zweite Nachricht fuer denselben Tag als Duplikat erkennt.
+     */
+    public static UUID messageId(LocalDate date) {
+        return UUID.nameUUIDFromBytes((MESSAGE_ID_PREFIX + date).getBytes(StandardCharsets.UTF_8));
     }
 
     /** @throws IllegalArgumentException wenn {@code update.today()} oder dessen Datum fehlt */

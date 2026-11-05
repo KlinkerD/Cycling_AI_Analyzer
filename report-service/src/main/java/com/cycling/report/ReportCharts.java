@@ -7,6 +7,7 @@ public record ReportCharts(List<Chart> all) {
 
     public static final String ROUTE_MAP = "routeMapChart";
     public static final String SPEED_ALT = "speedAltChart";
+    public static final String WEATHER = "weatherChart";
     public static final String POWER_HR = "powerHrChart";
     public static final String CADENCE = "cadenceChart";
     public static final String POWER_ZONES = "powerZonesChart";

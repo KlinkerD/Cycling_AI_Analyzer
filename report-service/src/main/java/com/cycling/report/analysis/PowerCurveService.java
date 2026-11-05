@@ -1,5 +1,7 @@
 package com.cycling.report.analysis;
 
+import com.cycling.types.ActivityId;
+
 import com.cycling.report.api.PowerCurveDto;
 import com.cycling.report.api.PowerCurvePointDto;
 import com.cycling.report.api.PowerCurveSetDto;
@@ -46,7 +48,7 @@ public class PowerCurveService {
      * auf das Standard-Bucket-Schema. Liefert eine Liste mit genau {@link #STANDARD_BUCKETS}.length
      * Eintraegen, wobei {@code watts} null sein kann, wenn der Bucket nicht abgedeckt ist.
      */
-    public List<PowerCurvePoint> buildPointsForActivity(String activityId) {
+    public List<PowerCurvePoint> buildPointsForActivity(ActivityId activityId) {
         SortedMap<Integer, Integer> raw = intervalsClient.getActivityPowerCurve(activityId);
         return interpolate(raw);
     }

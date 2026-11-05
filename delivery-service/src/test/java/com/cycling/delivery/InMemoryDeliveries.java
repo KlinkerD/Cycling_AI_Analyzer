@@ -1,5 +1,6 @@
 package com.cycling.delivery;
 
+import java.util.UUID;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,8 +43,8 @@ final class InMemoryDeliveries {
             if (!messages.contains(m)) messages.add(m);
             return m;
         });
-        when(messageRepository.existsById(any())).thenAnswer(inv -> message(inv.getArgument(0)).isPresent());
-        when(messageRepository.findById(any())).thenAnswer(inv -> message(inv.getArgument(0)));
+        when(messageRepository.existsById(any())).thenAnswer(inv -> message((UUID) inv.getArgument(0)).isPresent());
+        when(messageRepository.findById(any())).thenAnswer(inv -> message((UUID) inv.getArgument(0)));
         when(messageRepository.clearPayloadsReceivedBefore(any())).thenAnswer(inv -> {
             LocalDateTime cutoff = inv.getArgument(0);
             int count = 0;
@@ -64,16 +65,20 @@ final class InMemoryDeliveries {
     }
 
     Delivery add(String messageId, DeliveryChannel channel, String destination, LocalDateTime queuedAt) {
-        Delivery d = new Delivery(messageId, "report", channel, destination, queuedAt);
+        Delivery d = new Delivery(MessageFixtures.id(messageId), "report", channel, destination, queuedAt);
         rows.add(d);
         return d;
     }
 
     Optional<StoredMessage> message(String messageId) {
+        return message(MessageFixtures.id(messageId));
+    }
+
+    Optional<StoredMessage> message(UUID messageId) {
         return messages.stream().filter(m -> m.getMessageId().equals(messageId)).findFirst();
     }
 
     List<Delivery> rowsOf(String messageId) {
-        return rows.stream().filter(d -> d.getMessageId().equals(messageId)).toList();
+        return rows.stream().filter(d -> d.getMessageId().equals(MessageFixtures.id(messageId))).toList();
     }
 }

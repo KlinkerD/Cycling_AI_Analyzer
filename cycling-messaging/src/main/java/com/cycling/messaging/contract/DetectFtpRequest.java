@@ -1,5 +1,9 @@
 package com.cycling.messaging.contract;
 
+import com.cycling.types.ActivityId;
+
+import java.util.UUID;
+
 /**
  * report-service -> ftp-service: pruefe, ob diese Fahrt einen 20-Minuten-FTP-Test enthaelt.
  * Wird manuell aus dem Frontend ausgeloest.
@@ -9,7 +13,7 @@ package com.cycling.messaging.contract;
  * @param activityId intervals.icu-Aktivitaet, deren Streams der ftp-service beim report-service holt
  */
 public record DetectFtpRequest(
-        String requestId,
-        String activityId
+        UUID requestId,
+        ActivityId activityId
 ) {
 }

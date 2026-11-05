@@ -7,6 +7,7 @@ Wie die Services zusammenspielen. Die Verträge selbst stehen in drei Quellen:
 | MQTT zwischen den Services | [`asyncapi.yaml`](asyncapi.yaml) (AsyncAPI 3.0), im Code `cycling-messaging` |
 | REST Frontend → Services | `frontend/openapi/report-api.yaml`, `training-api.yaml` (aus springdoc erzeugt) |
 | REST Services → intervals-service | Modul `intervals-api` (`IntervalsApi`, Records, gemeinsamer `IntervalsClient`) |
+| REST report-service → weather-service | Modul `weather-api` (`WeatherApi`, Records, `WeatherClient`) |
 
 Faustregel: **REST nur dort, wo das Frontend fragt** (und für Abrufe beim intervals-service), **MQTT zwischen den
 Services**. Jeder Service besitzt seine Daten selbst; nur der report-service und der delivery-service haben eine
@@ -42,6 +43,8 @@ flowchart LR
     RS -. detect/ftp/request .-> FT[ftp-service]
     FT -. detect/ftp/response .-> RS
     FT -->|REST Streams| RS
+    RS -->|REST Wetter| WS[weather-service<br/>Cache]
+    WS -->|HTTPS| OM[(Open-Meteo)]
 ```
 
 Durchgezogen = REST/HTTP, gestrichelt = MQTT über Mosquitto (Topics ohne Präfix `cycling/`).
@@ -57,6 +60,7 @@ sequenceDiagram
     participant FE as Frontend
     participant RS as report-service
     participant IS as intervals-service
+    participant WS as weather-service
     participant AI as ai-service
     participant DS as delivery-service
 
@@ -68,6 +72,10 @@ sequenceDiagram
         RS-->>FE: 202 AnalysisJobDto (PENDING)
     end
     RS->>IS: Schwellen, Streams, Zonen (REST)
+    opt Outdoor-Fahrt mit GPS
+        RS->>WS: POST /api/weather/points (alle 10 min, UTC)
+        Note over RS: ohne Antwort weiter ohne Wetter
+    end
     Note over RS: Job speichern (H2), letzte 3 Fahrten als Vergleich
     Note over RS: Prompt bauen (AnalysisPrompt)
     RS-)AI: ai/request/report (AiRequest, requestId = Job-ID)
@@ -77,7 +85,8 @@ sequenceDiagram
     AI-)RS: ai/result/report (AiResult, JSON-Text)
     Note over RS: JSON lesen (unlesbar = Job FAILED)
     RS->>IS: Streams, Zonen, Power-Curve (REST)
-    Note over RS: Analyse speichern (Upsert), Job DONE
+    RS->>WS: Wetter erneut (aus dem Cache, gleiche Werte wie im Prompt)
+    Note over RS: Analyse + Wetter speichern (Upsert), Job DONE
     RS-)DS: delivery/request/report (DeliveryMessage, messageId = Job-ID)
     FE->>RS: GET /api/reports/{id}
     RS-->>FE: ReportDto

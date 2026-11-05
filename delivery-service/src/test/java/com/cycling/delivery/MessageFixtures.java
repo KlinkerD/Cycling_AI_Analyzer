@@ -1,5 +1,6 @@
 package com.cycling.delivery;
 
+import java.util.UUID;
 import com.cycling.messaging.contract.DeliveryMessage;
 import com.cycling.messaging.contract.DeliveryMessage.Attachment;
 import com.cycling.messaging.contract.DeliveryMessage.Field;
@@ -14,8 +15,13 @@ final class MessageFixtures {
     private MessageFixtures() {
     }
 
+    /** Feste UUID pro Name ("m1" ist in jedem Test dieselbe Nachricht). */
+    static UUID id(String name) {
+        return UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     static DeliveryMessage message(String messageId) {
-        return new DeliveryMessage(messageId, "🚴 Morgenrunde", "01.11.2026", "#4caf50",
+        return new DeliveryMessage(id(messageId), "🚴 Morgenrunde", "01.11.2026", "#4caf50",
                 List.of(new Field("Score", "8 / 10"), new Field("Distanz", "42,5 km")),
                 sections("Gleichmaessig getreten", "Puls am Ende hoch", "Mehr Leistung als letzte Woche", "Solide Einheit"),
                 List.of(),

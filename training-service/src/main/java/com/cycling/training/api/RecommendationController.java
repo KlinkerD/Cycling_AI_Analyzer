@@ -59,7 +59,7 @@ public class RecommendationController {
     /** Rechnet neu; ohne intervals-Daten gilt der letzte Stand, gibt es keinen, wird der Fehler zum 503. */
     private Recommendation compute() {
         try {
-            return engine.compute(UUID.randomUUID().toString());
+            return engine.compute(UUID.randomUUID());
         } catch (IntervalsUnavailableException e) {
             Optional<Recommendation> latest = engine.latest();
             if (latest.isEmpty()) throw e;

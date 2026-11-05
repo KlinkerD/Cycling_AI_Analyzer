@@ -5,6 +5,7 @@ import com.cycling.report.api.PowerCurveSetDto;
 import com.cycling.report.api.ReportDto;
 import com.cycling.report.api.StreamDataDto;
 import com.cycling.report.api.TrendDataDto;
+import com.cycling.report.api.WeatherPointDto;
 import com.cycling.report.api.ZoneBandDto;
 import com.cycling.report.api.ZoneDistributionDto;
 import com.cycling.report.ReportContent;
@@ -27,7 +28,8 @@ final class ReportContentMapper {
                 report.trend() == null ? List.of() : report.trend().stream().map(ReportContentMapper::toTrend).toList(),
                 toPowerCurveSet(report.powerCurveSet()),
                 toBands(report.powerZoneBands()),
-                toBands(report.hrZoneBands()));
+                toBands(report.hrZoneBands()),
+                toWeather(report.weather()));
     }
 
     private static ReportContent.Analysis toAnalysis(AnalysisDto a) {
@@ -60,6 +62,14 @@ final class ReportContentMapper {
         }
         return new ReportContent.Streams(s.distance(), s.watts(), s.heartrate(), s.velocity(), s.altitude(), s.time(),
                 s.cadence(), s.lat(), s.lng());
+    }
+
+    private static List<ReportContent.WeatherPoint> toWeather(List<WeatherPointDto> weather) {
+        if (weather == null) return List.of();
+        return weather.stream()
+                .map(w -> new ReportContent.WeatherPoint(w.minuteOfRide(), w.distanceKm(), w.temperatureC(),
+                        w.windSpeedKmh(), w.windGustKmh(), w.precipitationMmPerHour()))
+                .toList();
     }
 
     private static List<ReportContent.ZoneBand> toBands(List<ZoneBandDto> bands) {

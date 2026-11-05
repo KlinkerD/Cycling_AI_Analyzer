@@ -18,8 +18,10 @@
   <description>Aggregator for the Cycling Workout Analysis project</description>
 
   <modules>
+    <module>cycling-types</module>
     <module>cycling-messaging</module>
     <module>intervals-api</module>
+    <module>weather-api</module>
     <module>cycling-web</module>
     <module>ai-service</module>
     <module>report-service</module>
@@ -27,5 +29,6 @@
     <module>intervals-service</module>
     <module>training-service</module>
     <module>ftp-service</module>
+    <module>weather-service</module>
   </modules>
 </project>

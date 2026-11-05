@@ -2,10 +2,13 @@ package com.cycling.ftp;
 
 import com.cycling.messaging.MessagePublisher;
 import com.cycling.messaging.Topics;
+import com.cycling.types.ActivityId;
 import com.cycling.messaging.contract.DetectFtpRequest;
 import com.cycling.messaging.contract.DetectFtpResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.UUID;
 
 /**
  * Beantwortet {@link DetectFtpRequest}s: Streams beim report-service holen, FTP-Test erkennen, Ergebnis
@@ -28,12 +31,12 @@ public class FtpRequestHandler {
     }
 
     public void handle(DetectFtpRequest request) {
-        String requestId = request.requestId();
-        String activityId = request.activityId();
+        UUID requestId = request.requestId();
+        ActivityId activityId = request.activityId();
         log.info("FTP-Erkennung {} fuer Aktivitaet {}", requestId, activityId);
         DetectFtpResponse response;
         try {
-            if (activityId == null || activityId.isBlank()) {
+            if (activityId == null) {
                 throw new IllegalArgumentException("Auftrag ohne activityId");
             }
             FtpTestResult result = detector.detect(streamsClient.streams(activityId));

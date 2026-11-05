@@ -1,5 +1,7 @@
 package com.cycling.report;
 
+import java.util.UUID;
+
 import com.cycling.messaging.contract.DeliveryMessage;
 import com.cycling.messaging.contract.DeliveryMessage.Attachment;
 import com.cycling.messaging.contract.DeliveryMessage.Field;
@@ -28,7 +30,7 @@ public class ReportMessageBuilder {
         this.targets = List.copyOf(targets);
     }
 
-    public DeliveryMessage build(String messageId, ReportContent report, ReportCharts charts) {
+    public DeliveryMessage build(UUID messageId, ReportContent report, ReportCharts charts) {
         Analysis a = report.analysis();
         return new DeliveryMessage(
                 messageId,

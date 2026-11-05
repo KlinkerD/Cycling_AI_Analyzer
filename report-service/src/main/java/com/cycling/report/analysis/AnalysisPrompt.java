@@ -1,6 +1,9 @@
 package com.cycling.report.analysis;
 
 import com.cycling.report.api.ZoneDistributionDto;
+import com.cycling.report.weather.RideWeatherPoint;
+import com.cycling.report.weather.WeatherSummary;
+import com.cycling.report.weather.WindRelation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -71,6 +74,8 @@ public final class AnalysisPrompt {
         sb.append("\nHERZFREQUENZZONEN-VERTEILUNG:\n");
         appendZones(sb, prepared.hrZones());
 
+        appendWeather(sb, prepared.weather());
+
         sb.append("\nVERGLEICH MIT DEN LETZTEN 3 TRAININGS:\n");
         sb.append("Vergleiche Leistungen relativ zur jeweiligen FTP (IF), nicht in absoluten Watt: ")
           .append("Indoor- und Outdoor-Fahrten haben unterschiedliche FTP-Werte.\n");
@@ -89,6 +94,14 @@ public final class AnalysisPrompt {
                 }
                 if (prev.getOverallScore() != null) {
                     sb.append(String.format(", Score: %d/10", prev.getOverallScore()));
+                }
+                WeatherSummary prevWeather = prev.getActivityId() == null ? null
+                        : prepared.previousWeather().get(prev.getActivityId());
+                if (prevWeather != null) {
+                    sb.append(", Wetter: ").append(fmt0(prevWeather.avgTemperatureC())).append(" °C");
+                    if (prevWeather.avgWindSpeedKmh() != null) {
+                        sb.append(", Wind ").append(fmt0(prevWeather.avgWindSpeedKmh())).append(" km/h");
+                    }
                 }
                 sb.append("\n");
             }
@@ -145,6 +158,48 @@ public final class AnalysisPrompt {
                 node.path("anomalies").asText(""),
                 node.path("progress").asText(""),
                 node.path("summary").asText(""));
+    }
+
+    /**
+     * Abschnitt WETTER: Kennzahlen und Verlauf alle 10 Minuten mit Wind relativ zur Fahrtrichtung. Entfaellt ohne
+     * Wetter (Indoor, kein GPS, weather-service nicht erreichbar); Punkte ohne Temperatur werden ausgelassen.
+     */
+    static void appendWeather(StringBuilder sb, List<RideWeatherPoint> weather) {
+        List<RideWeatherPoint> points = weather.stream().filter(p -> p.temperatureC() != null).toList();
+        WeatherSummary summary = WeatherSummary.of(weather.stream().map(RideWeatherPoint::toDto).toList()).orElse(null);
+        if (points.isEmpty() || summary == null) return;
+
+        sb.append("\nWETTER (Modelldaten Open-Meteo, keine Messung vor Ort):\n");
+        sb.append("- Temperatur: ").append(fmt0(summary.minTemperatureC())).append("–")
+          .append(fmt0(summary.maxTemperatureC())).append(" °C (Ø ").append(fmt0(summary.avgTemperatureC()))
+          .append(" °C)\n");
+        if (summary.avgWindSpeedKmh() != null) {
+            sb.append("- Wind: Ø ").append(fmt0(summary.avgWindSpeedKmh())).append(" km/h");
+            if (summary.maxWindGustKmh() != null) {
+                sb.append(", Böen bis ").append(fmt0(summary.maxWindGustKmh())).append(" km/h");
+            }
+            sb.append("\n");
+        }
+        sb.append("- Niederschlag: ").append(String.format(Locale.ROOT, "%.1f", summary.precipitationMm()))
+          .append(" mm\n");
+        sb.append("Verlauf alle 10 min (Minute | km | °C | Wind km/h | Böen km/h | Wind relativ zur Fahrtrichtung):\n");
+        for (RideWeatherPoint p : points) {
+            WindRelation relation = p.windRelation();
+            sb.append("- ").append(p.sample().minuteOfRide())
+              .append(" | ").append(p.sample().distanceKm() == null ? "?"
+                      : String.format(Locale.ROOT, "%.1f", p.sample().distanceKm()))
+              .append(" | ").append(String.format(Locale.ROOT, "%.1f", p.temperatureC()))
+              .append(" | ").append(p.windSpeedKmh() == null ? "?" : fmt0(p.windSpeedKmh()))
+              .append(" | ").append(p.windGustKmh() == null ? "?" : fmt0(p.windGustKmh()))
+              .append(" | ").append(relation == null ? "unklar" : relation.label())
+              .append("\n");
+        }
+        sb.append("Beziehe das Wetter nur dort ein, wo es Leistung, Herzfrequenz oder Tempo plausibel erklärt ")
+          .append("(z. B. Gegenwind, Hitze, Kälte). Erfinde keinen Wettereinfluss.\n");
+    }
+
+    private static String fmt0(double value) {
+        return String.format(Locale.ROOT, "%.0f", value);
     }
 
     private static void appendZones(StringBuilder sb, List<ZoneDistributionDto> zones) {

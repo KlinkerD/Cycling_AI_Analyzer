@@ -33,6 +33,7 @@ class AnalysisServiceReportTest {
                 new FtpResolver(200));
         when(intervals.getAthleteThresholds())
                 .thenReturn(new AthleteThresholdsDto("Test", 250, 235, null, null, null));
+        when(intervals.getZoneBands(any())).thenReturn(IntervalsData.ZoneBands.empty());
     }
 
     /** Analyse aus alter Version: NP 200 W, 1 h, mit Outdoor-FTP 250 W gerechnet, ohne indoor/ftpUsed. */
@@ -64,6 +65,8 @@ class AnalysisServiceReportTest {
         assertThat(a.getTrainingLoad()).isEqualTo(72.0);
         verify(repository).save(a);
         verify(powerCurves).buildReportSet(eq(a), anyList(), eq(235));
+        // Kartenzonen mit derselben FTP wie IF/TSS
+        verify(intervals).getZoneBands(235);
     }
 
     @Test

@@ -33,8 +33,10 @@ class AnalysisServiceAnalyzeTest {
         when(intervals.getAthleteThresholds())
                 .thenReturn(new AthleteThresholdsDto("Test", 250, 235, null, null, null));
         when(intervals.getStreams("i1"))
-                .thenReturn(new StreamDataDto(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of()));
+                .thenReturn(new StreamDataDto(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                        List.of(), List.of()));
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(intervals.getZoneBands(any())).thenReturn(IntervalsData.ZoneBands.empty());
     }
 
     /** 1 h mit NP 200 W. */

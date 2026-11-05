@@ -80,7 +80,25 @@ class WeatherServiceTest {
                 point(48.1, 11.5, "2026-11-01T23:50:00Z"),
                 point(48.1, 11.5, "2026-11-02T00:10:00Z"))));
 
-        assertThat(source.ranges.getFirst()).containsExactly(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 2));
+        // ein Tag mehr, damit Punkte nach dem letzten Wert des Tages (23:00 bzw. 23:45) nicht leer bleiben
+        assertThat(source.ranges.getFirst()).containsExactly(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 3));
+    }
+
+    @Test
+    void seriesWithGapsIsNotCached() {
+        WeatherSource gappy = (locations, from, to) -> {
+            source.calls.add(List.copyOf(locations));
+            Series s = new Series(60, List.of(T0, T0 + 3600), java.util.Arrays.asList(6.0, null),
+                    List.of(10.0, 10.0), List.of(20.0, 20.0), List.of(270.0, 270.0), List.of(0.0, 1.0));
+            return Collections.nCopies(locations.size(), s);
+        };
+        WeatherService uncached = new WeatherService(gappy, Caffeine.newBuilder().build());
+        WeatherQuery query = new WeatherQuery(List.of(point(48.1, 11.5, "2026-11-01T07:10:00Z")));
+
+        uncached.points(query);
+        uncached.points(query);
+
+        assertThat(source.calls).hasSize(2);
     }
 
     @Test

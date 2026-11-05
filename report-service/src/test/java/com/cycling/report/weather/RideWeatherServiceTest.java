@@ -97,6 +97,17 @@ class RideWeatherServiceTest {
     }
 
     @Test
+    void onlyEmptyValuesGiveNoWeather() {
+        when(client.points(anyList())).thenAnswer(inv -> {
+            List<WeatherQuery.Point> q = inv.getArgument(0);
+            return q.stream().map(p -> new WeatherResult.Point(p.lat(), p.lng(), p.time(),
+                    null, null, null, null, null)).toList();
+        });
+
+        assertThat(service.fetch(ActivityId.of("i1"), false, "Ride", START, ride())).isEmpty();
+    }
+
+    @Test
     void disabledWithoutClient() {
         RideWeatherService disabled = new RideWeatherService(null, repository);
 

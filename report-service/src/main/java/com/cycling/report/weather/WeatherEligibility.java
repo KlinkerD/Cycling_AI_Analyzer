@@ -18,8 +18,15 @@ public final class WeatherEligibility {
      */
     public static boolean isOutdoorWithGps(Boolean indoor, String type, StreamDataDto streams) {
         return Boolean.FALSE.equals(indoor)
-                && "Ride".equalsIgnoreCase(type)
+                && isOutdoorRideType(type)
                 && validGpsPoints(streams) >= 2;
+    }
+
+    /** Draussen gefahrene Radtypen laut intervals.icu (Ride, GravelRide, MountainBikeRide, EBikeRide, ...). */
+    static boolean isOutdoorRideType(String type) {
+        if (type == null) return false;
+        String t = type.toLowerCase(java.util.Locale.ROOT);
+        return t.endsWith("ride") && !t.equals("virtualride");
     }
 
     private static int validGpsPoints(StreamDataDto streams) {

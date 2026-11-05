@@ -180,6 +180,7 @@ configs:
       log_type error
       log_type warning
       log_type notice
+      connection_messages false
       listener 1883
       allow_anonymous true
       max_queued_messages 1000

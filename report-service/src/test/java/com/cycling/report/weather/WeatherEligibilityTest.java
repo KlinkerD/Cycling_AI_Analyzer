@@ -22,6 +22,14 @@ class WeatherEligibilityTest {
     }
 
     @Test
+    void otherOutdoorRideTypes() {
+        assertThat(WeatherEligibility.isOutdoorWithGps(false, "GravelRide", GPS)).isTrue();
+        assertThat(WeatherEligibility.isOutdoorWithGps(false, "MountainBikeRide", GPS)).isTrue();
+        assertThat(WeatherEligibility.isOutdoorWithGps(false, "EBikeRide", GPS)).isTrue();
+        assertThat(WeatherEligibility.isOutdoorWithGps(false, "Run", GPS)).isFalse();
+    }
+
+    @Test
     void indoorOrUnknownIsNot() {
         assertThat(WeatherEligibility.isOutdoorWithGps(true, "Ride", GPS)).isFalse();
         assertThat(WeatherEligibility.isOutdoorWithGps(null, "Ride", GPS)).isFalse();

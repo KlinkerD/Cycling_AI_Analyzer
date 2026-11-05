@@ -129,6 +129,17 @@ class AnalysisServiceSnapshotTest {
     }
 
     @Test
+    void refreshFillsMissingIndoorFlagWhenFtpIsKnown() {
+        analysis.setIndoor(null);
+        liveData();
+
+        service.refresh(I1);
+
+        assertThat(analysis.getIndoor()).isFalse();
+        assertThat(analysis.getFtpUsed()).isEqualTo(250);
+    }
+
+    @Test
     void failedRefreshKeepsStoredData() {
         when(intervals.getStreams(I1)).thenThrow(new IntervalsUnavailableException("intervals-service weg", null));
 

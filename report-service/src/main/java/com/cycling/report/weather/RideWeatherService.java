@@ -44,7 +44,7 @@ public class RideWeatherService {
                                         StreamDataDto streams) {
         if (client == null) return List.of();
         if (!WeatherEligibility.isOutdoorWithGps(indoor, type, streams)) {
-            log.debug("Kein Wetter fuer {}: indoor={}, type={}, ohne GPS oder Indoor", activityId, indoor, type);
+            log.info("Kein Wetter fuer {}: indoor={}, type={}, ohne GPS oder Indoor", activityId, indoor, type);
             return List.of();
         }
         if (start == null) {
@@ -70,6 +70,11 @@ public class RideWeatherService {
         if (weather.size() != samples.size()) {
             log.warn("Kein Wetter fuer {}: {} Punkte angefragt, {} geliefert", activityId, samples.size(),
                     weather.size());
+            return List.of();
+        }
+        if (weather.stream().allMatch(w -> w.temperatureC() == null)) {
+            // Open-Meteo hat (noch) keine Werte: nicht speichern, sonst ersetzt es gutes Wetter durch leere Punkte
+            log.warn("Kein Wetter fuer {}: weather-service lieferte nur leere Werte", activityId);
             return List.of();
         }
         List<RideWeatherPoint> out = new ArrayList<>(samples.size());

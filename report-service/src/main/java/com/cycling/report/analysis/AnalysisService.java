@@ -253,6 +253,11 @@ public class AnalysisService {
             applyFtpContext(analysis, indoor, ftp);
             repository.save(analysis);
             log.info("Analyse {} nachgetragen: indoor={}, FTP={} W", activityId, indoor, ftp);
+        } else if (analysis.getIndoor() == null && zones.indoor() != null) {
+            // FTP schon da, Indoor-Kennung fehlt noch: ohne sie gaebe es nie Wetter
+            analysis.setIndoor(zones.indoor());
+            repository.save(analysis);
+            log.info("Analyse {} nachgetragen: indoor={}", activityId, zones.indoor());
         }
 
         IntervalsData.ZoneBands bands = intervalsClient.getZoneBandsOrThrow(analysis.getFtpUsed());

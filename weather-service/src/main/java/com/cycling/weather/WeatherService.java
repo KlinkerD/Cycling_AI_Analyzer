@@ -50,10 +50,12 @@ class WeatherService {
             else missing.add(location);
         }
         if (!missing.isEmpty()) {
-            List<Series> fetched = source.fetch(missing, from, to);
+            // Einen Tag mehr: sonst endet die Reihe um 23:00 (stuendlich) bzw. 23:45 und spaetere Punkte bleiben leer
+            List<Series> fetched = source.fetch(missing, from, to.plusDays(1));
             for (int i = 0; i < missing.size(); i++) {
                 series.put(missing.get(i), fetched.get(i));
-                cache.put(new CacheKey(missing.get(i), from, to), fetched.get(i));
+                // Reihen mit Luecken nicht cachen: Open-Meteo fuellt sie oft spaeter, ein Neuladen soll das sehen
+                if (isComplete(fetched.get(i))) cache.put(new CacheKey(missing.get(i), from, to), fetched.get(i));
             }
         }
 
@@ -63,6 +65,11 @@ class WeatherService {
             out.add(Interpolation.at(series.get(p.location()), q.lat(), q.lng(), q.time()));
         }
         return new WeatherResult(out, SOURCE);
+    }
+
+    static boolean isComplete(Series s) {
+        return !s.epochSeconds().isEmpty() && s.temperatureC().size() == s.epochSeconds().size()
+                && s.temperatureC().stream().allMatch(java.util.Objects::nonNull);
     }
 
     private record Parsed(WeatherQuery.Point point, Instant instant, Location location) {

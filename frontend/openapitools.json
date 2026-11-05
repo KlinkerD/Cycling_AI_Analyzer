@@ -29,6 +29,19 @@
           "enumPropertyNaming": "UPPERCASE",
           "supportsES6": true
         }
+      },
+      "stats-api": {
+        "generatorName": "typescript-angular",
+        "inputSpec": "#{cwd}/openapi/stats-api.yaml",
+        "output": "#{cwd}/src/app/api/stats",
+        "additionalProperties": {
+          "ngVersion": "17.3.0",
+          "providedIn": "root",
+          "serviceSuffix": "Api",
+          "serviceFileSuffix": ".api",
+          "enumPropertyNaming": "UPPERCASE",
+          "supportsES6": true
+        }
       }
     }
   }

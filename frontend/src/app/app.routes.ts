@@ -14,6 +14,12 @@ export const routes: Routes = [
       .then(m => m.OverviewComponent)
   },
   {
+    path: 'stats',
+    title: 'Statistik · Cycling Analyzer',
+    loadComponent: () => import('./pages/stats/stats.component')
+      .then(m => m.StatsComponent)
+  },
+  {
     path: 'report/:id',
     title: 'Report · Cycling Analyzer',
     loadComponent: () => import('./pages/report/report.component')

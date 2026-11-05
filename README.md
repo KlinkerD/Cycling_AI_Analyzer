@@ -6,12 +6,12 @@ Analysiere deine Radtrainings aus **intervals.icu** mit **Google Gemini AI** und
 
 | Schicht | Technologie |
 |---|---|
-| Backend | Spring Boot 4 + Java 25, aufgeteilt in intervals-service, report-service, training-service, ai-service, delivery-service, ftp-service, weather-service |
+| Backend | Spring Boot 4 + Java 25, aufgeteilt in intervals-service, report-service, training-service, stats-service, ai-service, delivery-service, ftp-service, weather-service |
 | Messaging | MQTT (Eclipse Mosquitto, Paho-v5-Client) |
 | API-Vertrag | OpenAPI (springdoc) je Service → OpenAPI Generator (typescript-angular), ein Client pro Service |
 | Frontend | Angular 21 + Angular Material 3, Chart.js (mit Zoom-Plugin), Leaflet (Karte, OpenStreetMap-Kacheln) |
 | KI | Google Gemini (Standard: gemini-2.5-flash) |
-| Datenbank | H2 (persistent, File-basiert), je eine für report-service und delivery-service |
+| Datenbank | H2 (persistent, File-basiert), je eine für report-service, stats-service und delivery-service |
 | Deployment | Docker Compose |
 
 ---
@@ -62,12 +62,13 @@ docker compose up -d mosquitto
 # und MQTT_BROKER_URL=tcp://localhost:<port> für die Services setzen.
 ```
 
-**intervals-service, report-service, training-service, ai-service, delivery-service, ftp-service, weather-service** (jeweils in eigenem Terminal):
+**intervals-service, report-service, training-service, stats-service, ai-service, delivery-service, ftp-service, weather-service** (jeweils in eigenem Terminal):
 ```bash
 mvn install -DskipTests                       # einmalig, baut auch cycling-messaging, intervals-api, weather-api und cycling-web
 mvn -pl intervals-service spring-boot:run     # http://localhost:8081, braucht INTERVALS_API_KEY/INTERVALS_ATHLETE_ID
 mvn -pl report-service spring-boot:run        # http://localhost:8082 (/api/reports), Swagger-UI: /swagger-ui.html
 mvn -pl training-service spring-boot:run      # http://localhost:8083 (/api/fitness, /api/recommendation)
+mvn -pl stats-service spring-boot:run         # http://localhost:8086 (/api/stats), Statistik je Woche/Monat/Jahr
 mvn -pl ai-service spring-boot:run            # braucht GEMINI_API_KEY
 mvn -pl delivery-service spring-boot:run
 mvn -pl ftp-service spring-boot:run           # FTP-Test-Erkennung, braucht den intervals-service
@@ -80,8 +81,8 @@ cd frontend
 npm install
 npm start          # erzeugt vorher die API-Clients, öffnet http://localhost:4200
 ```
-Der Dev-Proxy (`proxy.conf.json`) leitet `/api/reports` an 8082, `/api/fitness` und `/api/recommendation` an 8083
-weiter; im Docker-Betrieb macht das nginx (`frontend/nginx.conf`).
+Der Dev-Proxy (`proxy.conf.json`) leitet `/api/reports` an 8082, `/api/fitness` und `/api/recommendation` an 8083,
+`/api/stats` an 8086 weiter; im Docker-Betrieb macht das nginx (`frontend/nginx.conf`).
 
 ### Docker (Produktion / Raspberry Pi)
 
@@ -135,8 +136,8 @@ Je nach GitHub-Account heißen die Images typischerweise so:
 ghcr.io/<dein-github-username>/cycling-report:latest
 ghcr.io/<dein-github-username>/cycling-frontend:latest
 ```
-Dazu kommen `cycling-intervals`, `cycling-training`, `cycling-ai-service`, `cycling-ftp` und
-`cycling-delivery` für die übrigen Services.
+Dazu kommen `cycling-intervals`, `cycling-training`, `cycling-stats`, `cycling-ai-service`, `cycling-ftp`,
+`cycling-weather` und `cycling-delivery` für die übrigen Services.
 
 ### Auf dem Raspberry Pi nutzen
 ```bash
@@ -320,6 +321,29 @@ Nach einem Neustart wird nur bis 12:00 (`RECOMMENDATION_DAILY_CATCH_UP_UNTIL`) n
 fragt die Overview erneut ab. Scheitert die Berechnung, bleibt der letzte Stand; gibt es noch keinen, kommt 503
 (ProblemDetail mit `code`).
 
+### Statistik: Zeit in Zonen, km, Zeit (stats-service)
+
+Der **stats-service** liefert Summen über alle Rad-Fahrten je Kalenderwoche (Mo–So), -monat oder -jahr:
+Anzahl, km, Bewegungs- und Gesamtzeit, Höhenmeter, Trainingslast (TSS) sowie die Zeit in Leistungs- und HF-Zonen.
+Die Zonenzeiten kommen von intervals.icu und sind mit den Zonen vom Tag der Fahrt berechnet; eine spätere
+FTP-Änderung verändert alte Werte also nicht. Fahrten ohne Leistung oder Puls zählen bei km und Zeit mit, fehlen aber
+in den Zonen (`ridesWithPower`, `ridesWithHeartRate`).
+
+Er hält die Fahrten in einer eigenen H2-Datenbank (eine Zeile pro Fahrt, Summen erst bei der Abfrage), damit das
+Frontend nie direkt auf den intervals-service zugreift:
+
+- **Erstimport** beim Start: alle Fahrten ab dem 1.1. des Vorjahres (`STATS_IMPORT_YEARS_BACK`, Default 1).
+  Bereits gespeicherte Fahrten werden übersprungen, ein abgebrochener Import macht beim nächsten Start weiter.
+- **Neue Fahrten** über `cycling/intervals/activity/detected`: Zonenzeiten werden nur für noch unbekannte Fahrten geladen.
+- **Nachtabgleich** (`STATS_RECONCILE_CRON`, Default 3:30): die letzten `STATS_RECONCILE_DAYS` (30) Tage neu laden,
+  in intervals.icu gelöschte Fahrten entfernen, fehlende Zonenzeiten nachholen.
+
+| Endpoint | Liefert |
+|---|---|
+| `GET /api/stats?from&to&groupBy` | Summe und Aufteilung (`NONE`, `WEEK`, `MONTH` = Default, `YEAR`), Zeiträume am Rand auf from/to zugeschnitten |
+| `GET /api/stats/year-to-date?groupBy` | laufendes Jahr vom 1.1. bis heute und derselbe Zeitraum im Vorjahr |
+| `GET /api/stats/status` | Anzahl gespeicherter Fahrten, ältestes/neuestes Datum, ob der Erstimport noch läuft |
+
 ---
 
 ## 🤖 KI (ai-service)
@@ -364,7 +388,7 @@ Nur der **intervals-service** spricht mit intervals.icu und kennt `INTERVALS_API
 Er speichert nichts dauerhaft, hält die Antworten aber im Speicher (Caffeine):
 Aktivitätsliste 2 min, Wellness 15 min, Zonen/Schwellenwerte 1 h, Streams/Zonenzeiten/Power-Curve einer Aktivität 6 h.
 
-**REST für report- und training-service** (Vertrag als Records im Modul `intervals-api`, Fehler als
+**REST für report-, training-, stats- und ftp-service** (Vertrag als Records im Modul `intervals-api`, Fehler als
 ProblemDetail mit `code`; alle nutzen den gemeinsamen `IntervalsClient` aus demselben Modul):
 
 | Endpoint | Liefert |
@@ -410,6 +434,7 @@ Die Angular-Models und -Services für die REST-APIs werden generiert, nicht von 
 ```
 report-service   (springdoc)  →  frontend/openapi/report-api.yaml    →  frontend/src/app/api/report/
 training-service (springdoc)  →  frontend/openapi/training-api.yaml  →  frontend/src/app/api/training/
+stats-service    (springdoc)  →  frontend/openapi/stats-api.yaml     →  frontend/src/app/api/stats/
 ```
 
 - Die Specs sind eingecheckt. Der Test `OpenApiSpecTest` im jeweiligen Service schlägt fehl, sobald sie nicht mehr zur
@@ -438,6 +463,8 @@ cycling/
 ├── report-service/             # Analysen (KI-Auftrag, H2), REST /api/reports, Report -> DeliveryMessage (QuickChart)
 ├── training-service/           # Fitness, Form-Zonen, Athlet und Tagesempfehlung: REST /api/fitness + /api/recommendation,
 │                               #   abends Fitness-, morgens Empfehlungs-Nachricht, ohne Speicher
+├── stats-service/              # Statistik je Woche/Monat/Jahr (Zeit in Zonen, km, Zeit): REST /api/stats, eigene H2,
+│                               #   aktualisiert per ActivityDetected und Nachtabgleich
 ├── ai-service/                 # Gemini: generische KI-Aufträge (Prompt rein, Text raus) über MQTT
 ├── delivery-service/           # Mail + Discord für alle Quellen, eigene H2 für Nachrichten + Versandstatus
 ├── ftp-service/                # erkennt 20-Minuten-FTP-Tests (FTP, LTHR, MaxHR) über MQTT, Streams per REST vom intervals-service, ohne Speicher

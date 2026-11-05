@@ -238,7 +238,8 @@ interface NavItem {
 export class AppComponent implements OnInit {
   readonly nav: NavItem[] = [
     { path: '/', label: 'Kalender', icon: 'calendar_month', exact: true },
-    { path: '/overview', label: 'Übersicht', icon: 'insights', exact: false }
+    { path: '/overview', label: 'Übersicht', icon: 'insights', exact: false },
+    { path: '/stats', label: 'Statistik', icon: 'bar_chart', exact: false }
   ];
 
   readonly menuOpen = signal(false);

@@ -30,6 +30,8 @@ info:
       description: Versand per Mail und Discord für alle Quellen.
     - name: ftp-service
       description: Erkennt auf Anfrage einen 20-Minuten-FTP-Test in einer Fahrt (FTP, LTHR, MaxHR).
+    - name: stats-service
+      description: Statistik je Woche/Monat/Jahr; speichert jede Fahrt mit Zonenzeiten in einer eigenen Datenbank.
 
 defaultContentType: application/json
 
@@ -53,7 +55,8 @@ channels:
     description: |
       Bei jeder Abfrage (alle `INTERVALS_POLL_INTERVAL`, Standard 15 min) alle Rad-Fahrten der letzten 2 Tage.
       Mehrfaches Melden ist gewollt: der report-service überspringt Fahrten mit Report oder laufendem Job und
-      startet so fehlgeschlagene Analysen erneut.
+      startet so fehlgeschlagene Analysen erneut. Der stats-service überspringt Fahrten, die er schon mit
+      Zonenzeiten gespeichert hat.
     messages:
       activityDetected:
         $ref: '#/components/messages/ActivityDetected'
@@ -355,6 +358,16 @@ operations:
         qos: 1
         retain: false
         bindingVersion: 0.2.0
+
+  # ---- stats-service -------------------------------------------------------------------
+  statsReceiveActivityDetected:
+    action: receive
+    channel:
+      $ref: '#/channels/activityDetected'
+    summary: Speichert noch unbekannte Fahrten mit Zonenzeiten (per REST vom intervals-service) für die Statistik.
+    tags:
+      - name: stats-service
+    x-service: stats-service
 
   # ---- ai-service ----------------------------------------------------------------------
   aiReceiveRequest:

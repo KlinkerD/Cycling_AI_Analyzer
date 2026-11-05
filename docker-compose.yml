@@ -146,6 +146,38 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # stats-service: Statistik ueber alle Fahrten (Zeit in Leistungs-/HF-Zonen, km, Zeit, Hoehenmeter, Anzahl,
+  # Trainingslast) je Woche, Monat und Jahr per REST (/api/stats). Haelt die Fahrten in einer eigenen H2-Datenbank:
+  # Erstimport ab 1.1. des Vorjahres beim Start, neue Fahrten per ActivityDetected, nachts Abgleich der letzten Tage.
+  stats-service:
+    build:
+      context: .
+      dockerfile: stats-service/Dockerfile
+    container_name: cycling-stats
+    volumes:
+      - stats-data:/app/data
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - INTERVALS_SERVICE_URL=http://intervals-service:8080
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/stats;AUTO_SERVER=TRUE
+      - STATS_ZONE=${STATS_ZONE:-Europe/Berlin}
+      # Erstimport ab 1.1. des laufenden Jahres minus so vieler Jahre (1 = ab 1.1. des Vorjahres)
+      - STATS_IMPORT_YEARS_BACK=${STATS_IMPORT_YEARS_BACK:-1}
+      - STATS_RECONCILE_CRON=${STATS_RECONCILE_CRON:-0 30 3 * * *}
+      - STATS_RECONCILE_DAYS=${STATS_RECONCILE_DAYS:-30}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      intervals-service:
+        condition: service_healthy
+    restart: unless-stopped
+
   # ftp-service: erkennt auf Anfrage (Button auf der Report-Seite) einen 20-Minuten-FTP-Test in einer Fahrt
   # und berechnet FTP, LTHR und MaxHR. Streams per REST vom intervals-service, Auftrag/Ergebnis per MQTT.
   # Kein Webserver, kein Speicher.
@@ -199,7 +231,7 @@ services:
     restart: unless-stopped
 
   # frontend: Angular-App hinter nginx; /api/reports geht an den report-service, /api/fitness und
-  # /api/recommendation an den training-service (siehe frontend/nginx.conf).
+  # /api/recommendation an den training-service, /api/stats an den stats-service (siehe frontend/nginx.conf).
   frontend:
     build:
       context: ./frontend
@@ -212,6 +244,8 @@ services:
         condition: service_healthy
       training-service:
         condition: service_healthy
+      stats-service:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
@@ -220,4 +254,6 @@ volumes:
   mosquitto-data:
     driver: local
   delivery-data:
+    driver: local
+  stats-data:
     driver: local

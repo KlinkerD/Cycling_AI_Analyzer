@@ -1,0 +1,177 @@
+<div class="page">
+  <header class="page-header">
+    <h1>Statistik</h1>
+    <span class="sub">Rad-Fahrten aus intervals.icu</span>
+    <span class="spacer"></span>
+    <button mat-icon-button (click)="reload()" matTooltip="Neu laden" [disabled]="loading()">
+      <mat-icon>refresh</mat-icon>
+    </button>
+  </header>
+
+  <!-- Zeitraum und Aufteilung -->
+  <section class="panel toolbar">
+    <mat-button-toggle-group class="toggles" hideSingleSelectionIndicator
+                             [value]="preset" (change)="selectPreset($event.value)" aria-label="Zeitraum">
+      @for (p of presets; track p.key) {
+        <mat-button-toggle [value]="p.key">{{ p.label }}</mat-button-toggle>
+      }
+    </mat-button-toggle-group>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="date-range">
+      <mat-date-range-input [rangePicker]="picker">
+        <input matStartDate placeholder="Von" [(ngModel)]="from" (dateChange)="onCustomDateChange()">
+        <input matEndDate placeholder="Bis" [(ngModel)]="to" (dateChange)="onCustomDateChange()">
+      </mat-date-range-input>
+      <mat-datepicker-toggle matIconSuffix [for]="picker" />
+      <mat-date-range-picker #picker />
+    </mat-form-field>
+    <span class="spacer"></span>
+    <mat-button-toggle-group class="toggles" hideSingleSelectionIndicator
+                             [value]="groupBy" (change)="selectGrouping($event.value)" aria-label="Aufteilung">
+      @for (g of groupings; track g.key) {
+        <mat-button-toggle [value]="g.key">{{ g.label }}</mat-button-toggle>
+      }
+    </mat-button-toggle-group>
+  </section>
+
+  @if (status()?.importRunning) {
+    <div class="notice">
+      <mat-spinner diameter="16" />
+      Die Fahrten werden gerade aus intervals.icu importiert, die Zahlen sind noch unvollständig.
+      <button mat-button (click)="reload()">Neu laden</button>
+    </div>
+  }
+
+  @if (error(); as e) {
+    <section class="panel">
+      <div class="empty-state">
+        <mat-icon>cloud_off</mat-icon>
+        <span>{{ e }}</span>
+        <button mat-stroked-button (click)="reload()">Erneut versuchen</button>
+      </div>
+    </section>
+  } @else if (!current() && loading()) {
+    <section class="panel"><div class="loading-state"><mat-spinner diameter="32" /></div></section>
+  } @else if (current(); as c) {
+
+    <!-- Kennzahlen mit Vergleich zum Vorjahreszeitraum -->
+    <section class="panel">
+      <div class="panel-head">
+        <mat-icon>summarize</mat-icon>
+        <h2>{{ rangeLabel() }}</h2>
+        <span class="spacer"></span>
+        @if (previousLabel()) {
+          <span class="hint">Vergleich mit {{ previousLabel() }}</span>
+        }
+      </div>
+      <div class="kpi-row five">
+        @for (k of kpis(); track k.key) {
+          <div class="kpi" [attr.data-metric]="k.metric" [matTooltip]="k.tooltip">
+            <span class="kpi-label">{{ k.label }}</span>
+            <span class="kpi-value">{{ k.value }}@if (k.unit) {<span class="kpi-unit">{{ k.unit }}</span>}</span>
+            @if (k.delta !== null) {
+              <span class="delta" [class.up]="k.delta >= 0.5" [class.down]="k.delta <= -0.5">
+                {{ deltaLabel(k.delta) }} zum Vorjahr
+              </span>
+            } @else {
+              <span class="delta">kein Vorjahreswert</span>
+            }
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- Verlauf -->
+    <section class="panel">
+      <div class="panel-head chart-head">
+        <mat-icon>bar_chart</mat-icon>
+        <h2>Verlauf</h2>
+        <span class="spacer"></span>
+        <mat-button-toggle-group class="toggles" hideSingleSelectionIndicator
+                                 [value]="chartMetric()" (change)="chartMetric.set($event.value)" aria-label="Kennzahl">
+          @for (m of chartMetrics; track m.key) {
+            <mat-button-toggle [value]="m.key">{{ m.label }}</mat-button-toggle>
+          }
+        </mat-button-toggle-group>
+      </div>
+      <div class="chart-box lg">
+        @if (loading()) {
+          <div class="chart-loading"><mat-spinner diameter="32" /></div>
+        }
+        @if (c.total.rides > 0) {
+          <canvas baseChart type="bar" [data]="chartData()" [options]="chartOptions()"></canvas>
+        } @else {
+          <div class="empty-state">Keine Fahrten in diesem Zeitraum.</div>
+        }
+      </div>
+    </section>
+
+    <!-- Zeit in Zonen -->
+    <div class="zone-grid">
+      <section class="panel">
+        <div class="panel-head">
+          <mat-icon>bolt</mat-icon>
+          <h2>Zeit in Leistungszonen</h2>
+          <span class="spacer"></span>
+          <span class="hint">aus {{ c.total.ridesWithPower }} von {{ c.total.rides }} Fahrten</span>
+        </div>
+        @if (powerZones().length) {
+          <ng-container *ngTemplateOutlet="zoneView; context: { zones: powerZones(), kind: 'power' }" />
+        } @else {
+          <p class="muted">Keine Fahrten mit Leistungsdaten im Zeitraum.</p>
+        }
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <mat-icon>favorite</mat-icon>
+          <h2>Zeit in HF-Zonen</h2>
+          <span class="spacer"></span>
+          <span class="hint">aus {{ c.total.ridesWithHeartRate }} von {{ c.total.rides }} Fahrten</span>
+        </div>
+        @if (hrZones().length) {
+          <ng-container *ngTemplateOutlet="zoneView; context: { zones: hrZones(), kind: 'hr' }" />
+        } @else {
+          <p class="muted">Keine Fahrten mit Herzfrequenz im Zeitraum.</p>
+        }
+      </section>
+    </div>
+  }
+</div>
+
+<ng-template #zoneView let-zones="zones" let-kind="kind">
+  <div class="stacked-bar">
+    @for (zone of zones; track zone.zone; let i = $index) {
+      <div class="segment"
+           [style.flex-basis.%]="segmentWidth(zone)"
+           [style.background]="zoneColor(zone, i, kind)"
+           [matTooltip]="zone.zone + (zone.label ? ' ' + zone.label : '') + ' · ' + formatDuration(zone.seconds) + ' h · ' + (zone.percentage | number:'1.0-1') + ' %'">
+        @if (zone.percentage >= 6) {
+          <span>{{ zone.zone }}</span>
+        }
+      </div>
+    }
+  </div>
+  <table class="zones-table num">
+    <thead>
+      <tr><th>Zone</th><th class="right">Zeit</th><th class="right">Anteil</th></tr>
+    </thead>
+    <tbody>
+      @for (zone of zones; track zone.zone; let i = $index) {
+        <tr>
+          <td>
+            <span class="zone-dot" [style.background]="zoneColor(zone, i, kind)"></span>
+            <strong>{{ zone.zone }}</strong>
+            @if (zone.label) {
+              <span class="zone-name">{{ zone.label }}</span>
+            }
+          </td>
+          <td class="right">{{ formatDuration(zone.seconds) }} h</td>
+          <td class="right share">
+            <span class="share-bar" [style.width.%]="zone.percentage" [style.background]="zoneColor(zone, i, kind)"></span>
+            {{ zone.percentage | number:'1.1-1' }} %
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</ng-template>

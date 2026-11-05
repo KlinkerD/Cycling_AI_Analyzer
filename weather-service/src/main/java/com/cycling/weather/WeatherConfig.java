@@ -26,7 +26,7 @@ class WeatherConfig {
                                 @Value("${open-meteo.user-agent}") String userAgent,
                                 @Value("${open-meteo.connect-timeout:5s}") Duration connectTimeout,
                                 @Value("${open-meteo.read-timeout:8s}") Duration readTimeout,
-                                @Value("${open-meteo.forecast-past-days:90}") int forecastPastDays,
+                                @Value("${open-meteo.forecast-past-days:45}") int forecastPastDays,
                                 @Value("${open-meteo.retry-delay:2s}") Duration retryDelay,
                                 Clock clock) {
         HttpClient httpClient = HttpClient.newBuilder().connectTimeout(connectTimeout).build();

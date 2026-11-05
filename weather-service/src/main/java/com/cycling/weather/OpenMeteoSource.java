@@ -64,6 +64,20 @@ class OpenMeteoSource implements WeatherSource {
 
     private List<Series> fetchBlock(List<Location> locations, LocalDate from, LocalDate to) {
         boolean recent = !from.isBefore(LocalDate.now(clock.withZone(ZoneOffset.UTC)).minusDays(forecastPastDays));
+        List<Series> out = fetchBlock(locations, from, to, recent);
+        if (recent && out.stream().anyMatch(OpenMeteoSource::hasNoValues)) {
+            // Die Forecast-API nimmt aeltere Zeitraeume an, liefert dafuer aber nur null (gesehen ab ~56 Tagen)
+            log.info("Open-Meteo-Forecast ohne Werte fuer {} bis {}, nehme das Archiv", from, to);
+            out = fetchBlock(locations, from, to, false);
+        }
+        return out;
+    }
+
+    private static boolean hasNoValues(Series s) {
+        return s.temperatureC().stream().allMatch(java.util.Objects::isNull);
+    }
+
+    private List<Series> fetchBlock(List<Location> locations, LocalDate from, LocalDate to, boolean recent) {
         String block = recent ? "minutely_15" : "hourly";
         int step = recent ? 15 : 60;
         RestClient client = recent ? forecast : archive;

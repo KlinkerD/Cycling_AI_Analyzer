@@ -52,7 +52,10 @@ public class RideWeatherService {
             return List.of();
         }
         List<WeatherSample> samples = WeatherSampler.sample(streams, start);
-        if (samples.isEmpty()) return List.of();
+        if (samples.isEmpty()) {
+            log.info("Kein Wetter fuer {}: keine Messpunkte mit GPS im 10-Minuten-Takt", activityId);
+            return List.of();
+        }
 
         List<WeatherResult.Point> weather;
         try {

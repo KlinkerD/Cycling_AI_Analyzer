@@ -39,6 +39,9 @@ flowchart LR
     TS -. delivery/request/recommendation .-> DS
     DS -. delivery/status .-> RS
     DS -->|Mail / Discord| OUT[(Empfänger)]
+    RS -. detect/ftp/request .-> FT[ftp-service]
+    FT -. detect/ftp/response .-> RS
+    FT -->|REST Streams| RS
 ```
 
 Durchgezogen = REST/HTTP, gestrichelt = MQTT über Mosquitto (Topics ohne Präfix `cycling/`).
@@ -107,6 +110,38 @@ sequenceDiagram
     end
 ```
 
+## FTP-Test-Erkennung (ftp-service)
+
+Nur manuell: Button „FTP-Test auswerten“ auf der Report-Seite. Das Ergebnis hängt an der Fahrt (ein Ergebnis pro
+Aktivität, ein neuer Lauf überschreibt es) und wird nicht nach intervals.icu übernommen.
+
+```mermaid
+sequenceDiagram
+    participant FE as Frontend
+    participant RS as report-service
+    participant FT as ftp-service
+    participant IS as intervals-service
+
+    FE->>RS: POST /api/reports/{id}/ftp-detection
+    Note over RS: läuft schon ein Lauf → dessen Status zurück
+    RS-)FT: detect/ftp/request (DetectFtpRequest, neue requestId)
+    RS-->>FE: 202 FtpDetectionDto (PENDING)
+    FT->>RS: GET /api/reports/{id}/streams
+    RS->>IS: Streams (REST)
+    Note over FT: bester 20-min-Block, Kriterien prüfen
+    FT-)RS: detect/ftp/response (DetectFtpResponse)
+    Note over RS: fremde requestId = alter Lauf → verwerfen
+    loop alle 2 s, solange PENDING
+        FE->>RS: GET /api/reports/{id}/ftp-detection
+    end
+```
+
+- Ein Block gilt als FTP-Test, wenn alle Kriterien passen: höchstens 5 % fehlende Leistungs-/Pulswerte, Leistung
+  mindestens 25 % über dem Rest der Fahrt (ohne Rollen), Puls der letzten 5 min mindestens 90 % der MaxHR.
+  Ohne Puls kein Test.
+- FTP = 20-min-Mittel × 0,95, LTHR = mittlerer Puls im Block, MaxHR = höchstes 5-s-Mittel der ganzen Fahrt.
+- Ohne Antwort nach `FTP_DETECTION_TIMEOUT` (2 min) wird der Lauf beim nächsten Abruf FAILED.
+
 ## Übersicht: Fitness und Athlet (training-service)
 
 ```mermaid
@@ -164,6 +199,8 @@ sequenceDiagram
 | | `GET /api/reports/analysis-jobs/{jobId}` · `GET /api/reports/{id}/analysis-job` | Job-Status |
 | | `GET /api/reports/{id}` | Report |
 | | `POST /api/reports/{id}/resend` | Versand anstoßen |
+| | `POST /api/reports/{id}/ftp-detection` · `GET /api/reports/{id}/ftp-detection` | FTP-Test-Erkennung starten (202) / Ergebnis |
+| | `GET /api/reports/{id}/streams` | Nur die Streams (Quelle für den ftp-service) |
 | training-service | `GET /api/fitness/athlete[?refresh]` | Schwellen + Zonen |
 | training-service | `PUT /api/fitness/athlete/thresholds` | Schwellen + Gewicht nach intervals.icu schreiben |
 | | `GET /api/fitness/wellness?from&to[&refresh]` | CTL/ATL/Form |
@@ -181,6 +218,8 @@ Fehler vom intervals-service kommen bei beiden als ProblemDetail mit `code` an (
 | `cycling/ai/result/{report,training}` | ai → Absender | `AiResult` (Antworttext) | nein |
 | `cycling/delivery/request/{report,fitness,recommendation}` | Absender → delivery | `DeliveryMessage` | nein |
 | `cycling/delivery/status` | delivery → report | `DeliveryServiceStatus` (Last Will: offline) | ja |
+| `cycling/detect/ftp/request` | report → ftp | `DetectFtpRequest` | nein |
+| `cycling/detect/ftp/response` | ftp → report | `DetectFtpResponse` | nein |
 
 Details zu Feldern, QoS und Korrelation: [`asyncapi.yaml`](asyncapi.yaml). Ansehen z. B. im
 [AsyncAPI Studio](https://studio.asyncapi.com/) (Datei hineinkopieren) oder mit der AsyncAPI-CLI:

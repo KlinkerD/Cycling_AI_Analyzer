@@ -28,6 +28,8 @@ info:
       description: Gemini ohne Fachlichkeit; Prompt rein, Antworttext raus.
     - name: delivery-service
       description: Versand per Mail und Discord für alle Quellen.
+    - name: ftp-service
+      description: Erkennt auf Anfrage einen 20-Minuten-FTP-Test in einer Fahrt (FTP, LTHR, MaxHR).
 
 defaultContentType: application/json
 
@@ -113,6 +115,24 @@ channels:
     messages:
       deliveryServiceStatus:
         $ref: '#/components/messages/DeliveryServiceStatus'
+
+  detectFtpRequest:
+    address: cycling/detect/ftp/request
+    title: FTP-Test-Erkennung anfordern
+    description: |
+      Manuell aus dem Frontend ausgelöst (Button „FTP-Test auswerten“ auf der Report-Seite). Der
+      ftp-service holt die Streams per REST beim report-service (`GET /api/reports/{activityId}/streams`).
+    messages:
+      detectFtpRequest:
+        $ref: '#/components/messages/DetectFtpRequest'
+
+  detectFtpResponse:
+    address: cycling/detect/ftp/response
+    title: Ergebnis der FTP-Test-Erkennung
+    description: Genau eine Antwort pro Auftrag, technische Fehler mit `error`.
+    messages:
+      detectFtpResponse:
+        $ref: '#/components/messages/DetectFtpResponse'
 
 operations:
   # ---- intervals-service ---------------------------------------------------------------
@@ -204,6 +224,64 @@ operations:
     tags:
       - name: report-service
     x-service: report-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: false
+        bindingVersion: 0.2.0
+
+  reportSendFtpDetectionRequest:
+    action: send
+    channel:
+      $ref: '#/channels/detectFtpRequest'
+    summary: Fordert die FTP-Test-Erkennung für eine Fahrt an (POST /api/reports/{activityId}/ftp-detection).
+    description: |
+      requestId = neue UUID je Lauf. Läuft schon ein Lauf, wird nichts gesendet. Ohne Antwort nach
+      `FTP_DETECTION_TIMEOUT` (Standard 2 min) gilt der Lauf als FAILED.
+    tags:
+      - name: report-service
+    x-service: report-service
+    bindings:
+      mqtt:
+        qos: 1
+        retain: false
+        bindingVersion: 0.2.0
+    reply:
+      channel:
+        $ref: '#/channels/detectFtpResponse'
+
+  reportReceiveFtpDetectionResponse:
+    action: receive
+    channel:
+      $ref: '#/channels/detectFtpResponse'
+    summary: Speichert das Ergebnis zur Fahrt (ein Ergebnis pro Aktivität, neuer Lauf überschreibt).
+    description: Antworten mit fremder requestId (alter Lauf) werden verworfen.
+    tags:
+      - name: report-service
+    x-service: report-service
+
+  # ---- ftp-service ---------------------------------------------------------------------
+  ftpReceiveDetectionRequest:
+    action: receive
+    channel:
+      $ref: '#/channels/detectFtpRequest'
+    summary: Holt die Streams und prüft den besten 20-Minuten-Block auf einen FTP-Test.
+    description: |
+      Ein Block gilt als Test, wenn höchstens 5 % Leistungs-/Pulswerte fehlen, die Leistung mindestens 25 %
+      über dem Rest der Fahrt liegt und der Puls der letzten 5 min mindestens 90 % der MaxHR erreicht.
+      Ohne Puls kein Test. Schwellwerte über `FTP_DETECTION_*` einstellbar.
+    tags:
+      - name: ftp-service
+    x-service: ftp-service
+
+  ftpSendDetectionResponse:
+    action: send
+    channel:
+      $ref: '#/channels/detectFtpResponse'
+    summary: FTP (20-min-Mittel × 0,95), LTHR (20-min-Puls), MaxHR (bestes 5-s-Mittel) oder Fehler.
+    tags:
+      - name: ftp-service
+    x-service: ftp-service
     bindings:
       mqtt:
         qos: 1
@@ -382,6 +460,20 @@ components:
       title: Status des delivery-service
       payload:
         $ref: '#/components/schemas/DeliveryServiceStatus'
+    DetectFtpRequest:
+      name: DetectFtpRequest
+      title: Fahrt auf FTP-Test prüfen
+      correlationId:
+        $ref: '#/components/correlationIds/requestId'
+      payload:
+        $ref: '#/components/schemas/DetectFtpRequest'
+    DetectFtpResponse:
+      name: DetectFtpResponse
+      title: Ergebnis der FTP-Test-Erkennung
+      correlationId:
+        $ref: '#/components/correlationIds/requestId'
+      payload:
+        $ref: '#/components/schemas/DetectFtpResponse'
 
   correlationIds:
     requestId:
@@ -497,3 +589,24 @@ components:
           type: array
           description: aktive Kanäle; leer = Versand abgeschaltet
           items: { type: string, enum: [MAIL, DISCORD] }
+
+    DetectFtpRequest:
+      type: object
+      required: [requestId, activityId]
+      properties:
+        requestId: { type: string, description: 'neu je Lauf; kommt in der Antwort zurück' }
+        activityId: { type: string, examples: [i123456] }
+
+    DetectFtpResponse:
+      type: object
+      required: [requestId, activityId, isFtpDetected]
+      properties:
+        requestId: { type: string }
+        activityId: { type: string }
+        isFtpDetected: { type: boolean, description: false auch bei Fehlern (dann ist error gesetzt) }
+        ftp: { type: [integer, 'null'], description: 'Watt, 20-min-Mittel × 0,95' }
+        maxHr: { type: [integer, 'null'], description: 'bpm, höchstes 5-s-Mittel der Fahrt' }
+        lthr: { type: [integer, 'null'], description: 'bpm, mittlerer Puls im 20-min-Block' }
+        avgPower20Min: { type: [integer, 'null'], description: 'Watt, mittlere Leistung im 20-min-Block' }
+        windowStartSeconds: { type: [integer, 'null'], description: 'Start des Blocks in s ab Fahrtbeginn' }
+        error: { type: [string, 'null'], description: technischer Fehler; null, wenn die Erkennung gelaufen ist }

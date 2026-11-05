@@ -3,6 +3,8 @@ package com.cycling.messaging;
 import com.cycling.messaging.contract.ActivityDetected;
 import com.cycling.messaging.contract.AiRequest;
 import com.cycling.messaging.contract.AiResult;
+import com.cycling.messaging.contract.DetectFtpRequest;
+import com.cycling.messaging.contract.DetectFtpResponse;
 import com.cycling.messaging.contract.WellnessUpdated;
 import org.junit.jupiter.api.Test;
 
@@ -50,6 +52,23 @@ class MessageCodecTest {
                 new WellnessUpdated.Values("2026-11-03", 55.2, 60.1, -4.9, 3.4), null);
 
         assertThat(codec.decode(codec.encode(updated), WellnessUpdated.class)).isEqualTo(updated);
+    }
+
+    @Test
+    void detectFtpResponseSurvivesRoundTripAndKeepsFieldNames() {
+        DetectFtpResponse response = new DetectFtpResponse("r1", "i1", true, 266, 182, 171, 280, 900, null);
+
+        byte[] json = codec.encode(response);
+
+        assertThat(new String(json, StandardCharsets.UTF_8)).contains("\"isFtpDetected\":true");
+        assertThat(codec.decode(json, DetectFtpResponse.class)).isEqualTo(response);
+    }
+
+    @Test
+    void detectFtpRequestSurvivesRoundTrip() {
+        DetectFtpRequest request = new DetectFtpRequest("r1", "i1");
+
+        assertThat(codec.decode(codec.encode(request), DetectFtpRequest.class)).isEqualTo(request);
     }
 
     @Test

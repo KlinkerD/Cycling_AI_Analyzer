@@ -116,6 +116,43 @@ paths:
           description: Noch nie analysiert
       tags:
       - Reports
+  /api/reports/{activityId}/ftp-detection:
+    get:
+      operationId: getFtpDetection
+      parameters:
+      - in: path
+        name: activityId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FtpDetectionDto"
+          description: Ergebnis oder laufende Erkennung
+        "404":
+          description: Noch nie ausgeloest
+      tags:
+      - Reports
+    post:
+      operationId: startFtpDetection
+      parameters:
+      - in: path
+        name: activityId
+        required: true
+        schema:
+          type: string
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FtpDetectionDto"
+          description: Erkennung gestartet (oder laeuft bereits)
+      tags:
+      - Reports
   /api/reports/{activityId}/resend:
     post:
       operationId: resendReport
@@ -146,6 +183,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResendResultDto"
           description: Versand-Service nicht erreichbar oder Report nicht ladbar
+      tags:
+      - Reports
+  /api/reports/{activityId}/streams:
+    get:
+      operationId: getStreams
+      parameters:
+      - in: path
+        name: activityId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StreamDataDto"
+          description: Streams der Fahrt
+        "404":
+          description: Fahrt bei intervals.icu unbekannt
       tags:
       - Reports
 components:
@@ -363,6 +420,64 @@ components:
       - finishedAt
       - jobId
       - status
+    FtpDetectionDto:
+      type: object
+      properties:
+        activityId:
+          type: string
+        avgPower20Min:
+          type: integer
+          format: int32
+          description: "Watt, mittlere Leistung im 20-Minuten-Block"
+          nullable: true
+        error:
+          type: string
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        ftp:
+          type: integer
+          format: int32
+          description: "Watt, 20-Minuten-Mittel * 0,95"
+          nullable: true
+        lthr:
+          type: integer
+          format: int32
+          description: "bpm, mittlerer Puls im 20-Minuten-Block"
+          nullable: true
+        maxHr:
+          type: integer
+          format: int32
+          description: "bpm, hoechstes 5-Sekunden-Mittel der Fahrt"
+          nullable: true
+        requestedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - PENDING
+          - DETECTED
+          - NOT_DETECTED
+          - FAILED
+        windowStartSeconds:
+          type: integer
+          format: int32
+          description: Start des 20-Minuten-Blocks in Sekunden ab Fahrtbeginn
+          nullable: true
+      required:
+      - activityId
+      - avgPower20Min
+      - error
+      - finishedAt
+      - ftp
+      - lthr
+      - maxHr
+      - requestedAt
+      - status
+      - windowStartSeconds
     PowerCurveDto:
       type: object
       properties:

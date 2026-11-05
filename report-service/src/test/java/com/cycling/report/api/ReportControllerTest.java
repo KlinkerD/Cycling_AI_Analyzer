@@ -9,6 +9,8 @@ import com.cycling.report.analysis.ReportNotFoundException;
 import com.cycling.report.analysis.ReportResendService;
 import com.cycling.report.analysis.ReportResendService.Outcome;
 import com.cycling.report.analysis.ReportResendService.Result;
+import com.cycling.report.ftp.FtpDetection;
+import com.cycling.report.ftp.FtpDetectionService;
 import com.cycling.web.IntervalsProblemHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -34,8 +36,9 @@ class ReportControllerTest {
     private final AnalysisService analysisService = mock(AnalysisService.class);
     private final AnalysisJobService jobService = mock(AnalysisJobService.class);
     private final ReportResendService resend = mock(ReportResendService.class);
+    private final FtpDetectionService ftpDetection = mock(FtpDetectionService.class);
     private final MockMvc mvc = MockMvcBuilders
-            .standaloneSetup(new ReportController(intervals, analysisService, jobService, resend))
+            .standaloneSetup(new ReportController(intervals, analysisService, jobService, resend, ftpDetection))
             .setControllerAdvice(new IntervalsProblemHandler())
             .build();
 
@@ -142,5 +145,56 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.status").value("unavailable"))
                 .andExpect(jsonPath("$.message").value(
                         org.hamcrest.Matchers.containsString("Report konnte nicht geladen werden")));
+    }
+
+    @Test
+    void streamsReturnOnlyTheTimeSeries() throws Exception {
+        when(intervals.getStreams("i1")).thenReturn(new StreamDataDto(List.of(), List.of(200, 210), List.of(140, 141),
+                List.of(), List.of(), List.of(0, 1), List.of()));
+
+        mvc.perform(get("/api/reports/i1/streams"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.watts[1]").value(210))
+                .andExpect(jsonPath("$.time[1]").value(1));
+    }
+
+    @Test
+    void streamsAnswerNotFoundForUnknownActivity() throws Exception {
+        when(intervals.getStreams("x")).thenThrow(new IntervalsUnavailableException(
+                org.springframework.http.HttpStatus.NOT_FOUND, "NOT_FOUND", "unbekannt", null, null));
+
+        mvc.perform(get("/api/reports/x/streams")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void startFtpDetectionAnswersAcceptedWithPendingStatus() throws Exception {
+        when(ftpDetection.start("i1")).thenReturn(new FtpDetection("i1", "r1", LocalDateTime.now()));
+
+        mvc.perform(post("/api/reports/i1/ftp-detection"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.activityId").value("i1"))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    void ftpDetectionReturnsDetectedValues() throws Exception {
+        FtpDetection detection = new FtpDetection("i1", "r1", LocalDateTime.now());
+        detection.markDetected(266, 172, 182, 280, 1200, LocalDateTime.now());
+        when(ftpDetection.find("i1")).thenReturn(Optional.of(detection));
+
+        mvc.perform(get("/api/reports/i1/ftp-detection"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DETECTED"))
+                .andExpect(jsonPath("$.ftp").value(266))
+                .andExpect(jsonPath("$.lthr").value(172))
+                .andExpect(jsonPath("$.maxHr").value(182))
+                .andExpect(jsonPath("$.windowStartSeconds").value(1200));
+    }
+
+    @Test
+    void ftpDetectionAnswersNotFoundWhenNeverStarted() throws Exception {
+        when(ftpDetection.find("i1")).thenReturn(Optional.empty());
+
+        mvc.perform(get("/api/reports/i1/ftp-detection")).andExpect(status().isNotFound());
     }
 }

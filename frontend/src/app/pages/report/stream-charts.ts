@@ -23,14 +23,23 @@ export interface StreamCharts {
   sparkColor: string;
 }
 
+/** Zeitabschnitt der Fahrt (Sekunden laut time-Stream), der im Leistungs-Chart hinterlegt wird. */
+export interface TimeHighlight {
+  startSeconds: number;
+  durationSeconds: number;
+  label: string;
+}
+
 /** Feste Breite der Y-Achsen, damit die gestapelten Charts exakt übereinander liegen. */
 const AXIS_WIDTH = 48;
 
 /**
  * Baut die gestapelten Verlaufs-Charts (Speed+Höhe, Leistung+HF, Kadenz) aus den Rohdaten.
  * Alle teilen sich eine lineare X-Achse; Chart.js dünnt je Zoomstufe aus (LTTB).
+ * {@code highlight} (z. B. der erkannte FTP-Test) wird im Leistungs-Chart farbig hinterlegt.
  */
-export function buildStreamCharts(streams: StreamDataDto, group: ZoomGroup): StreamCharts | null {
+export function buildStreamCharts(streams: StreamDataDto, group: ZoomGroup,
+                                  highlight: TimeHighlight | null = null): StreamCharts | null {
   const distance = streams.distance ?? [];
   const time = streams.time ?? [];
   const useDistance = range(distance) > 100; // > 100 m Bewegung, sonst (Rolle ohne Distanz) Zeit
@@ -42,6 +51,7 @@ export function buildStreamCharts(streams: StreamDataDto, group: ZoomGroup): Str
   const xMax = lastNum(xs);
   if (xMin == null || xMax == null || xMax <= xMin) return null;
   group.setBounds(xMin, xMax);
+  const highlightX = highlight ? timeToX(time, xs, highlight) : null;
 
   const series = (src: number[] | undefined, transform = (v: number) => v, smooth = 1): Pt[] => {
     if (!src?.length) return [];
@@ -86,15 +96,23 @@ export function buildStreamCharts(streams: StreamDataDto, group: ZoomGroup): Str
     const datasets: LineData['datasets'] = [];
     if (power.length) datasets.push(line('Leistung', power, metricColor('power'), 'yLeft', { fill: 'start', fillAlpha: 0.14, order: 2 }));
     if (hr.length) datasets.push(line('Herzfrequenz', hr, metricColor('hr'), 'yRight', { order: 1 }));
+    const options = streamOptions(group, axis, {
+      left: power.length ? { label: 'W', color: metricColor('power'), min: 0 } : null,
+      right: hr.length ? { label: 'bpm', color: metricColor('hr') } : null
+    }, (label, v) => label === 'Leistung' ? `${v.toFixed(0)} W` : `${v.toFixed(0)} bpm`);
+    if (highlightX && highlight) {
+      options.plugins!.highlightRange = {
+        ...highlightX,
+        color: alpha(metricColor('power'), 0.16),
+        label: highlight.label
+      };
+    }
     charts.push({
       key: 'powerHr',
       title: [power.length ? 'Leistung' : '', hr.length ? 'Herzfrequenz' : ''].filter(Boolean).join(' & '),
       height: 230,
       data: { datasets },
-      options: streamOptions(group, axis, {
-        left: power.length ? { label: 'W', color: metricColor('power'), min: 0 } : null,
-        right: hr.length ? { label: 'bpm', color: metricColor('hr') } : null
-      }, (label, v) => label === 'Leistung' ? `${v.toFixed(0)} W` : `${v.toFixed(0)} bpm`)
+      options
     });
   }
 
@@ -223,6 +241,25 @@ function formatX(v: number, axis: 'distance' | 'time', short = false): string {
   if (axis === 'time') return formatClock(v);
   const digits = short ? (v >= 10 ? 0 : 1) : 2;
   return v.toLocaleString('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits }) + (short ? '' : ' km');
+}
+
+/**
+ * Rechnet einen Zeitabschnitt in X-Achsen-Werte um: bei Zeit-Achse direkt, bei Distanz-Achse ueber
+ * die erste Probe ab Start bzw. Ende des Abschnitts.
+ */
+function timeToX(time: number[], xs: number[], h: TimeHighlight): { from: number; to: number } | null {
+  const start = h.startSeconds;
+  const end = h.startSeconds + h.durationSeconds;
+  let from: number | null = null;
+  let to: number | null = null;
+  for (let i = 0; i < time.length && i < xs.length; i++) {
+    const t = time[i];
+    const x = xs[i];
+    if (t == null || x == null || isNaN(x)) continue;
+    if (from == null && t >= start) from = x;
+    if (t <= end) to = x;
+  }
+  return from != null && to != null && to > from ? { from, to } : null;
 }
 
 function rollingMean(src: number[], window: number): (number | null)[] {

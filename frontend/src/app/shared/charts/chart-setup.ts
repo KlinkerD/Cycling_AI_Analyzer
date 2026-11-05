@@ -2,10 +2,11 @@ import { Chart, registerables } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { token } from '../theme';
 import { zoomGroupPlugin } from './zoom-group';
+import { highlightRangePlugin } from './highlight-range';
 
 /** Einmalige Chart.js-Grundeinstellungen passend zum dunklen Theme. */
 export function setupCharts(): void {
-  Chart.register(...registerables, zoomPlugin, zoomGroupPlugin);
+  Chart.register(...registerables, zoomPlugin, zoomGroupPlugin, highlightRangePlugin);
 
   Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
   Chart.defaults.font.size = 11;

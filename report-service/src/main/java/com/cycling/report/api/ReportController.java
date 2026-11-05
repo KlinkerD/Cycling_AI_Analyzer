@@ -5,6 +5,7 @@ import com.cycling.report.analysis.AnalysisService;
 import com.cycling.report.analysis.IntervalsData;
 import com.cycling.report.analysis.ReportNotFoundException;
 import com.cycling.report.analysis.ReportResendService;
+import com.cycling.report.ftp.FtpDetectionService;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -36,13 +37,15 @@ public class ReportController {
     private final AnalysisService analysisService;
     private final AnalysisJobService jobService;
     private final ReportResendService resendService;
+    private final FtpDetectionService ftpDetectionService;
 
     public ReportController(IntervalsData intervals, AnalysisService analysisService, AnalysisJobService jobService,
-                            ReportResendService resendService) {
+                            ReportResendService resendService, FtpDetectionService ftpDetectionService) {
         this.intervals = intervals;
         this.analysisService = analysisService;
         this.jobService = jobService;
         this.resendService = resendService;
+        this.ftpDetectionService = ftpDetectionService;
     }
 
     /**
@@ -131,5 +134,37 @@ public class ReportController {
                             "Report konnte nicht geladen werden (intervals-service nicht erreichbar)."));
             case NOT_FOUND -> ResponseEntity.notFound().build();
         };
+    }
+
+    /**
+     * GET /api/reports/{activityId}/streams - nur die Zeitreihen einer Fahrt (ohne Analyse, Zonen, Trend).
+     * Quelle fuer den ftp-service.
+     */
+    @GetMapping("/{activityId}/streams")
+    @ApiResponse(responseCode = "200", description = "Streams der Fahrt")
+    @ApiResponse(responseCode = "404", description = "Fahrt bei intervals.icu unbekannt", content = @Content)
+    public ResponseEntity<StreamDataDto> getStreams(@PathVariable String activityId) {
+        return ResponseEntity.ok(intervals.getStreams(activityId));
+    }
+
+    /**
+     * POST /api/reports/{activityId}/ftp-detection
+     * Startet die FTP-Test-Erkennung asynchron beim ftp-service. Antwortet sofort mit 202; den Status fragt
+     * das Frontend ueber GET /{activityId}/ftp-detection ab. Laeuft schon eine Erkennung, kommt diese zurueck.
+     */
+    @PostMapping("/{activityId}/ftp-detection")
+    @ApiResponse(responseCode = "202", description = "Erkennung gestartet (oder laeuft bereits)")
+    public ResponseEntity<FtpDetectionDto> startFtpDetection(@PathVariable String activityId) {
+        return ResponseEntity.accepted().body(FtpDetectionDto.from(ftpDetectionService.start(activityId)));
+    }
+
+    /** GET /api/reports/{activityId}/ftp-detection - Ergebnis bzw. Status der FTP-Test-Erkennung. */
+    @GetMapping("/{activityId}/ftp-detection")
+    @ApiResponse(responseCode = "200", description = "Ergebnis oder laufende Erkennung")
+    @ApiResponse(responseCode = "404", description = "Noch nie ausgeloest", content = @Content)
+    public ResponseEntity<FtpDetectionDto> getFtpDetection(@PathVariable String activityId) {
+        return ftpDetectionService.find(activityId)
+                .map(d -> ResponseEntity.ok(FtpDetectionDto.from(d)))
+                .orElse(ResponseEntity.notFound().build());
     }
 }

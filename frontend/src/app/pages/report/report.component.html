@@ -22,10 +22,18 @@
         </span>
       </div>
       <span class="spacer"></span>
-      <button mat-stroked-button (click)="resend()" [disabled]="resending()">
-        <mat-icon>{{ resending() ? 'hourglass_top' : 'send' }}</mat-icon>
-        {{ resending() ? 'Wird gesendet…' : 'Report senden' }}
-      </button>
+      <div class="head-actions">
+        <button mat-stroked-button (click)="detectFtp()"
+                [disabled]="ftpStarting() || ftpDetection()?.status === Ftp.PENDING"
+                matTooltip="Sucht einen 20-Minuten-FTP-Test in dieser Fahrt">
+          <mat-icon>{{ ftpStarting() || ftpDetection()?.status === Ftp.PENDING ? 'hourglass_top' : 'speed' }}</mat-icon>
+          {{ ftpStarting() || ftpDetection()?.status === Ftp.PENDING ? 'Wird ausgewertet…' : 'FTP-Test auswerten' }}
+        </button>
+        <button mat-stroked-button (click)="resend()" [disabled]="resending()">
+          <mat-icon>{{ resending() ? 'hourglass_top' : 'send' }}</mat-icon>
+          {{ resending() ? 'Wird gesendet…' : 'Report senden' }}
+        </button>
+      </div>
     </header>
 
     <section class="panel summary-panel">
@@ -103,6 +111,60 @@
         }
       </div>
     </section>
+
+    <!-- FTP-Test (nur, wenn schon einmal ausgewertet) -->
+    @if (ftpDetection(); as ftp) {
+      <section class="panel ftp-panel">
+        <div class="panel-head">
+          <mat-icon>speed</mat-icon>
+          <h2>FTP-Test</h2>
+        </div>
+        @switch (ftp.status) {
+          @case (Ftp.PENDING) {
+            <div class="ftp-state">
+              <mat-spinner diameter="20" />
+              <span>Fahrt wird auf einen 20-Minuten-Test geprüft…</span>
+            </div>
+          }
+          @case (Ftp.DETECTED) {
+            <div class="kpi-row">
+              <div class="kpi" data-metric="power">
+                <span class="kpi-label">FTP</span>
+                <span class="kpi-value">{{ ftp.ftp }}<span class="kpi-unit">W</span></span>
+              </div>
+              <div class="kpi" data-metric="hr">
+                <span class="kpi-label">LTHR</span>
+                <span class="kpi-value">{{ ftp.lthr }}<span class="kpi-unit">bpm</span></span>
+              </div>
+              <div class="kpi" data-metric="hr">
+                <span class="kpi-label">Max HF</span>
+                <span class="kpi-value">{{ ftp.maxHr }}<span class="kpi-unit">bpm</span></span>
+              </div>
+              <div class="kpi" data-metric="power">
+                <span class="kpi-label">Ø 20 min</span>
+                <span class="kpi-value">{{ ftp.avgPower20Min }}<span class="kpi-unit">W</span></span>
+              </div>
+            </div>
+            <p class="ftp-note">
+              20 min mit Ø {{ ftp.avgPower20Min }} W × 0,95 = FTP {{ ftp.ftp }} W. Der Block ist im Tab „Verläufe“ markiert.
+            </p>
+          }
+          @case (Ftp.NOT_DETECTED) {
+            <div class="ftp-state">
+              <mat-icon>info</mat-icon>
+              <span>Kein FTP-Test in dieser Fahrt erkannt.</span>
+            </div>
+          }
+          @case (Ftp.FAILED) {
+            <div class="ftp-state error">
+              <mat-icon>error_outline</mat-icon>
+              <span>Auswertung fehlgeschlagen: {{ ftp.error || 'unbekannter Fehler' }}</span>
+              <button mat-button (click)="detectFtp()" [disabled]="ftpStarting()">Erneut versuchen</button>
+            </div>
+          }
+        }
+      </section>
+    }
 
     <!-- Tabs -->
     <mat-tab-group class="tabs" animationDuration="0ms" mat-stretch-tabs="false" mat-align-tabs="start">

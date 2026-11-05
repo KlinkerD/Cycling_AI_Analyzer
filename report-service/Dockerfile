@@ -17,6 +17,8 @@ COPY training-service/pom.xml ./training-service/pom.xml
 COPY cycling-web ./cycling-web
 COPY ai-service/pom.xml ./ai-service/pom.xml
 
+COPY ftp-service/pom.xml ./ftp-service/pom.xml
+
 RUN --mount=type=cache,target=/root/.m2     mvn -q -B -pl report-service -am package -DskipTests
 
 # Runtime Image

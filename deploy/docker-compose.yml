@@ -1,0 +1,195 @@
+services:
+
+  # MQTT-Broker: verbindet intervals-service, report-service, fitness-service,
+  # recommendation-service, ai-service und delivery-service. Kein Port nach aussen.
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    container_name: cycling-mosquitto
+    configs:
+      - source: mosquitto-conf
+        target: /mosquitto/config/mosquitto.conf
+    volumes:
+      - mosquitto-data:/mosquitto/data
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/broker/uptime", "-C", "1", "-W", "3", "-i", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # intervals-service: einzige Anbindung an intervals.icu (REST + Cache fuer report-, fitness- und
+  # recommendation-service, meldet neue Aktivitaeten und Fitness-Aenderungen per MQTT)
+  intervals-service:
+    image: ghcr.io/klinkerd/cycling-intervals:${TAG:-sha-3a0f396}
+    container_name: cycling-intervals
+    environment:
+      - INTERVALS_API_KEY=xxx
+      - INTERVALS_ATHLETE_ID=i547322
+      - INTERVALS_POLL_INTERVAL=15m
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # report-service: analysiert neue Fahrten (KI-Auftrag an den ai-service), speichert die Analysen (H2),
+  # liefert Aktivitaetsliste und Report-Seite (/api/reports) und schickt Reports an den delivery-service
+  report-service:
+    image: ghcr.io/klinkerd/cycling-report:${TAG:-sha-3a0f396}
+    container_name: cycling-report
+    expose:
+      - "8080"
+    volumes:
+      - report-data:/app/data
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - INTERVALS_SERVICE_URL=http://intervals-service:8080
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/report;AUTO_SERVER=TRUE
+      - CYCLING_FTP=${CYCLING_FTP:-250}
+      - CYCLING_MAX_HR=${CYCLING_MAX_HR:-190}
+      # leer = "default" jedes aktiven Kanals (DISCORD_CHANNEL_ID unten)
+      - REPORT_TARGETS=
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      intervals-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # fitness-service: Fitness-Chart und Athleten-Profil (/api/fitness),
+  # abends eine Zusammenfassung von Fitness/Fatigue/Form/Ramp
+  fitness-service:
+    image: ghcr.io/klinkerd/cycling-fitness:${TAG:-sha-3a0f396}
+    container_name: cycling-fitness
+    expose:
+      - "8080"
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - INTERVALS_SERVICE_URL=http://intervals-service:8080
+      - FITNESS_SUMMARY_TIME=21:00
+      - FITNESS_SUMMARY_ZONE=Europe/Berlin
+      - FITNESS_TARGETS=DISCORD:fitness
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      intervals-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # recommendation-service: Tagesempfehlung fuer die Overview (/api/recommendation),
+  # morgens per Discord
+  recommendation-service:
+    image: ghcr.io/klinkerd/cycling-recommendation:${TAG:-sha-3a0f396}
+    container_name: cycling-recommendation
+    expose:
+      - "8080"
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - INTERVALS_SERVICE_URL=http://intervals-service:8080
+      - RECOMMENDATION_ZONE=Europe/Berlin
+      - RECOMMENDATION_DAILY_TIME=09:00
+      - RECOMMENDATION_TARGETS=DISCORD:recommendation
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      intervals-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ai-service: Gemini (Analysen und Empfehlungstexte)
+  ai-service:
+    image: ghcr.io/klinkerd/cycling-ai-service:${TAG:-sha-3a0f396}
+    container_name: cycling-ai-service
+    environment:
+      - GEMINI_API_KEY=yyyy
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # delivery-service: versendet Nachrichten aller Quellen per Mail/Discord, mit Wiederholung
+  delivery-service:
+    image: ghcr.io/klinkerd/cycling-delivery:${TAG:-sha-3a0f396}
+    container_name: cycling-delivery
+    volumes:
+      - delivery-data:/app/data
+    environment:
+      - MQTT_BROKER_URL=tcp://mosquitto:1883
+      - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/delivery;AUTO_SERVER=TRUE
+      - REPORT_MAIL_ENABLED=false
+      - REPORT_DISCORD_ENABLED=true
+      - DISCORD_BOT_TOKEN=zzz
+      # Ziel "default" -> Reports
+      - DISCORD_CHANNEL_ID=1566756237238861954
+      # Ziel "fitness" -> Fitness-Zusammenfassung
+      - DELIVERY_DISCORD_DESTINATIONS_FITNESS=1567185368552448082
+      # Ziel "recommendation" -> Tagesempfehlung
+      - DELIVERY_DISCORD_DESTINATIONS_RECOMMENDATION=1567288772389765200
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # frontend: nginx leitet /api/reports, /api/fitness und /api/recommendation an den jeweiligen Service
+  frontend:
+    image: ghcr.io/klinkerd/cycling-frontend:${TAG:-sha-3a0f396}
+    container_name: cycling-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      report-service:
+        condition: service_healthy
+      fitness-service:
+        condition: service_healthy
+      recommendation-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+# Broker-Konfiguration direkt hier, damit auf dem Pi keine eigene Datei noetig ist.
+configs:
+  mosquitto-conf:
+    content: |
+      persistence true
+      persistence_location /mosquitto/data/
+      log_dest stdout
+      log_type error
+      log_type warning
+      log_type notice
+      listener 1883
+      allow_anonymous true
+      max_queued_messages 1000
+
+# cycling-data (altes backend) taucht hier nicht mehr auf. Das Volume bleibt trotzdem bestehen,
+# bis du es selbst loeschst (siehe Anleitung, Schritt 8).
+volumes:
+  report-data:
+    driver: local
+  mosquitto-data:
+    driver: local
+  delivery-data:
+    driver: local

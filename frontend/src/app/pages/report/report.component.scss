@@ -17,6 +17,12 @@
     }
   }
 
+  .head-actions {
+    display: flex;
+    gap: 8px;
+    flex: none;
+  }
+
   @media (max-width: 720px) {
     flex-wrap: wrap;
 
@@ -24,9 +30,44 @@
       display: none;
     }
 
+    .head-actions {
+      width: 100%;
+      flex-direction: column;
+    }
+
     button {
       width: 100%;
     }
+  }
+}
+
+// ---- FTP-Test ------------------------------------------------------------------
+.ftp-panel {
+  margin-bottom: 8px;
+
+  .panel-head .mat-icon {
+    color: var(--c-power);
+  }
+
+  .ftp-state {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-muted);
+
+    &.error {
+      color: var(--warn);
+    }
+
+    button {
+      margin-left: auto;
+    }
+  }
+
+  .ftp-note {
+    margin: 10px 0 0;
+    font-size: 12px;
+    color: var(--text-muted);
   }
 }
 

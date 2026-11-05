@@ -17,6 +17,8 @@ COPY report-service/pom.xml ./report-service/pom.xml
 COPY delivery-service/pom.xml ./delivery-service/pom.xml
 COPY training-service/pom.xml ./training-service/pom.xml
 
+COPY ftp-service/pom.xml ./ftp-service/pom.xml
+
 RUN --mount=type=cache,target=/root/.m2 \
     mvn -q -B -pl intervals-service -am package -DskipTests
 

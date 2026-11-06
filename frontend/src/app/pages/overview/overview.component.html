@@ -1,11 +1,11 @@
 <div class="page">
   <header class="page-header">
     <h1>Übersicht</h1>
-    <span class="sub">Fitness, Form und Zonen aus intervals.icu</span>
+    <span class="sub">Fitness und Form aus intervals.icu</span>
     <span class="spacer"></span>
     <button mat-icon-button (click)="refresh()"
             matTooltip="Neu laden (Cache umgehen, Empfehlung neu berechnen)"
-            [disabled]="loadingWellness() || loadingZones() || loadingRecommendation()">
+            [disabled]="loadingWellness() || loadingRecommendation()">
       <mat-icon>refresh</mat-icon>
     </button>
   </header>
@@ -131,113 +131,4 @@
       <app-range-slider [group]="fitnessGroup" [points]="fitnessSpark" [color]="'#38bdf8'" />
     }
   </section>
-
-  <!-- Zonen -->
-  <div class="zone-grid">
-    <section class="panel">
-      <div class="panel-head">
-        <mat-icon>bolt</mat-icon>
-        <h2>Leistungszonen</h2>
-        <span class="spacer"></span>
-        @if (zones()?.thresholds?.ftp; as ftp) {
-          <span class="hint">FTP {{ ftp }} W@if (zones()?.thresholds?.indoorFtp; as indoor) { · Indoor {{ indoor }} W}</span>
-        }
-      </div>
-
-      @if (loadingZones()) {
-        <div class="loading-state small"><mat-spinner diameter="28" /></div>
-      } @else if (zones(); as z) {
-        @if (z.powerZones.length) {
-          <div class="stacked-bar">
-            @for (zone of sortedPowerZones(); track zone.index) {
-              <div class="segment"
-                   [style.flex-basis.%]="zoneSegmentWidth(sortedPowerZones(), zone)"
-                   [style.background]="zone.color"
-                   [matTooltip]="zone.name + ' · ' + formatRange(zone) + ' W'">
-                <span>{{ zoneLabel(zone) }}</span>
-              </div>
-            }
-          </div>
-          <table class="zones-table num">
-            <thead>
-              <tr>
-                <th>Zone</th>
-                <th>% FTP</th>
-                <th>{{ z.thresholds.indoorFtp ? 'Outdoor' : 'Watt' }}</th>
-                @if (z.thresholds.indoorFtp) {
-                  <th>Indoor</th>
-                }
-              </tr>
-            </thead>
-            <tbody>
-              @for (zone of z.powerZones; track zone.index) {
-                <tr>
-                  <td>
-                    <span class="zone-dot" [style.background]="zone.color"></span>
-                    <strong>{{ zoneLabel(zone) }}</strong>
-                    <span class="zone-name">{{ zone.name }}</span>
-                  </td>
-                  <td>{{ formatPct(zone.lowerPct) }} – {{ zone.upperPct == null ? '∞' : formatPct(zone.upperPct) }}</td>
-                  <td>{{ formatRange(zone) }} W</td>
-                  @if (z.thresholds.indoorFtp; as indoor) {
-                    <td>{{ formatScaledRange(zone, indoor) }} W</td>
-                  }
-                </tr>
-              }
-            </tbody>
-          </table>
-        } @else {
-          <p class="muted">Keine Leistungszonen konfiguriert.</p>
-        }
-      }
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <mat-icon>favorite</mat-icon>
-        <h2>Herzfrequenzzonen</h2>
-        <span class="spacer"></span>
-        @if (hrReferenceValue(); as ref) {
-          <span class="hint">{{ hrReferenceLabel() }} {{ ref }} bpm</span>
-        }
-      </div>
-
-      @if (loadingZones()) {
-        <div class="loading-state small"><mat-spinner diameter="28" /></div>
-      } @else if (zones(); as z) {
-        @if (z.hrZones.length) {
-          <div class="stacked-bar">
-            @for (zone of z.hrZones; track zone.index) {
-              <div class="segment"
-                   [style.flex-basis.%]="zoneSegmentWidth(z.hrZones, zone)"
-                   [style.background]="zone.color"
-                   [matTooltip]="zone.name + ' · ' + formatRange(zone) + ' bpm'">
-                <span>Z{{ zone.index }}</span>
-              </div>
-            }
-          </div>
-          <table class="zones-table num">
-            <thead>
-              <tr><th>Zone</th><th>% {{ hrReferenceLabel() }}</th><th>bpm</th></tr>
-            </thead>
-            <tbody>
-              @for (zone of z.hrZones; track zone.index) {
-                <tr>
-                  <td>
-                    <span class="zone-dot" [style.background]="zone.color"></span>
-                    <strong>Z{{ zone.index }}</strong>
-                    <span class="zone-name">{{ zone.name }}</span>
-                  </td>
-                  <td>{{ formatPct(zone.lowerPct) }} – {{ zone.upperPct == null ? '∞' : formatPct(zone.upperPct) }}</td>
-                  <td>{{ formatRange(zone) }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        } @else {
-          <p class="muted">Keine HF-Zonen konfiguriert.</p>
-        }
-      }
-    </section>
-  </div>
 </div>

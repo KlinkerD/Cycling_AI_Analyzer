@@ -162,7 +162,7 @@ public final class IntervalsParser {
 
     /**
      * Schwellenwerte plus Power- und HF-Zonen aus den Rad-Einstellungen ({@code sportSettings}).
-     * Power-Zonen: Prozent der FTP (55, 75, ...), Sweet Spot wird immer ergaenzt.
+     * Power-Zonen: Prozent der FTP (55, 75, ...), Sweet Spot (sweet_spot_min/max) wird immer ergaenzt.
      * HF-Zonen: absolute bpm-Grenzen, bezogen auf LTHR oder (hr_zones_max_hr) MaxHR.
      */
     public static IntervalsAthleteZones athleteZones(JsonNode athlete) {
@@ -172,6 +172,7 @@ public final class IntervalsParser {
         List<Double> hrLimits = List.of();
         List<String> hrNames = List.of();
         boolean hrZonesAreMaxHr = false;
+        Integer sweetSpotMin = null, sweetSpotMax = null;
 
         JsonNode setting = rideSetting(athlete);
         if (setting != null) {
@@ -180,11 +181,13 @@ public final class IntervalsParser {
             hrLimits = doubles(setting.path("hr_zones"));
             hrNames = strings(setting.path("hr_zone_names"));
             hrZonesAreMaxHr = setting.path("hr_zones_max_hr").asBoolean(false);
+            sweetSpotMin = integer(setting, "sweet_spot_min");
+            sweetSpotMax = integer(setting, "sweet_spot_max");
         }
 
         Integer ftp = thresholds.ftp();
         List<IntervalsZone> powerZones = ftp != null && ftp > 0
-                ? powerZones(powerPercents, powerNames, ftp)
+                ? powerZones(powerPercents, powerNames, ftp, sweetSpotMin, sweetSpotMax)
                 : List.of();
 
         String hrReference = hrZonesAreMaxHr ? "max_hr" : "lthr";
@@ -207,6 +210,16 @@ public final class IntervalsParser {
         return id.isNumber() || id.isTextual() ? id.asText() : null;
     }
 
+    /** Der Rad-Eintrag aus {@code sportSettings} (wie beim Lesen); null, wenn keiner. */
+    public static JsonNode rideSettingOrNull(JsonNode athlete) {
+        return rideSetting(athlete);
+    }
+
+    /** Ganzzahl-Feld; null, wenn fehlend oder kein Zahlenwert. */
+    public static Integer integerOrNull(JsonNode node, String field) {
+        return integer(node, field);
+    }
+
     /** Erster sportSettings-Eintrag fuer Ride oder VirtualRide; null, wenn keiner. */
     private static JsonNode rideSetting(JsonNode athlete) {
         JsonNode sportSettings = athlete.path("sportSettings");
@@ -221,7 +234,8 @@ public final class IntervalsParser {
         return null;
     }
 
-    private static List<IntervalsZone> powerZones(List<Double> percentages, List<String> names, int ftp) {
+    private static List<IntervalsZone> powerZones(List<Double> percentages, List<String> names, int ftp,
+                                                  Integer sweetSpotMin, Integer sweetSpotMax) {
         if (percentages.isEmpty() && names.isEmpty()) return List.of();
 
         List<IntervalsZone> zones = new ArrayList<>();
@@ -236,20 +250,12 @@ public final class IntervalsParser {
                     upperValue, color(i)));
         }
 
-        // Sweet Spot zeigt intervals.icu in der Oberflaeche, liefert ihn aber nicht immer ueber die API.
-        boolean hasSweetSpot = false;
-        for (int i = regularZones; i < names.size(); i++) {
-            String name = names.get(i);
-            if (name != null && (name.equalsIgnoreCase("Sweet Spot") || name.equalsIgnoreCase("SweetSpot")
-                    || name.equalsIgnoreCase("SS"))) {
-                hasSweetSpot = true;
-                break;
-            }
-        }
-        if (!hasSweetSpot) {
-            zones.add(new IntervalsZone(8, "Sweet Spot", 0.84, 0.97,
-                    (int) Math.round(0.84 * ftp), (int) Math.round(0.97 * ftp), "#66bb6a"));
-        }
+        // Sweet Spot: Grenzen aus sweet_spot_min/max, sonst die intervals.icu-Vorgabe 84-97 %.
+        boolean ownSweetSpot = sweetSpotMin != null && sweetSpotMax != null && sweetSpotMin < sweetSpotMax;
+        double ssLower = ownSweetSpot ? sweetSpotMin / 100.0 : 0.84;
+        double ssUpper = ownSweetSpot ? sweetSpotMax / 100.0 : 0.97;
+        zones.add(new IntervalsZone(8, "Sweet Spot", ssLower, ssUpper,
+                (int) Math.round(ssLower * ftp), (int) Math.round(ssUpper * ftp), "#66bb6a"));
         return zones;
     }
 

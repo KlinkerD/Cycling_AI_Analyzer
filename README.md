@@ -260,8 +260,12 @@ Fitness-Chart und Athleten-Profil kommen vom intervals-service; mit `refresh=tru
 | Endpoint | Liefert |
 |---|---|
 | `GET /api/fitness/wellness?from&to[&refresh]` | Fitness (CTL), Fatigue (ATL), Form pro Tag |
-| `GET /api/fitness/athlete[?refresh]` | Schwellenwerte (Seitenleiste) und Power-/HF-Zonen (Übersicht); leer statt Fehler |
-| `PUT /api/fitness/athlete/thresholds` | FTP outdoor/indoor, LTHR, HFmax, Gewicht nach intervals.icu schreiben (null = unverändert); liefert neue Zonen, 400 bei unplausiblen Werten |
+| `GET /api/fitness/athlete[?refresh]` | Schwellenwerte (Seitenleiste) und Power-/HF-Zonen (Einstellungen); leer statt Fehler |
+| `PUT /api/fitness/athlete/thresholds` | FTP outdoor/indoor, LTHR, HFmax, Gewicht und Zonen nach intervals.icu schreiben (null bzw. leere Liste = unverändert): Leistungszonen als % FTP, HF-Zonen als % LTHR (in bpm umgerechnet), Sweet Spot; liefert neue Zonen, 400 bei unplausiblen Werten |
+
+Die Seite **Einstellungen** (`/settings`) ist der einzige Ort zum Ändern: Schwellenwerte und Zonen-Obergrenzen in %,
+Watt (outdoor/indoor) und bpm rechnen live mit, gespeichert wird alles mit einem Klick. Die Seitenleiste zeigt die
+Werte nur an. Geänderte Zonen gelten für neue Fahrten; bereits hochgeladene behalten ihre Zonenzeiten.
 
 **Tageszusammenfassung:** Der training-service abonniert `cycling/intervals/wellness/updated` (retained, vom intervals-service) und schickt
 **einmal am Tag ab 21:00** (`FITNESS_SUMMARY_TIME`, Zeitzone `TRAINING_ZONE`, Default `Europe/Berlin`)

@@ -71,7 +71,7 @@ class FitnessControllerTest {
 
     @Test
     void updateThresholdsForwardsAndReturnsFreshZones() throws Exception {
-        var update = new com.cycling.intervals.api.IntervalsThresholdsUpdate(280, 265, null, null, 74.0);
+        var update = com.cycling.intervals.api.IntervalsThresholdsUpdate.thresholds(280, 265, null, null, 74.0);
         when(intervals.athleteZones()).thenReturn(new IntervalsAthleteZones(
                 new IntervalsAthleteThresholds("Dan", 280, 265, 170, 190, 74.0),
                 List.of(new IntervalsZone(2, "Endurance", 0.56, 0.75, 157, 210, "#42a5f5")),
@@ -79,12 +79,29 @@ class FitnessControllerTest {
 
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/fitness/athlete/thresholds")
                         .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                        .content("{\"ftp\":280,\"indoorFtp\":265,\"lthr\":null,\"maxHr\":null,\"weight\":74.0}"))
+                        .content("{\"ftp\":280,\"indoorFtp\":265,\"lthr\":null,\"maxHr\":null,\"weight\":74.0,"
+                                + "\"powerZones\":[],\"hrZones\":[],\"sweetSpotMin\":null,\"sweetSpotMax\":null}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.thresholds.ftp").value(280))
                 .andExpect(jsonPath("$.thresholds.weight").value(74.0))
                 .andExpect(jsonPath("$.powerZones[0].lowerValue").value(157));
         verify(intervals).updateThresholds(update);
+    }
+
+    @Test
+    void updateForwardsZonesAndSweetSpot() throws Exception {
+        when(intervals.athleteZones()).thenReturn(new IntervalsAthleteZones(
+                IntervalsClient.emptyThresholds(), List.of(), List.of(), "lthr"));
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/fitness/athlete/thresholds")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"lthr":172,"powerZones":[56,76,91,106,121,151],"hrZones":[81,89,94,99,103,106],
+                                 "sweetSpotMin":85,"sweetSpotMax":95}"""))
+                .andExpect(status().isOk());
+        verify(intervals).updateThresholds(new com.cycling.intervals.api.IntervalsThresholdsUpdate(
+                null, null, 172, null, null, List.of(56, 76, 91, 106, 121, 151), List.of(81, 89, 94, 99, 103, 106),
+                85, 95));
     }
 
     @Test

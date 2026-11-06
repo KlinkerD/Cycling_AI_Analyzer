@@ -19,6 +19,7 @@ import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 /** Die einzelnen Abrufe bei intervals.icu, ohne Cache. */
@@ -54,17 +55,21 @@ public class IntervalsGateway {
     /**
      * Schreibt neue Schwellenwerte nach intervals.icu und liefert danach den frischen Stand.
      * <ul>
-     *   <li>FTP, Indoor-FTP, LTHR, HFmax: {@code PUT /athlete/{id}/sport-settings/{settingId}} auf den
-     *       Rad-Eintrag, den auch das Lesen nutzt. HF-Zonen werden neu berechnet, wenn LTHR oder HFmax
-     *       mitkommen ({@code recalcHrZones}).</li>
+     *   <li>FTP, Indoor-FTP, LTHR, HFmax, Zonen und Sweet Spot: ein
+     *       {@code PUT /athlete/{id}/sport-settings/{settingId}} auf den Rad-Eintrag, den auch das Lesen nutzt.
+     *       Leistungszonen gehen als % FTP, HF-Zonen werden aus % LTHR in bpm umgerechnet. Die letzte, offene
+     *       Grenze bleibt (bei HF: HFmax, wenn sie mitkommt). intervals.icu berechnet HF-Zonen nur selbst neu,
+     *       wenn LTHR/HFmax ohne eigene HF-Zonen kommen ({@code recalcHrZones}).</li>
      *   <li>Gewicht: {@code PUT /athlete/{id}} mit {@code icu_weight}.</li>
      * </ul>
      * Nur gesetzte Felder werden geschickt.
      */
     public IntervalsAthleteZones updateThresholds(IntervalsThresholdsUpdate update) {
         if (update.hasSportSettings()) {
-            String settingId = IntervalsParser.rideSettingId(json(athletePath()));
-            if (settingId == null) {
+            JsonNode athlete = json(athletePath());
+            String settingId = IntervalsParser.rideSettingId(athlete);
+            JsonNode setting = IntervalsParser.rideSettingOrNull(athlete);
+            if (settingId == null || setting == null) {
                 throw new IntervalsApiException(IntervalsErrorCode.NOT_FOUND,
                         "In intervals.icu gibt es keine Rad-Einstellungen (Ride/VirtualRide) zum Aendern.");
             }
@@ -73,8 +78,16 @@ public class IntervalsGateway {
             putIfSet(body, "indoor_ftp", update.indoorFtp());
             putIfSet(body, "lthr", update.lthr());
             putIfSet(body, "max_hr", update.maxHr());
+            if (update.powerZones() != null) {
+                putArray(body, "power_zones", powerZoneLimits(update.powerZones(), setting));
+            }
+            if (update.hrZones() != null) {
+                putArray(body, "hr_zones", hrZoneLimits(update, setting));
+            }
+            putIfSet(body, "sweet_spot_min", update.sweetSpotMin());
+            putIfSet(body, "sweet_spot_max", update.sweetSpotMax());
             http.put(athletePath() + "/sport-settings/" + UriUtils.encodePathSegment(settingId, StandardCharsets.UTF_8)
-                    + "?recalcHrZones=" + update.changesHeartRate(), body.toString());
+                    + "?recalcHrZones=" + update.recalcHrZones(), body.toString());
         }
         if (update.weight() != null) {
             ObjectNode body = mapper.createObjectNode().put("icu_weight", update.weight());
@@ -86,6 +99,69 @@ public class IntervalsGateway {
 
     private static void putIfSet(ObjectNode node, String field, Integer value) {
         if (value != null) node.put(field, value);
+    }
+
+    private static void putArray(ObjectNode node, String field, List<Integer> values) {
+        values.forEach(node.putArray(field)::add);
+    }
+
+    /** Neue %-Grenzen plus die bisherige letzte Grenze (offene Top-Zone, meist 999). */
+    private static List<Integer> powerZoneLimits(List<Integer> limits, JsonNode setting) {
+        List<Integer> current = integers(setting.path("power_zones"));
+        if (current.size() != limits.size() + 1) {
+            throw badRequest("Leistungszonen: intervals.icu hat " + current.size() + " Zonen, gesendet wurden "
+                    + (limits.size() + 1) + ".");
+        }
+        int last = current.getLast();
+        if (last <= limits.getLast()) {
+            throw badRequest("Leistungszonen: Grenze von Z" + limits.size() + " muss unter " + last + " % liegen.");
+        }
+        List<Integer> out = new ArrayList<>(limits);
+        out.add(last);
+        return out;
+    }
+
+    /**
+     * % LTHR in bpm (kaufmaennisch gerundet), plus die letzte Grenze: HFmax, wenn sie mitkommt, sonst die
+     * bisherige. Die bpm-Grenzen muessen danach noch aufsteigen.
+     */
+    private static List<Integer> hrZoneLimits(IntervalsThresholdsUpdate update, JsonNode setting) {
+        List<Integer> current = integers(setting.path("hr_zones"));
+        List<Integer> percents = update.hrZones();
+        if (current.size() != percents.size() + 1) {
+            throw badRequest("HF-Zonen: intervals.icu hat " + current.size() + " Zonen, gesendet wurden "
+                    + (percents.size() + 1) + ".");
+        }
+        Integer lthr = update.lthr() != null ? update.lthr() : IntervalsParser.integerOrNull(setting, "lthr");
+        if (lthr == null || lthr <= 0) {
+            throw badRequest("HF-Zonen brauchen eine LTHR.");
+        }
+        List<Integer> out = new ArrayList<>(percents.size() + 1);
+        for (int pct : percents) {
+            int bpm = (int) Math.round(pct * lthr / 100.0);
+            if (!out.isEmpty() && bpm <= out.getLast()) {
+                throw badRequest("HF-Zonen: Z" + out.size() + " und Z" + (out.size() + 1)
+                        + " ergeben dieselbe bpm-Grenze (" + bpm + ").");
+            }
+            out.add(bpm);
+        }
+        int last = update.maxHr() != null ? update.maxHr() : current.getLast();
+        if (last <= out.getLast()) {
+            throw badRequest("HF-Zonen: Grenze von Z" + percents.size() + " (" + out.getLast()
+                    + " bpm) muss unter HFmax (" + last + " bpm) liegen.");
+        }
+        out.add(last);
+        return out;
+    }
+
+    private static List<Integer> integers(JsonNode array) {
+        List<Integer> out = new ArrayList<>();
+        if (array.isArray()) array.forEach(n -> out.add((int) Math.round(n.asDouble())));
+        return out;
+    }
+
+    private static IntervalsApiException badRequest(String message) {
+        return new IntervalsApiException(IntervalsErrorCode.BAD_REQUEST, message);
     }
 
     /** Zonenzeiten aus dem Aktivitaets-Detail; Namen/Farben aus {@code athleteZones}. */

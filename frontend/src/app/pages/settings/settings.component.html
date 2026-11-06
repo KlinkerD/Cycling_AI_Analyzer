@@ -1,0 +1,192 @@
+<div class="page">
+  <header class="page-header">
+    <h1>Einstellungen</h1>
+    <span class="sub">Schwellenwerte und Zonen in intervals.icu</span>
+  </header>
+
+  @if (draft(); as d) {
+    <!-- Schwellenwerte -->
+    <section class="panel">
+      <div class="panel-head">
+        <mat-icon>tune</mat-icon>
+        <h2>Schwellenwerte</h2>
+      </div>
+      <div class="thresholds">
+        @for (f of fields; track f.key) {
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>{{ f.label }}</mat-label>
+            <input matInput type="number" inputmode="decimal" [min]="f.min" [max]="f.max" [step]="f.step"
+                   [ngModel]="value(f.key)" (ngModelChange)="setField(f.key, $event)">
+            <span matTextSuffix>{{ f.unit }}</span>
+            @if (fieldInvalid(f)) {
+              <mat-hint class="field-error">{{ f.min }}–{{ f.max }} {{ f.unit }}</mat-hint>
+            } @else {
+              <mat-hint>{{ f.hint }}</mat-hint>
+            }
+          </mat-form-field>
+        }
+      </div>
+    </section>
+
+    <!-- Zonen -->
+    <div class="zone-grid">
+      <section class="panel">
+        <div class="panel-head">
+          <mat-icon>bolt</mat-icon>
+          <h2>Leistungszonen</h2>
+          <span class="spacer"></span>
+          @if (d.ftp) {
+            <span class="hint">FTP {{ d.ftp }} W@if (d.indoorFtp) { · Indoor {{ d.indoorFtp }} W}</span>
+          }
+        </div>
+
+        @if (powerRows().length) {
+          <div class="stacked-bar">
+            @for (s of powerBar(); track s.label) {
+              <div class="segment" [style.flex-grow]="s.width" [style.background]="s.color" [matTooltip]="s.tooltip">
+                <span>{{ s.label }}</span>
+              </div>
+            }
+          </div>
+          <table class="zones-table num">
+            <thead>
+              <tr>
+                <th>Zone</th>
+                <th>% FTP</th>
+                <th>{{ d.indoorFtp ? 'Outdoor' : 'Watt' }}</th>
+                @if (d.indoorFtp) {
+                  <th>Indoor</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of powerRows(); track row.index; let i = $index) {
+                <tr [class.ss]="row.index === 8">
+                  <td>
+                    <span class="zone-dot" [style.background]="row.color"></span>
+                    <strong>{{ row.label }}</strong>
+                    <span class="zone-name">{{ row.name }}</span>
+                  </td>
+                  <td class="pct">
+                    @if (row.index === 8) {
+                      <input class="pct-input" type="number" step="1" aria-label="Sweet Spot von"
+                             [class.invalid]="!ssValid(d.ssMin)"
+                             [ngModel]="d.ssMin" (ngModelChange)="setSweetSpot('ssMin', $event)">
+                      –
+                      <input class="pct-input" type="number" step="1" aria-label="Sweet Spot bis"
+                             [class.invalid]="!ssValid(d.ssMax) || (d.ssMin != null && d.ssMax != null && d.ssMin >= d.ssMax)"
+                             [ngModel]="d.ssMax" (ngModelChange)="setSweetSpot('ssMax', $event)"> %
+                    } @else if (row.upperPct == null) {
+                      {{ row.lowerPct }} % +
+                    } @else {
+                      <span class="lower">{{ row.lowerPct }} % –</span>
+                      <input class="pct-input" type="number" step="1" [attr.aria-label]="'Obergrenze ' + row.label"
+                             [class.invalid]="limitInvalid(d.power, i, pct.power)"
+                             [ngModel]="d.power[i]" (ngModelChange)="setPowerLimit(i, $event)"> %
+                    }
+                  </td>
+                  <td>{{ formatRange(row.primary, 'W') }}</td>
+                  @if (d.indoorFtp) {
+                    <td>{{ formatRange(row.secondary, 'W') }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else if (!d.ftp) {
+          <p class="muted">Ohne FTP gibt es keine Leistungszonen. Trag oben eine FTP ein und speichere.</p>
+        } @else {
+          <p class="muted">In intervals.icu sind keine Leistungszonen konfiguriert.</p>
+        }
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <mat-icon>favorite</mat-icon>
+          <h2>Herzfrequenzzonen</h2>
+          <span class="spacer"></span>
+          @if (d.lthr) {
+            <span class="hint">LTHR {{ d.lthr }} bpm</span>
+          }
+        </div>
+
+        @if (hrRows().length) {
+          <div class="stacked-bar">
+            @for (s of hrBar(); track s.label) {
+              <div class="segment" [style.flex-grow]="s.width" [style.background]="s.color" [matTooltip]="s.tooltip">
+                <span>{{ s.label }}</span>
+              </div>
+            }
+          </div>
+          <table class="zones-table num">
+            <thead>
+              <tr><th>Zone</th><th>% LTHR</th><th>bpm</th></tr>
+            </thead>
+            <tbody>
+              @for (row of hrRows(); track row.index; let i = $index) {
+                <tr>
+                  <td>
+                    <span class="zone-dot" [style.background]="row.color"></span>
+                    <strong>{{ row.label }}</strong>
+                    <span class="zone-name">{{ row.name }}</span>
+                  </td>
+                  <td class="pct">
+                    @if (row.upperPct == null) {
+                      {{ row.lowerPct }} % +
+                    } @else {
+                      <span class="lower">{{ row.lowerPct }} % –</span>
+                      <input class="pct-input" type="number" step="1" [attr.aria-label]="'Obergrenze HF ' + row.label"
+                             [class.invalid]="limitInvalid(d.hr, i, pct.hr)"
+                             [ngModel]="d.hr[i]" (ngModelChange)="setHrLimit(i, $event)"> %
+                    }
+                  </td>
+                  <td>{{ formatRange(row.primary, 'bpm') }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else if (!d.lthr) {
+          <p class="muted">Ohne LTHR gibt es keine HF-Zonen. Trag oben eine LTHR ein und speichere.</p>
+        } @else {
+          <p class="muted">In intervals.icu sind keine HF-Zonen konfiguriert.</p>
+        }
+      </section>
+    </div>
+
+    <p class="note">
+      <mat-icon>info</mat-icon>
+      Geänderte Zonen gelten für neue Fahrten. Bereits hochgeladene Fahrten behalten ihre Zonenzeiten.
+    </p>
+
+    <!-- Speichern -->
+    <section class="panel actions">
+      @if (problems().length) {
+        <ul class="problems">
+          @for (p of problems(); track p) {
+            <li><mat-icon>error_outline</mat-icon> {{ p }}</li>
+          }
+        </ul>
+      }
+      @if (saveError()) {
+        <p class="problems"><mat-icon>error_outline</mat-icon> {{ saveError() }}</p>
+      }
+      <div class="buttons">
+        @if (dirty()) {
+          <span class="unsaved">Ungespeicherte Änderungen</span>
+        }
+        <span class="spacer"></span>
+        <button mat-button type="button" (click)="discard()" [disabled]="!dirty() || saving()">Verwerfen</button>
+        <button mat-flat-button type="button" (click)="save()" [disabled]="!canSave()">
+          @if (saving()) {
+            <mat-spinner diameter="16" />
+          }
+          Speichern
+        </button>
+      </div>
+    </section>
+  } @else if (loading()) {
+    <div class="loading-state"><mat-spinner diameter="32" /></div>
+  } @else {
+    <div class="empty-state">Einstellungen konnten nicht geladen werden. Ist intervals.icu erreichbar?</div>
+  }
+</div>

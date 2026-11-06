@@ -76,7 +76,7 @@ class IntervalsServiceCacheTest {
         when(gateway.athleteZones()).thenReturn(ZONES);
         when(gateway.activityZones(any(), any()))
                 .thenReturn(new IntervalsActivityZones(List.of(), List.of(), false, 250));
-        var update = new com.cycling.intervals.api.IntervalsThresholdsUpdate(280, null, null, null, null);
+        var update = com.cycling.intervals.api.IntervalsThresholdsUpdate.thresholds(280, null, null, null, null);
         when(gateway.updateThresholds(update)).thenReturn(fresh);
         service.activityZones(I1);
 
@@ -91,7 +91,7 @@ class IntervalsServiceCacheTest {
     @Test
     void failedUpdateStillEvictsCaches() {
         when(gateway.athleteZones()).thenReturn(ZONES);
-        var update = new com.cycling.intervals.api.IntervalsThresholdsUpdate(null, null, null, null, 74.0);
+        var update = com.cycling.intervals.api.IntervalsThresholdsUpdate.thresholds(null, null, null, null, 74.0);
         when(gateway.updateThresholds(update))
                 .thenThrow(new IntervalsApiException(IntervalsErrorCode.INTERVALS_UNAVAILABLE, "weg"));
         service.athleteZones();

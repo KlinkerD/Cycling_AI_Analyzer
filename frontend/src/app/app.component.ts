@@ -7,8 +7,6 @@ import { MatSidenavContent, MatSidenavModule } from '@angular/material/sidenav';
 import { MatIconModule, MatIconRegistry } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { AthleteStore } from './services/athlete.store';
 
 interface NavItem {
@@ -23,7 +21,7 @@ interface NavItem {
   standalone: true,
   imports: [
     RouterOutlet, RouterLink, RouterLinkActive, MatSidenavModule, MatIconModule, MatButtonModule,
-    MatTooltipModule, MatDialogModule, MatSnackBarModule
+    MatTooltipModule
   ],
   template: `
     <mat-sidenav-container class="shell">
@@ -54,10 +52,10 @@ interface NavItem {
             <div class="athlete-name">
               <mat-icon>person</mat-icon>
               <span class="grow">{{ a.name || 'Athlet' }}</span>
-              <button mat-icon-button class="edit" (click)="editThresholds()"
-                      matTooltip="Schwellenwerte bearbeiten" aria-label="Schwellenwerte bearbeiten">
-                <mat-icon>edit</mat-icon>
-              </button>
+              <a mat-icon-button class="edit" routerLink="/settings" (click)="menuOpen.set(false)"
+                 matTooltip="In den Einstellungen ändern" aria-label="In den Einstellungen ändern">
+                <mat-icon>settings</mat-icon>
+              </a>
             </div>
             <dl class="athlete-values">
               @if (a.ftp) {
@@ -239,7 +237,8 @@ export class AppComponent implements OnInit {
   readonly nav: NavItem[] = [
     { path: '/', label: 'Kalender', icon: 'calendar_month', exact: true },
     { path: '/overview', label: 'Übersicht', icon: 'insights', exact: false },
-    { path: '/stats', label: 'Statistik', icon: 'bar_chart', exact: false }
+    { path: '/stats', label: 'Statistik', icon: 'bar_chart', exact: false },
+    { path: '/settings', label: 'Einstellungen', icon: 'settings', exact: false }
   ];
 
   readonly menuOpen = signal(false);
@@ -250,8 +249,6 @@ export class AppComponent implements OnInit {
   );
 
   private readonly store = inject(AthleteStore);
-  private readonly dialog = inject(MatDialog);
-  private readonly snackBar = inject(MatSnackBar);
   readonly athlete = this.store.thresholds;
 
   constructor() {
@@ -268,17 +265,4 @@ export class AppComponent implements OnInit {
     });
   }
 
-  /** Dialog wird erst beim ersten Öffnen geladen (Formularfelder gehören nicht ins Start-Bundle). */
-  async editThresholds(): Promise<void> {
-    this.menuOpen.set(false);
-    const { ThresholdsDialogComponent } = await import('./shared/athlete/thresholds-dialog.component');
-    this.dialog.open(ThresholdsDialogComponent, {
-      data: this.athlete(),
-      width: '520px',
-      maxWidth: 'calc(100vw - 32px)',
-      autoFocus: 'first-tabbable'
-    }).afterClosed().subscribe(saved => {
-      if (saved) this.snackBar.open('In intervals.icu gespeichert, Zonen sind neu berechnet.', 'OK', { duration: 4000 });
-    });
-  }
 }

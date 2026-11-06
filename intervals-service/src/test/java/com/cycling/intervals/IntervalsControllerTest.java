@@ -53,7 +53,7 @@ class IntervalsControllerTest {
 
     @Test
     void updatesThresholds() throws Exception {
-        var update = new com.cycling.intervals.api.IntervalsThresholdsUpdate(280, null, 168, null, null);
+        var update = com.cycling.intervals.api.IntervalsThresholdsUpdate.thresholds(280, null, 168, null, null);
         when(intervals.updateThresholds(update)).thenReturn(new com.cycling.intervals.api.IntervalsAthleteZones(
                 new com.cycling.intervals.api.IntervalsAthleteThresholds("Dan", 280, 235, 168, 190, 72.5),
                 List.of(), List.of(), "lthr"));

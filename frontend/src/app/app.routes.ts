@@ -20,6 +20,13 @@ export const routes: Routes = [
       .then(m => m.StatsComponent)
   },
   {
+    path: 'settings',
+    title: 'Einstellungen · Cycling Analyzer',
+    loadComponent: () => import('./pages/settings/settings.component')
+      .then(m => m.SettingsComponent),
+    canDeactivate: [(c: import('./pages/settings/settings.component').SettingsComponent) => c.confirmLeave()]
+  },
+  {
     path: 'report/:id',
     title: 'Report · Cycling Analyzer',
     loadComponent: () => import('./pages/report/report.component')

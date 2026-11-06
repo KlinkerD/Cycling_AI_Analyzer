@@ -15,8 +15,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 import { OverviewService } from '../../services/overview.service';
-import { AthleteStore } from '../../services/athlete.store';
-import { DailyRecommendationDto, WellnessPointDto, ZoneDto } from '../../api/training';
+import { DailyRecommendationDto, WellnessPointDto } from '../../api/training';
 import { ZoomGroup } from '../../shared/charts/zoom-group';
 import { RangeSliderComponent, SparkPoint } from '../../shared/charts/range-slider.component';
 import { alpha, metricColor, token } from '../../shared/theme';
@@ -57,7 +56,6 @@ type Pt = { x: number; y: number };
 })
 export class OverviewComponent implements OnInit {
   private readonly overviewService = inject(OverviewService);
-  private readonly store = inject(AthleteStore);
   private readonly snackBar = inject(MatSnackBar);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -73,9 +71,6 @@ export class OverviewComponent implements OnInit {
   to: Date = new Date();
 
   readonly loadingWellness = signal(false);
-  /** Zonen und Schwellenwerte teilt sich die Übersicht mit der Seitenleiste (dort auch bearbeitbar). */
-  readonly loadingZones = this.store.loading;
-  readonly zones = this.store.zones;
   readonly loadingRecommendation = signal(false);
   readonly wellness = signal<WellnessPointDto[]>([]);
   readonly recommendation = signal<DailyRecommendationDto | null>(null);
@@ -90,8 +85,6 @@ export class OverviewComponent implements OnInit {
     const weekAgo = [...list].reverse().find(w => Date.parse(w.date) <= weekAgoDate) ?? null;
     return { last, weekAgo, status: this.formStatus(last.form) };
   });
-
-  readonly sortedPowerZones = computed(() => this.sortedZonesForBar(this.zones()?.powerZones ?? []));
 
   // Fitness-Chart
   readonly fitnessGroup = new ZoomGroup();
@@ -124,7 +117,6 @@ export class OverviewComponent implements OnInit {
 
   private loadAll(refresh = false): void {
     this.loadWellness(refresh);
-    this.loadZones(refresh);
     this.loadRecommendation(refresh);
   }
 
@@ -174,14 +166,6 @@ export class OverviewComponent implements OnInit {
         this.loadingWellness.set(false);
         this.snackBar.open('Fehler beim Laden der Fitness-Daten: ' + (err.error?.message || err.message), 'OK', { duration: 5000 });
       }
-    });
-  }
-
-  private loadZones(refresh = false): void {
-    // Beim ersten Öffnen hat die Seitenleiste die Daten meist schon geladen
-    if (!refresh && (this.zones() || this.loadingZones())) return;
-    this.store.load(refresh).subscribe({
-      error: err => this.snackBar.open('Fehler beim Laden der Zonen: ' + (err.error?.message || err.message), 'OK', { duration: 5000 })
     });
   }
 
@@ -273,72 +257,6 @@ export class OverviewComponent implements OnInit {
   delta(now: number | null, before: number | null | undefined): number | null {
     if (now == null || before == null) return null;
     return Math.round((now - before) * 10) / 10;
-  }
-
-  // ---- Zonen ----------------------------------------------------------------
-
-  /** Sweet Spot (Index 8) wird zwischen Z3 und Z4 eingeordnet, damit der Balken dem Leistungsbereich folgt. */
-  private sortedZonesForBar(zones: ZoneDto[]): ZoneDto[] {
-    if (!zones.length) return [];
-    const regular = zones.filter(z => z.index <= 7);
-    const ss = zones.find(z => z.index === 8);
-    if (!ss) return regular;
-    const result = [...regular];
-    const z3 = result.findIndex(z => z.index === 3);
-    result.splice(z3 >= 0 ? z3 + 1 : result.length, 0, ss);
-    return result;
-  }
-
-  /** Breite (in %) eines Segments im Zonen-Balken; die offene Top-Zone bekommt 1,3x der vorletzten Grenze. */
-  zoneSegmentWidth(zones: ZoneDto[], zone: ZoneDto): number {
-    const total = this.scaleMax(zones);
-    if (total <= 0) return 0;
-    const upper = zone.upperValue ?? this.openEndedUpper(zones);
-    const lower = zone.lowerValue ?? 0;
-    return Math.max(0, ((upper - lower) / total) * 100);
-  }
-
-  private scaleMax(zones: ZoneDto[]): number {
-    if (!zones.length) return 0;
-    return zones[zones.length - 1].upperValue ?? this.openEndedUpper(zones);
-  }
-
-  private openEndedUpper(zones: ZoneDto[]): number {
-    for (let i = zones.length - 1; i >= 0; i--) {
-      if (zones[i].upperValue != null) return Math.round(zones[i].upperValue! * 1.3);
-    }
-    return 100;
-  }
-
-  zoneLabel(z: ZoneDto): string {
-    return z.index === 8 ? 'SS' : 'Z' + z.index;
-  }
-
-  formatPct(p: number | null): string {
-    return p == null ? '–' : Math.round(p * 100) + ' %';
-  }
-
-  formatRange(zone: ZoneDto): string {
-    const lo = zone.lowerValue ?? '–';
-    const hi = zone.upperValue ?? '∞';
-    return `${lo} – ${hi}`;
-  }
-
-  /** Zonengrenzen in Watt für eine andere FTP (Indoor), gerundet wie im Backend. */
-  formatScaledRange(zone: ZoneDto, ftp: number): string {
-    const lo = zone.lowerPct != null ? Math.round(zone.lowerPct * ftp) : '–';
-    const hi = zone.upperPct != null ? Math.round(zone.upperPct * ftp) : '∞';
-    return `${lo} – ${hi}`;
-  }
-
-  hrReferenceLabel(): string {
-    return this.zones()?.hrReference === 'max_hr' ? 'HFmax' : 'LTHR';
-  }
-
-  hrReferenceValue(): number | null {
-    const z = this.zones();
-    if (!z) return null;
-    return z.hrReference === 'max_hr' ? z.thresholds.maxHr : z.thresholds.lthr;
   }
 
   recommendationStand(): string {

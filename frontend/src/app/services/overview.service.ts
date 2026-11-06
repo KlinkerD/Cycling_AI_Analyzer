@@ -28,7 +28,7 @@ export class OverviewService {
     return this.fitness.getAthlete(refresh || undefined);
   }
 
-  /** Schreibt FTP outdoor/indoor, LTHR, HFmax und Gewicht nach intervals.icu (null = unveraendert). */
+  /** Schreibt Schwellenwerte und Zonen nach intervals.icu (null bzw. leere Liste = unveraendert). */
   updateThresholds(update: AthleteThresholdsUpdateDto): Observable<AthleteZonesDto> {
     return this.fitness.updateThresholds(update);
   }

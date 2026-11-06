@@ -206,6 +206,20 @@ class IntervalsParserTest {
     }
 
     @Test
+    void sweetSpotComesFromTheSportSettings() throws Exception {
+        IntervalsAthleteZones zones = IntervalsParser.athleteZones(json("""
+                {"sportSettings":[{"types":["Ride"],"ftp":250,"power_zones":[55,75,90,105,120,150,999],
+                  "sweet_spot_min":88,"sweet_spot_max":94}]}"""));
+
+        IntervalsZone ss = zones.powerZones().get(7);
+        assertThat(ss.name()).isEqualTo("Sweet Spot");
+        assertThat(ss.lowerPct()).isEqualTo(0.88);
+        assertThat(ss.upperPct()).isEqualTo(0.94);
+        assertThat(ss.lowerValue()).isEqualTo(220);
+        assertThat(ss.upperValue()).isEqualTo(235);
+    }
+
+    @Test
     void noZonesWithoutFtpOrReference() throws Exception {
         IntervalsAthleteZones zones = IntervalsParser.athleteZones(json("""
                 {"sportSettings":[{"types":["Ride"],"power_zones":[55,75],"hr_zones":[140]}]}"""));

@@ -4,7 +4,7 @@ import { AthleteThresholdsUpdateDto, AthleteZonesDto } from '../api/training';
 import { OverviewService } from './overview.service';
 
 /**
- * Schwellenwerte und Zonen des Athleten, einmal geladen und von Seitenleiste und Übersicht geteilt.
+ * Schwellenwerte und Zonen des Athleten, einmal geladen und von Seitenleiste und Einstellungsseite geteilt.
  * Nach dem Speichern sehen alle Ansichten sofort die neuen Werte.
  */
 @Injectable({ providedIn: 'root' })
@@ -24,7 +24,7 @@ export class AthleteStore {
     );
   }
 
-  /** Schreibt neue Werte nach intervals.icu; Zonen kommen neu berechnet zurück. */
+  /** Schreibt neue Werte und Zonen nach intervals.icu; liefert den frischen Stand zurück. */
   save(update: AthleteThresholdsUpdateDto): Observable<AthleteZonesDto> {
     return this.api.updateThresholds(update).pipe(tap(z => this.zones.set(z)));
   }

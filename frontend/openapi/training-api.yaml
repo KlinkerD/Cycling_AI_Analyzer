@@ -145,6 +145,11 @@ components:
           type: integer
           format: int32
           nullable: true
+        hrZones:
+          type: array
+          items:
+            type: integer
+            format: int32
         indoorFtp:
           type: integer
           format: int32
@@ -157,15 +162,32 @@ components:
           type: integer
           format: int32
           nullable: true
+        powerZones:
+          type: array
+          items:
+            type: integer
+            format: int32
+        sweetSpotMax:
+          type: integer
+          format: int32
+          nullable: true
+        sweetSpotMin:
+          type: integer
+          format: int32
+          nullable: true
         weight:
           type: number
           format: double
           nullable: true
       required:
       - ftp
+      - hrZones
       - indoorFtp
       - lthr
       - maxHr
+      - powerZones
+      - sweetSpotMax
+      - sweetSpotMin
       - weight
     AthleteZonesDto:
       type: object

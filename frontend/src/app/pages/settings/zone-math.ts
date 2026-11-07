@@ -151,21 +151,14 @@ export function limitsProblem(label: string, limits: (number | null)[], min: num
   return null;
 }
 
-/**
- * bpm-Grenzen nach dem Runden: müssen weiter aufsteigen und unter HFmax bleiben (die letzte Grenze in
- * intervals.icu). Null, wenn alles passt.
- */
-export function hrBpmProblem(limits: number[], lthr: number | null, maxHr: number | null): string | null {
+/** bpm-Grenzen nach dem Runden: müssen weiter aufsteigen. Null, wenn alles passt. */
+export function hrBpmProblem(limits: number[], lthr: number | null): string | null {
   if (!lthr || !limits.length) return null;
   const values = limits.map(p => bpm(p, lthr));
   for (let i = 1; i < values.length; i++) {
     if (values[i] <= values[i - 1]) {
       return `HF-Zonen: Z${i} und Z${i + 1} ergeben dieselbe Grenze (${values[i]} bpm).`;
     }
-  }
-  const last = values[values.length - 1];
-  if (maxHr && last >= maxHr) {
-    return `HF-Zonen: Grenze von Z${values.length} (${last} bpm) muss unter HFmax (${maxHr} bpm) liegen.`;
   }
   return null;
 }

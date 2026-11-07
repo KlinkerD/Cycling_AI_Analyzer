@@ -158,7 +158,7 @@ export class SettingsComponent implements OnInit {
     const hr = limitsProblem('HF-Zonen', d.hr, HR_PCT.min, HR_PCT.max, '% LTHR');
     if (hr) out.push(hr);
     else if (this.payload()?.hrZones.length) {
-      const bpmProblem = hrBpmProblem(numbers(d.hr), d.lthr, d.maxHr);
+      const bpmProblem = hrBpmProblem(numbers(d.hr), d.lthr);
       if (bpmProblem) out.push(bpmProblem);
     }
     if (d.ssMin != null || d.ssMax != null) {

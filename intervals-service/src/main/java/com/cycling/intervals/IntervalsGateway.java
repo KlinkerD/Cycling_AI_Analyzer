@@ -123,7 +123,7 @@ public class IntervalsGateway {
 
     /**
      * % LTHR in bpm (kaufmaennisch gerundet), plus die letzte Grenze: HFmax, wenn sie mitkommt, sonst die
-     * bisherige. Die bpm-Grenzen muessen danach noch aufsteigen.
+     * bisherige, mindestens aber eins ueber der vorletzten. Die bpm-Grenzen muessen danach noch aufsteigen.
      */
     private static List<Integer> hrZoneLimits(IntervalsThresholdsUpdate update, JsonNode setting) {
         List<Integer> current = integers(setting.path("hr_zones"));
@@ -146,11 +146,9 @@ public class IntervalsGateway {
             out.add(bpm);
         }
         int last = update.maxHr() != null ? update.maxHr() : current.getLast();
-        if (last <= out.getLast()) {
-            throw badRequest("HF-Zonen: Grenze von Z" + percents.size() + " (" + out.getLast()
-                    + " bpm) muss unter HFmax (" + last + " bpm) liegen.");
-        }
-        out.add(last);
+        // Liegt die vorletzte Grenze schon auf/ueber HFmax, rutscht die letzte knapp darueber: die Liste muss
+        // aufsteigen, die Top-Zone ist ohnehin offen.
+        out.add(Math.max(last, out.getLast() + 1));
         return out;
     }
 

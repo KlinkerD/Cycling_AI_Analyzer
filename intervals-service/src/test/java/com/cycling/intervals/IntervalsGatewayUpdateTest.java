@@ -116,16 +116,15 @@ class IntervalsGatewayUpdateTest {
     }
 
     @Test
-    void hrLimitAboveMaxHrIsBadRequest() {
+    void hrLimitAboveMaxHrPushesTheLastLimitUp() {
         when(http.athleteId()).thenReturn("i1");
         when(http.get("/athlete/i1")).thenReturn(ATHLETE);
 
-        // 115 % von 170 = 196 bpm liegt ueber HFmax 190
-        assertThatThrownBy(() -> gateway.updateThresholds(
-                zones(null, null, null, List.of(82, 89, 94, 99, 102, 115), null, null)))
-                .isInstanceOfSatisfying(IntervalsApiException.class,
-                        e -> assertThat(e.code()).isEqualTo(IntervalsErrorCode.BAD_REQUEST));
-        verify(http, never()).put(anyString(), anyString());
+        // 115 % von 170 = 196 bpm liegt ueber HFmax 190: letzte Grenze wird 197, kein Fehler
+        gateway.updateThresholds(zones(null, null, null, List.of(82, 89, 94, 99, 102, 115), null, null));
+
+        verify(http).put("/athlete/i1/sport-settings/42?recalcHrZones=false",
+                "{\"hr_zones\":[139,151,160,168,173,196,197]}");
     }
 
     @Test
